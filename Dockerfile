@@ -1,10 +1,13 @@
 FROM node:20-alpine
 
+# Install build tools needed for better-sqlite3
+RUN apk add --no-cache python3 make g++ gcc
+
 WORKDIR /app
 
 # Install backend dependencies
 COPY package*.json ./
-RUN npm install --production
+RUN npm install
 
 # Install and build frontend
 COPY client/package*.json ./client/
