@@ -1,0 +1,581 @@
+const Database = require('better-sqlite3');
+const path = require('path');
+const bcrypt = require('bcryptjs');
+
+const DB_PATH = path.join(__dirname, '..', '..', 'data', 'erp.db');
+
+let db;
+
+function getDb() {
+  if (!db) {
+    const fs = require('fs');
+    const dataDir = path.join(__dirname, '..', '..', 'data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+  }
+  return db;
+}
+
+function initializeDatabase() {
+  const db = getDb();
+
+  db.exec(`
+    -- Users & Auth
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT DEFAULT 'user' CHECK(role IN ('admin','manager','user')),
+      department TEXT,
+      phone TEXT,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Roles & Permissions (Admin customizable)
+    CREATE TABLE IF NOT EXISTS roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      is_system INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Module-level permissions per role
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      role_id INTEGER REFERENCES roles(id) ON DELETE CASCADE,
+      module TEXT NOT NULL,
+      can_view INTEGER DEFAULT 0,
+      can_create INTEGER DEFAULT 0,
+      can_edit INTEGER DEFAULT 0,
+      can_delete INTEGER DEFAULT 0,
+      can_approve INTEGER DEFAULT 0,
+      UNIQUE(role_id, module)
+    );
+
+    -- User-role assignment (a user can have a custom role)
+    CREATE TABLE IF NOT EXISTS user_roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      role_id INTEGER REFERENCES roles(id) ON DELETE CASCADE,
+      UNIQUE(user_id, role_id)
+    );
+
+    -- Lead Sources
+    CREATE TABLE IF NOT EXISTS lead_sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE
+    );
+
+    -- Leads / CRM
+    CREATE TABLE IF NOT EXISTS leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT NOT NULL,
+      contact_person TEXT,
+      phone TEXT,
+      email TEXT,
+      source_id INTEGER REFERENCES lead_sources(id),
+      status TEXT DEFAULT 'new' CHECK(status IN (
+        'new','called','qualified','meeting_scheduled','meeting_done',
+        'boq_drawing','quotation_sent','negotiation','won','lost'
+      )),
+      assigned_to INTEGER REFERENCES users(id),
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Meetings
+    CREATE TABLE IF NOT EXISTS meetings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id INTEGER REFERENCES leads(id),
+      scheduled_at DATETIME NOT NULL,
+      location TEXT,
+      agenda TEXT,
+      outcome TEXT,
+      status TEXT DEFAULT 'scheduled' CHECK(status IN ('scheduled','completed','cancelled')),
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- BOQ (Bill of Quantities)
+    CREATE TABLE IF NOT EXISTS boq (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id INTEGER REFERENCES leads(id),
+      title TEXT NOT NULL,
+      drawing_required INTEGER DEFAULT 0,
+      drawing_file TEXT,
+      total_amount REAL DEFAULT 0,
+      status TEXT DEFAULT 'draft' CHECK(status IN ('draft','submitted','approved')),
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS boq_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      boq_id INTEGER REFERENCES boq(id) ON DELETE CASCADE,
+      description TEXT NOT NULL,
+      quantity REAL DEFAULT 0,
+      unit TEXT DEFAULT 'nos',
+      rate REAL DEFAULT 0,
+      amount REAL DEFAULT 0
+    );
+
+    -- Quotations
+    CREATE TABLE IF NOT EXISTS quotations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id INTEGER REFERENCES leads(id),
+      boq_id INTEGER REFERENCES boq(id),
+      quotation_number TEXT UNIQUE,
+      total_amount REAL DEFAULT 0,
+      discount REAL DEFAULT 0,
+      final_amount REAL DEFAULT 0,
+      status TEXT DEFAULT 'draft' CHECK(status IN ('draft','sent','negotiation','accepted','rejected')),
+      valid_until DATE,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Purchase Orders (from client)
+    CREATE TABLE IF NOT EXISTS purchase_orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id INTEGER REFERENCES leads(id),
+      quotation_id INTEGER REFERENCES quotations(id),
+      po_number TEXT UNIQUE NOT NULL,
+      po_date DATE NOT NULL,
+      total_amount REAL DEFAULT 0,
+      advance_amount REAL DEFAULT 0,
+      advance_received INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'received' CHECK(status IN ('received','booked','planning','in_progress','completed')),
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Business Book
+    CREATE TABLE IF NOT EXISTS business_book (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      po_id INTEGER REFERENCES purchase_orders(id),
+      client_name TEXT NOT NULL,
+      project_name TEXT,
+      po_amount REAL DEFAULT 0,
+      advance_received REAL DEFAULT 0,
+      balance_amount REAL DEFAULT 0,
+      status TEXT DEFAULT 'booked' CHECK(status IN ('booked','advance_received','planning','execution','completed')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Order Planning
+    CREATE TABLE IF NOT EXISTS order_planning (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      po_id INTEGER REFERENCES purchase_orders(id),
+      business_book_id INTEGER REFERENCES business_book(id),
+      planned_start DATE,
+      planned_end DATE,
+      notes TEXT,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','in_progress','completed')),
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Vendors
+    CREATE TABLE IF NOT EXISTS vendors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      contact_person TEXT,
+      phone TEXT,
+      email TEXT,
+      address TEXT,
+      gst_number TEXT,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Vendor Rate Comparison
+    CREATE TABLE IF NOT EXISTS vendor_rates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      planning_id INTEGER REFERENCES order_planning(id),
+      item_description TEXT NOT NULL,
+      vendor1_id INTEGER REFERENCES vendors(id),
+      vendor1_rate REAL DEFAULT 0,
+      vendor2_id INTEGER REFERENCES vendors(id),
+      vendor2_rate REAL DEFAULT 0,
+      vendor3_id INTEGER REFERENCES vendors(id),
+      vendor3_rate REAL DEFAULT 0,
+      final_rate REAL DEFAULT 0,
+      selected_vendor_id INTEGER REFERENCES vendors(id),
+      approved_by TEXT,
+      approval_status TEXT DEFAULT 'pending' CHECK(approval_status IN ('pending','approved','rejected')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Indent (Material Request)
+    CREATE TABLE IF NOT EXISTS indents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      planning_id INTEGER REFERENCES order_planning(id),
+      indent_number TEXT UNIQUE,
+      indent_date DATE DEFAULT CURRENT_DATE,
+      status TEXT DEFAULT 'draft' CHECK(status IN ('draft','submitted','approved','rejected','po_sent','dispatched','received')),
+      approved_by INTEGER REFERENCES users(id),
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS indent_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      indent_id INTEGER REFERENCES indents(id) ON DELETE CASCADE,
+      description TEXT NOT NULL,
+      quantity REAL DEFAULT 0,
+      unit TEXT DEFAULT 'nos',
+      rate REAL DEFAULT 0,
+      amount REAL DEFAULT 0,
+      vendor_id INTEGER REFERENCES vendors(id)
+    );
+
+    -- Vendor PO (purchase order to vendor)
+    CREATE TABLE IF NOT EXISTS vendor_pos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      indent_id INTEGER REFERENCES indents(id),
+      vendor_id INTEGER REFERENCES vendors(id),
+      po_number TEXT UNIQUE,
+      total_amount REAL DEFAULT 0,
+      advance_required INTEGER DEFAULT 0,
+      advance_paid INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'sent' CHECK(status IN ('sent','acknowledged','dispatched','delivered','completed')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Purchase Bills
+    CREATE TABLE IF NOT EXISTS purchase_bills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_po_id INTEGER REFERENCES vendor_pos(id),
+      vendor_id INTEGER REFERENCES vendors(id),
+      bill_number TEXT,
+      bill_date DATE,
+      amount REAL DEFAULT 0,
+      gst_amount REAL DEFAULT 0,
+      total_amount REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'pending' CHECK(payment_status IN ('pending','partial','paid')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Delivery Notes
+    CREATE TABLE IF NOT EXISTS delivery_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_po_id INTEGER REFERENCES vendor_pos(id),
+      delivery_date DATE,
+      received_by INTEGER REFERENCES users(id),
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','received','partial','rejected')),
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Sales Bills (to client)
+    CREATE TABLE IF NOT EXISTS sales_bills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      po_id INTEGER REFERENCES purchase_orders(id),
+      bill_number TEXT UNIQUE,
+      bill_date DATE,
+      amount REAL DEFAULT 0,
+      gst_amount REAL DEFAULT 0,
+      total_amount REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'pending' CHECK(payment_status IN ('pending','partial','paid')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Installation
+    CREATE TABLE IF NOT EXISTS installations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      po_id INTEGER REFERENCES purchase_orders(id),
+      site_address TEXT,
+      start_date DATE,
+      end_date DATE,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','in_progress','completed','testing')),
+      assigned_to INTEGER REFERENCES users(id),
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- RA Bill (Running Account Bill)
+    CREATE TABLE IF NOT EXISTS ra_bills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      installation_id INTEGER REFERENCES installations(id),
+      bill_number TEXT,
+      bill_date DATE,
+      work_done_amount REAL DEFAULT 0,
+      previous_amount REAL DEFAULT 0,
+      current_amount REAL DEFAULT 0,
+      status TEXT DEFAULT 'draft' CHECK(status IN ('draft','submitted','approved','paid')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- MB Bill (Measurement Book)
+    CREATE TABLE IF NOT EXISTS mb_bills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ra_bill_id INTEGER REFERENCES ra_bills(id),
+      installation_id INTEGER REFERENCES installations(id),
+      bill_number TEXT,
+      measurements TEXT,
+      total_amount REAL DEFAULT 0,
+      status TEXT DEFAULT 'draft' CHECK(status IN ('draft','verified','approved')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Installation Bills
+    CREATE TABLE IF NOT EXISTS installation_bills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      installation_id INTEGER REFERENCES installations(id),
+      mb_bill_id INTEGER REFERENCES mb_bills(id),
+      bill_number TEXT,
+      amount REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'pending' CHECK(payment_status IN ('pending','partial','paid')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Testing & Commissioning
+    CREATE TABLE IF NOT EXISTS testing_commissioning (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      installation_id INTEGER REFERENCES installations(id),
+      test_date DATE,
+      test_type TEXT,
+      result TEXT CHECK(result IN ('pass','fail','partial')),
+      notes TEXT,
+      tested_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Complaints
+    CREATE TABLE IF NOT EXISTS complaints (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      installation_id INTEGER REFERENCES installations(id),
+      po_id INTEGER REFERENCES purchase_orders(id),
+      complaint_number TEXT UNIQUE,
+      description TEXT NOT NULL,
+      priority TEXT DEFAULT 'medium' CHECK(priority IN ('low','medium','high','critical')),
+      status TEXT DEFAULT 'open' CHECK(status IN ('open','in_progress','resolved','closed')),
+      resolved_date DATE,
+      resolution_notes TEXT,
+      created_by INTEGER REFERENCES users(id),
+      assigned_to INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Handover Certificates
+    CREATE TABLE IF NOT EXISTS handover_certificates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      installation_id INTEGER REFERENCES installations(id),
+      po_id INTEGER REFERENCES purchase_orders(id),
+      certificate_number TEXT UNIQUE,
+      handover_date DATE,
+      client_signatory TEXT,
+      company_signatory TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'draft' CHECK(status IN ('draft','signed','completed')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Payment Tracking
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT CHECK(type IN ('receivable','payable')),
+      reference_type TEXT,
+      reference_id INTEGER,
+      amount REAL DEFAULT 0,
+      payment_date DATE,
+      payment_mode TEXT,
+      transaction_ref TEXT,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- HR: Job Candidates
+    CREATE TABLE IF NOT EXISTS candidates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      source TEXT CHECK(source IN ('facebook','naukri','linkedin','reference','other')),
+      position TEXT,
+      status TEXT DEFAULT 'lead' CHECK(status IN ('lead','called','qualified','interview_scheduled','interview_done','offer_sent','accepted','onboarded','rejected')),
+      resume_file TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- HR: Employees
+    CREATE TABLE IF NOT EXISTS employees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      designation TEXT,
+      department TEXT,
+      join_date DATE,
+      salary REAL DEFAULT 0,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active','training','inactive','terminated')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Sub-Contractors
+    CREATE TABLE IF NOT EXISTS sub_contractors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      specialization TEXT,
+      rate REAL DEFAULT 0,
+      rate_unit TEXT DEFAULT 'per_day',
+      status TEXT DEFAULT 'qualified' CHECK(status IN ('qualified','negotiation','onboarded','active','inactive')),
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Expenses
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      amount REAL NOT NULL,
+      category TEXT,
+      expense_date DATE DEFAULT CURRENT_DATE,
+      receipt_file TEXT,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','paid')),
+      submitted_by INTEGER REFERENCES users(id),
+      approved_by INTEGER REFERENCES users(id),
+      paid_date DATE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Checklists
+    CREATE TABLE IF NOT EXISTS checklists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      frequency TEXT DEFAULT 'monthly' CHECK(frequency IN ('daily','weekly','monthly','quarterly','yearly','once')),
+      due_date DATE,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','in_progress','completed','overdue')),
+      assigned_to INTEGER REFERENCES users(id),
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Activity Log
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      module TEXT NOT NULL,
+      action TEXT NOT NULL,
+      record_id INTEGER,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Seed lead sources
+  const sources = ['Indiamart', 'WhatsApp', 'LinkedIn', 'Client Reference', 'YouTube', 'Instagram', 'Twitter'];
+  const insertSource = db.prepare('INSERT OR IGNORE INTO lead_sources (name) VALUES (?)');
+  for (const s of sources) insertSource.run(s);
+
+  // Seed default roles
+  const defaultRoles = [
+    { name: 'Admin', desc: 'Full access to all modules', is_system: 1 },
+    { name: 'Sales Manager', desc: 'Manage leads, quotations, orders', is_system: 0 },
+    { name: 'Sales Executive', desc: 'View and create leads, quotations', is_system: 0 },
+    { name: 'Purchase Manager', desc: 'Manage procurement and vendors', is_system: 0 },
+    { name: 'Site Engineer', desc: 'Installation and testing', is_system: 0 },
+    { name: 'HR Manager', desc: 'HR, hiring, employees', is_system: 0 },
+    { name: 'Accountant', desc: 'Billing, expenses, payments', is_system: 0 },
+    { name: 'Viewer', desc: 'View-only access to all modules', is_system: 0 },
+  ];
+
+  const ALL_MODULES = [
+    'dashboard','leads','quotations','orders','vendors','procurement',
+    'installation','billing','complaints','hr','employees','expenses','checklists','users'
+  ];
+
+  const insertRole = db.prepare('INSERT OR IGNORE INTO roles (name, description, is_system) VALUES (?, ?, ?)');
+  for (const r of defaultRoles) insertRole.run(r.name, r.desc, r.is_system);
+
+  // Seed permissions for each role
+  const adminRole = db.prepare("SELECT id FROM roles WHERE name='Admin'").get();
+  if (adminRole) {
+    const existingPerms = db.prepare('SELECT COUNT(*) as c FROM role_permissions WHERE role_id=?').get(adminRole.id);
+    if (existingPerms.c === 0) {
+      const insertPerm = db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, module, can_view, can_create, can_edit, can_delete, can_approve) VALUES (?,?,?,?,?,?,?)');
+      // Admin gets full access
+      for (const m of ALL_MODULES) insertPerm.run(adminRole.id, m, 1, 1, 1, 1, 1);
+
+      // Sales Manager
+      const smRole = db.prepare("SELECT id FROM roles WHERE name='Sales Manager'").get();
+      if (smRole) {
+        for (const m of ['dashboard','leads','quotations','orders']) insertPerm.run(smRole.id, m, 1, 1, 1, 1, 1);
+        for (const m of ['vendors','procurement','installation','billing','complaints']) insertPerm.run(smRole.id, m, 1, 0, 0, 0, 0);
+      }
+
+      // Sales Executive
+      const seRole = db.prepare("SELECT id FROM roles WHERE name='Sales Executive'").get();
+      if (seRole) {
+        for (const m of ['dashboard','leads','quotations']) insertPerm.run(seRole.id, m, 1, 1, 1, 0, 0);
+        for (const m of ['orders']) insertPerm.run(seRole.id, m, 1, 0, 0, 0, 0);
+      }
+
+      // Purchase Manager
+      const pmRole = db.prepare("SELECT id FROM roles WHERE name='Purchase Manager'").get();
+      if (pmRole) {
+        for (const m of ['dashboard','vendors','procurement']) insertPerm.run(pmRole.id, m, 1, 1, 1, 1, 1);
+        for (const m of ['orders','billing']) insertPerm.run(pmRole.id, m, 1, 1, 1, 0, 0);
+      }
+
+      // Site Engineer
+      const engRole = db.prepare("SELECT id FROM roles WHERE name='Site Engineer'").get();
+      if (engRole) {
+        for (const m of ['dashboard','installation','complaints']) insertPerm.run(engRole.id, m, 1, 1, 1, 0, 0);
+        for (const m of ['billing']) insertPerm.run(engRole.id, m, 1, 1, 0, 0, 0);
+        for (const m of ['orders']) insertPerm.run(engRole.id, m, 1, 0, 0, 0, 0);
+      }
+
+      // HR Manager
+      const hrRole = db.prepare("SELECT id FROM roles WHERE name='HR Manager'").get();
+      if (hrRole) {
+        for (const m of ['dashboard','hr','employees','expenses','checklists']) insertPerm.run(hrRole.id, m, 1, 1, 1, 1, 1);
+      }
+
+      // Accountant
+      const accRole = db.prepare("SELECT id FROM roles WHERE name='Accountant'").get();
+      if (accRole) {
+        for (const m of ['dashboard','billing','expenses']) insertPerm.run(accRole.id, m, 1, 1, 1, 0, 1);
+        for (const m of ['orders','procurement','vendors']) insertPerm.run(accRole.id, m, 1, 0, 0, 0, 0);
+      }
+
+      // Viewer
+      const viewerRole = db.prepare("SELECT id FROM roles WHERE name='Viewer'").get();
+      if (viewerRole) {
+        for (const m of ALL_MODULES) insertPerm.run(viewerRole.id, m, 1, 0, 0, 0, 0);
+      }
+    }
+  }
+
+  // Seed default admin user
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@erp.com');
+  if (!existing) {
+    const hash = bcrypt.hashSync('admin123', 10);
+    const r = db.prepare('INSERT INTO users (name, email, password, role, department) VALUES (?, ?, ?, ?, ?)')
+      .run('Admin', 'admin@erp.com', hash, 'admin', 'Management');
+    // Assign Admin role
+    if (adminRole) {
+      db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(r.lastInsertRowid, adminRole.id);
+    }
+  }
+
+  console.log('Database initialized successfully');
+  return db;
+}
+
+module.exports = { getDb, initializeDatabase };
