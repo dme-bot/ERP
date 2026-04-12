@@ -476,6 +476,193 @@ function initializeDatabase() {
       details TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- ============================================
+    -- SYSTEM 1: AUTOMATIC CASH FLOW SYSTEM
+    -- ============================================
+    CREATE TABLE IF NOT EXISTS cash_flow_daily (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date DATE UNIQUE NOT NULL,
+      opening_balance REAL DEFAULT 0,
+      total_inflows REAL DEFAULT 0,
+      total_outflows REAL DEFAULT 0,
+      closing_balance REAL DEFAULT 0,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS cash_flow_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      daily_id INTEGER REFERENCES cash_flow_daily(id),
+      date DATE NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('inflow','outflow')),
+      category TEXT NOT NULL,
+      description TEXT NOT NULL,
+      amount REAL NOT NULL,
+      reference_type TEXT,
+      reference_id INTEGER,
+      payment_mode TEXT,
+      party_name TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- ============================================
+    -- SYSTEM 2: COLLECTION ENGINE SYSTEM
+    -- ============================================
+    CREATE TABLE IF NOT EXISTS receivables (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_name TEXT NOT NULL,
+      project_name TEXT,
+      po_id INTEGER REFERENCES purchase_orders(id),
+      invoice_number TEXT,
+      invoice_date DATE,
+      invoice_amount REAL NOT NULL DEFAULT 0,
+      received_amount REAL DEFAULT 0,
+      outstanding_amount REAL DEFAULT 0,
+      due_date DATE,
+      ageing_days INTEGER DEFAULT 0,
+      ageing_bucket TEXT DEFAULT '0-30' CHECK(ageing_bucket IN ('0-30','31-60','61-90','90+')),
+      status TEXT DEFAULT 'red' CHECK(status IN ('green','yellow','red')),
+      follow_up_status TEXT DEFAULT 'pending' CHECK(follow_up_status IN ('pending','contacted','promised','escalated','legal')),
+      follow_up_date DATE,
+      follow_up_notes TEXT,
+      escalation_level INTEGER DEFAULT 0,
+      owner_id INTEGER REFERENCES users(id),
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_follow_ups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      receivable_id INTEGER REFERENCES receivables(id) ON DELETE CASCADE,
+      follow_up_date DATE NOT NULL,
+      contact_method TEXT CHECK(contact_method IN ('call','email','visit','whatsapp','legal_notice')),
+      response TEXT,
+      promised_date DATE,
+      promised_amount REAL,
+      status TEXT DEFAULT 'done',
+      followed_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS collections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      receivable_id INTEGER REFERENCES receivables(id),
+      amount REAL NOT NULL,
+      collection_date DATE NOT NULL,
+      payment_mode TEXT,
+      transaction_ref TEXT,
+      notes TEXT,
+      collected_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- ============================================
+    -- SYSTEM 3: INDENT TO PAYMENT FMS (Enhanced)
+    -- ============================================
+    CREATE TABLE IF NOT EXISTS grn (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_po_id INTEGER REFERENCES vendor_pos(id),
+      indent_id INTEGER REFERENCES indents(id),
+      grn_number TEXT UNIQUE,
+      grn_date DATE NOT NULL,
+      received_by INTEGER REFERENCES users(id),
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','partial','complete','rejected')),
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS grn_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      grn_id INTEGER REFERENCES grn(id) ON DELETE CASCADE,
+      description TEXT NOT NULL,
+      ordered_qty REAL DEFAULT 0,
+      received_qty REAL DEFAULT 0,
+      accepted_qty REAL DEFAULT 0,
+      rejected_qty REAL DEFAULT 0,
+      unit TEXT DEFAULT 'nos',
+      rate REAL DEFAULT 0,
+      amount REAL DEFAULT 0,
+      remarks TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS indent_tracker (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      indent_id INTEGER REFERENCES indents(id),
+      stage TEXT NOT NULL CHECK(stage IN ('indent_raised','approval_pending','approved','po_created','dispatched','grn_done','bill_entered','payment_done')),
+      stage_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_by INTEGER REFERENCES users(id),
+      notes TEXT
+    );
+
+    -- ============================================
+    -- SYSTEM 4: DPR DAILY CALCULATION SYSTEM
+    -- ============================================
+    CREATE TABLE IF NOT EXISTS sites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      address TEXT,
+      client_name TEXT,
+      po_id INTEGER REFERENCES purchase_orders(id),
+      site_engineer_id INTEGER REFERENCES users(id),
+      supervisor TEXT,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active','completed','on_hold')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS dpr (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id INTEGER REFERENCES sites(id),
+      report_date DATE NOT NULL,
+      submitted_by INTEGER REFERENCES users(id),
+      submission_time DATETIME,
+      weather TEXT DEFAULT 'clear' CHECK(weather IN ('clear','rainy','cloudy','hot')),
+      overall_status TEXT DEFAULT 'on_track' CHECK(overall_status IN ('on_track','delayed','ahead','blocked')),
+      remarks TEXT,
+      billing_ready INTEGER DEFAULT 0,
+      approved_by INTEGER REFERENCES users(id),
+      approval_status TEXT DEFAULT 'pending' CHECK(approval_status IN ('pending','approved','rejected')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(site_id, report_date)
+    );
+
+    CREATE TABLE IF NOT EXISTS dpr_work_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dpr_id INTEGER REFERENCES dpr(id) ON DELETE CASCADE,
+      description TEXT NOT NULL,
+      unit TEXT DEFAULT 'nos',
+      boq_qty REAL DEFAULT 0,
+      planned_qty REAL DEFAULT 0,
+      actual_qty REAL DEFAULT 0,
+      cumulative_qty REAL DEFAULT 0,
+      variance_pct REAL DEFAULT 0,
+      remarks TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS dpr_manpower (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dpr_id INTEGER REFERENCES dpr(id) ON DELETE CASCADE,
+      category TEXT NOT NULL,
+      required INTEGER DEFAULT 0,
+      deployed INTEGER DEFAULT 0,
+      shortage INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS dpr_material (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dpr_id INTEGER REFERENCES dpr(id) ON DELETE CASCADE,
+      material_name TEXT NOT NULL,
+      unit TEXT DEFAULT 'nos',
+      boq_qty REAL DEFAULT 0,
+      consumed_today REAL DEFAULT 0,
+      cumulative_consumed REAL DEFAULT 0,
+      balance_qty REAL DEFAULT 0,
+      remarks TEXT
+    );
   `);
 
   // Seed lead sources
@@ -496,7 +683,7 @@ function initializeDatabase() {
   ];
 
   const ALL_MODULES = [
-    'dashboard','leads','quotations','orders','vendors','procurement',
+    'dashboard','leads','quotations','orders','vendors','procurement','cashflow','collections','indent_fms','dpr',
     'installation','billing','complaints','hr','employees','expenses','checklists','users'
   ];
 

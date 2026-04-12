@@ -5,11 +5,17 @@ import {
   FiHome, FiUsers, FiTarget, FiFileText, FiShoppingCart,
   FiTruck, FiTool, FiAlertCircle, FiUserPlus, FiDollarSign,
   FiCheckSquare, FiMenu, FiX, FiLogOut, FiPackage, FiClipboard,
-  FiSettings, FiShield
+  FiSettings, FiShield, FiTrendingUp, FiCreditCard, FiLayers, FiBarChart2
 } from 'react-icons/fi';
 
 const menuItems = [
   { path: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
+  // 4 Critical Systems
+  { path: '/cashflow', label: 'Cash Flow', icon: FiTrendingUp, module: 'cashflow' },
+  { path: '/collections', label: 'Collection Engine', icon: FiCreditCard, module: 'collections' },
+  { path: '/indent-fms', label: 'Indent to Payment', icon: FiLayers, module: 'indent_fms' },
+  { path: '/dpr', label: 'DPR (Daily Progress)', icon: FiBarChart2, module: 'dpr' },
+  // Other modules
   { path: '/leads', label: 'Leads / CRM', icon: FiTarget, module: 'leads' },
   { path: '/quotations', label: 'BOQ & Quotations', icon: FiFileText, module: 'quotations' },
   { path: '/orders', label: 'Orders & Planning', icon: FiShoppingCart, module: 'orders' },

@@ -15,6 +15,10 @@ import HR from './pages/HR';
 import Employees from './pages/Employees';
 import Expenses from './pages/Expenses';
 import Checklists from './pages/Checklists';
+import CashFlow from './pages/CashFlow';
+import Collections from './pages/Collections';
+import IndentFMS from './pages/IndentFMS';
+import DPR from './pages/DPR';
 import UserManagement from './pages/admin/UserManagement';
 import RolesPermissions from './pages/admin/RolesPermissions';
 
@@ -53,6 +57,12 @@ export default function App() {
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
+        {/* 4 Critical Systems */}
+        <Route path="cashflow" element={<ModuleRoute module="cashflow"><CashFlow /></ModuleRoute>} />
+        <Route path="collections" element={<ModuleRoute module="collections"><Collections /></ModuleRoute>} />
+        <Route path="indent-fms" element={<ModuleRoute module="indent_fms"><IndentFMS /></ModuleRoute>} />
+        <Route path="dpr" element={<ModuleRoute module="dpr"><DPR /></ModuleRoute>} />
+        {/* Other Modules */}
         <Route path="leads" element={<ModuleRoute module="leads"><Leads /></ModuleRoute>} />
         <Route path="quotations" element={<ModuleRoute module="quotations"><Quotations /></ModuleRoute>} />
         <Route path="orders" element={<ModuleRoute module="orders"><Orders /></ModuleRoute>} />

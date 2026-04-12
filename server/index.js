@@ -30,6 +30,12 @@ app.use('/api/procurement', require('./routes/procurement'));
 app.use('/api/installation', require('./routes/installation'));
 app.use('/api/hr', require('./routes/hr'));
 
+// 4 Critical Systems
+app.use('/api/cashflow', require('./routes/cashflow'));
+app.use('/api/collections', require('./routes/collections'));
+app.use('/api/indent-fms', require('./routes/indentfms'));
+app.use('/api/dpr', require('./routes/dpr'));
+
 // Health check for deployment platforms
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
