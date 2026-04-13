@@ -85,23 +85,29 @@ export default function Orders() {
       {tab === 'book' && (
         <>
           <div className="flex justify-between items-center">
-            <h3 className="font-semibold">Business Book</h3>
-            <button onClick={() => { setForm({ po_id: '', client_name: '', project_name: '', po_amount: 0, advance_received: 0 }); setModal('book'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Entry</button>
+            <h3 className="font-semibold">Master Business Book</h3>
+            <button onClick={() => { setForm({ po_id: '', lead_type: 'Private', client_name: '', company_name: '', project_name: '', client_contact: '', source_of_enquiry: '', district: '', state: '', billing_address: '', shipping_address: '', guarantee_required: false, sale_amount_without_gst: 0, po_amount: 0, order_type: 'Supply', penalty_clause: '', committed_start_date: '', committed_delivery_date: '', committed_completion_date: '', category: '', customer_type: '', management_person_name: '', management_person_contact: '', employee_assigned: '', employee_id: '', tpa_items_count: 0, tpa_material_amount: 0, tpa_labour_amount: 0, advance_received: 0, remarks: '' }); setModal('book'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Business Entry</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>PO</th><th>Client</th><th>Project</th><th>PO Amount</th><th>Advance</th><th>Balance</th><th>Status</th></tr></thead>
+          <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">When you add an entry here, it auto-creates: Order Planning + DPR Site + Collection Engine Receivable + Cash Flow Entry</p>
+          <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table>
+            <thead><tr><th>Lead No</th><th>Type</th><th>Client</th><th>Company</th><th>Project</th><th>Category</th><th>Order</th><th>PO Amount</th><th>Advance</th><th>Balance</th><th>Start</th><th>Delivery</th><th>Status</th></tr></thead>
             <tbody>
               {book.map(b => (
                 <tr key={b.id}>
-                  <td>{b.po_number}</td><td className="font-medium">{b.client_name}</td><td>{b.project_name}</td>
-                  <td>Rs {b.po_amount?.toLocaleString()}</td><td>Rs {b.advance_received?.toLocaleString()}</td>
-                  <td className="font-semibold">Rs {b.balance_amount?.toLocaleString()}</td>
+                  <td className="font-bold text-blue-600">{b.lead_no}</td>
+                  <td><span className={`badge ${b.lead_type === 'Government' ? 'badge-purple' : 'badge-blue'}`}>{b.lead_type}</span></td>
+                  <td className="font-medium">{b.client_name}</td><td>{b.company_name}</td><td>{b.project_name}</td>
+                  <td>{b.category}</td>
+                  <td><span className="badge badge-gray">{b.order_type}</span></td>
+                  <td>Rs {b.po_amount?.toLocaleString()}</td><td className="text-emerald-600">Rs {b.advance_received?.toLocaleString()}</td>
+                  <td className="font-semibold text-red-600">Rs {b.balance_amount?.toLocaleString()}</td>
+                  <td className="text-xs">{b.committed_start_date}</td><td className="text-xs">{b.committed_delivery_date}</td>
                   <td><StatusBadge status={b.status} /></td>
                 </tr>
               ))}
-              {book.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No entries yet</td></tr>}
+              {book.length === 0 && <tr><td colSpan="13" className="text-center py-8 text-gray-400">No entries yet</td></tr>}
             </tbody>
-          </table></div>
+          </table></div></div>
         </>
       )}
 
@@ -141,16 +147,83 @@ export default function Orders() {
         </form>
       </Modal>
 
-      <Modal isOpen={modal === 'book'} onClose={() => setModal(false)} title="Add to Business Book">
+      <Modal isOpen={modal === 'book'} onClose={() => setModal(false)} title="Master Business Book Entry" wide>
         <form onSubmit={saveBook} className="space-y-4">
-          <div><label className="label">Purchase Order</label><select className="select" value={form.po_id} onChange={e => setForm({...form, po_id: e.target.value})}><option value="">Select</option>{pos.map(p => <option key={p.id} value={p.id}>{p.po_number}</option>)}</select></div>
-          <div><label className="label">Client Name *</label><input className="input" value={form.client_name} onChange={e => setForm({...form, client_name: e.target.value})} required /></div>
-          <div><label className="label">Project Name</label><input className="input" value={form.project_name} onChange={e => setForm({...form, project_name: e.target.value})} /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="label">PO Amount</label><input className="input" type="number" value={form.po_amount} onChange={e => setForm({...form, po_amount: +e.target.value})} /></div>
-            <div><label className="label">Advance Received</label><input className="input" type="number" value={form.advance_received} onChange={e => setForm({...form, advance_received: +e.target.value})} /></div>
+          <p className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded font-medium">Lead No. will be auto-generated (SEPL format). This entry will auto-create: Order Planning + DPR Site + Receivable + Cash Flow.</p>
+
+          {/* Section 1: Client Details */}
+          <div className="border rounded-lg p-3 bg-gray-50">
+            <h4 className="font-semibold text-sm text-gray-700 mb-3">Client & Company Details</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">Lead Type</label><select className="select" value={form.lead_type} onChange={e => setForm({...form, lead_type: e.target.value})}><option value="Private">Private</option><option value="Government">Government</option></select></div>
+              <div><label className="label">Client Name *</label><input className="input" value={form.client_name} onChange={e => setForm({...form, client_name: e.target.value})} required /></div>
+              <div><label className="label">Company/Department</label><input className="input" value={form.company_name} onChange={e => setForm({...form, company_name: e.target.value})} /></div>
+              <div><label className="label">Client Contact No.</label><input className="input" value={form.client_contact} onChange={e => setForm({...form, client_contact: e.target.value})} /></div>
+              <div><label className="label">Source of Enquiry</label><select className="select" value={form.source_of_enquiry} onChange={e => setForm({...form, source_of_enquiry: e.target.value})}><option value="">Select</option><option>Inbound Enquiry</option><option>Indiamart Enquiry</option><option>WhatsApp</option><option>LinkedIn</option><option>Reference</option><option>Tender</option><option>Other</option></select></div>
+              <div><label className="label">Customer Type</label><input className="input" value={form.customer_type} onChange={e => setForm({...form, customer_type: e.target.value})} placeholder="Hospital, Factory, etc." /></div>
+            </div>
           </div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
+
+          {/* Section 2: Location */}
+          <div className="border rounded-lg p-3 bg-gray-50">
+            <h4 className="font-semibold text-sm text-gray-700 mb-3">Location & Address</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">District</label><input className="input" value={form.district} onChange={e => setForm({...form, district: e.target.value})} /></div>
+              <div><label className="label">State</label><input className="input" value={form.state} onChange={e => setForm({...form, state: e.target.value})} /></div>
+              <div><label className="label">Billing Address</label><input className="input" value={form.billing_address} onChange={e => setForm({...form, billing_address: e.target.value})} /></div>
+              <div className="col-span-2"><label className="label">Shipping / Site Address</label><input className="input" value={form.shipping_address} onChange={e => setForm({...form, shipping_address: e.target.value})} /></div>
+            </div>
+          </div>
+
+          {/* Section 3: Project & Order */}
+          <div className="border rounded-lg p-3 bg-blue-50">
+            <h4 className="font-semibold text-sm text-blue-700 mb-3">Project & Order Details</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">Project Name</label><input className="input" value={form.project_name} onChange={e => setForm({...form, project_name: e.target.value})} /></div>
+              <div><label className="label">Purchase Order</label><select className="select" value={form.po_id} onChange={e => setForm({...form, po_id: e.target.value})}><option value="">Select (optional)</option>{pos.map(p => <option key={p.id} value={p.id}>{p.po_number}</option>)}</select></div>
+              <div><label className="label">Order Type</label><select className="select" value={form.order_type} onChange={e => setForm({...form, order_type: e.target.value})}><option value="Supply">Supply</option><option value="SITC">SITC (Supply, Install, Test, Commission)</option><option value="AMC">AMC</option><option value="Service">Service</option></select></div>
+              <div><label className="label">Category</label><select className="select" value={form.category} onChange={e => setForm({...form, category: e.target.value})}><option value="">Select</option><option>Low Voltage</option><option>Fire Fighting</option><option>Fire Alarm</option><option>CCTV</option><option>Access Control</option><option>PA System</option><option>Networking</option><option>Solar</option><option>Other</option></select></div>
+              <div><label className="label">Guarantee Required</label><select className="select" value={form.guarantee_required ? 'Yes' : 'No'} onChange={e => setForm({...form, guarantee_required: e.target.value === 'Yes'})}><option value="No">No</option><option value="Yes">Yes</option></select></div>
+              <div><label className="label">Penalty Clause</label><input className="input" value={form.penalty_clause} onChange={e => setForm({...form, penalty_clause: e.target.value})} /></div>
+            </div>
+          </div>
+
+          {/* Section 4: Amounts */}
+          <div className="border rounded-lg p-3 bg-emerald-50">
+            <h4 className="font-semibold text-sm text-emerald-700 mb-3">Financial Details</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">Sale Amount (Without GST)</label><input className="input" type="number" value={form.sale_amount_without_gst} onChange={e => setForm({...form, sale_amount_without_gst: +e.target.value})} /></div>
+              <div><label className="label">PO Amount (With GST)</label><input className="input" type="number" value={form.po_amount} onChange={e => setForm({...form, po_amount: +e.target.value})} /></div>
+              <div><label className="label">Advance Received</label><input className="input" type="number" value={form.advance_received} onChange={e => setForm({...form, advance_received: +e.target.value})} /></div>
+              <div><label className="label">TPA Items Count</label><input className="input" type="number" value={form.tpa_items_count} onChange={e => setForm({...form, tpa_items_count: +e.target.value})} /></div>
+              <div><label className="label">TPA Material Amount</label><input className="input" type="number" value={form.tpa_material_amount} onChange={e => setForm({...form, tpa_material_amount: +e.target.value})} /></div>
+              <div><label className="label">TPA Labour Amount</label><input className="input" type="number" value={form.tpa_labour_amount} onChange={e => setForm({...form, tpa_labour_amount: +e.target.value})} /></div>
+            </div>
+          </div>
+
+          {/* Section 5: Committed Dates */}
+          <div className="border rounded-lg p-3 bg-amber-50">
+            <h4 className="font-semibold text-sm text-amber-700 mb-3">Committed Dates</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">Committed Start Date</label><input className="input" type="date" value={form.committed_start_date} onChange={e => setForm({...form, committed_start_date: e.target.value})} /></div>
+              <div><label className="label">Committed Delivery Date</label><input className="input" type="date" value={form.committed_delivery_date} onChange={e => setForm({...form, committed_delivery_date: e.target.value})} /></div>
+              <div><label className="label">Committed Completion Date</label><input className="input" type="date" value={form.committed_completion_date} onChange={e => setForm({...form, committed_completion_date: e.target.value})} /></div>
+            </div>
+          </div>
+
+          {/* Section 6: People */}
+          <div className="border rounded-lg p-3 bg-purple-50">
+            <h4 className="font-semibold text-sm text-purple-700 mb-3">People & Management</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">Management Person Name</label><input className="input" value={form.management_person_name} onChange={e => setForm({...form, management_person_name: e.target.value})} /></div>
+              <div><label className="label">Management Person Contact</label><input className="input" value={form.management_person_contact} onChange={e => setForm({...form, management_person_contact: e.target.value})} /></div>
+              <div><label className="label">Employee Assigned</label><input className="input" value={form.employee_assigned} onChange={e => setForm({...form, employee_assigned: e.target.value})} /></div>
+            </div>
+          </div>
+
+          <div><label className="label">Remarks</label><textarea className="input" rows="2" value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} /></div>
+
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create Master Business Entry</button></div>
         </form>
       </Modal>
 

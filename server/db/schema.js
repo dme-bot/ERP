@@ -156,17 +156,48 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Business Book
+    -- Business Book (Master Business Sheet)
     CREATE TABLE IF NOT EXISTS business_book (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_no TEXT UNIQUE,
       po_id INTEGER REFERENCES purchase_orders(id),
+      lead_type TEXT DEFAULT 'Private' CHECK(lead_type IN ('Private','Government')),
       client_name TEXT NOT NULL,
+      company_name TEXT,
       project_name TEXT,
+      client_contact TEXT,
+      source_of_enquiry TEXT,
+      district TEXT,
+      state TEXT,
+      billing_address TEXT,
+      shipping_address TEXT,
+      guarantee_required INTEGER DEFAULT 0,
+      sale_amount_without_gst REAL DEFAULT 0,
       po_amount REAL DEFAULT 0,
+      order_type TEXT DEFAULT 'Supply' CHECK(order_type IN ('Supply','SITC','AMC','Service')),
+      penalty_clause TEXT,
+      committed_start_date DATE,
+      committed_delivery_date DATE,
+      committed_completion_date DATE,
+      category TEXT,
+      customer_type TEXT,
+      management_person_name TEXT,
+      management_person_contact TEXT,
+      employee_assigned TEXT,
+      employee_id INTEGER REFERENCES users(id),
+      tpa_items_count INTEGER DEFAULT 0,
+      tpa_material_amount REAL DEFAULT 0,
+      tpa_labour_amount REAL DEFAULT 0,
       advance_received REAL DEFAULT 0,
       balance_amount REAL DEFAULT 0,
+      boq_file_link TEXT,
+      tpa_material_link TEXT,
+      tpa_labour_link TEXT,
+      remarks TEXT,
       status TEXT DEFAULT 'booked' CHECK(status IN ('booked','advance_received','planning','execution','completed')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     -- Order Planning

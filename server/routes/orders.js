@@ -27,36 +27,74 @@ router.put('/po/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
-// Business Book
+// Business Book (Master Business Sheet)
 router.get('/business-book', (req, res) => {
-  res.json(getDb().prepare(`SELECT bb.*, po.po_number FROM business_book bb
-    LEFT JOIN purchase_orders po ON bb.po_id=po.id ORDER BY bb.created_at DESC`).all());
+  const { status, category, order_type, search } = req.query;
+  let sql = `SELECT bb.*, po.po_number, u.name as employee_name FROM business_book bb
+    LEFT JOIN purchase_orders po ON bb.po_id=po.id LEFT JOIN users u ON bb.employee_id=u.id WHERE 1=1`;
+  const params = [];
+  if (status) { sql += ' AND bb.status=?'; params.push(status); }
+  if (category) { sql += ' AND bb.category=?'; params.push(category); }
+  if (order_type) { sql += ' AND bb.order_type=?'; params.push(order_type); }
+  if (search) { sql += ' AND (bb.client_name LIKE ? OR bb.company_name LIKE ? OR bb.lead_no LIKE ? OR bb.project_name LIKE ?)'; params.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`); }
+  sql += ' ORDER BY bb.created_at DESC';
+  res.json(getDb().prepare(sql).all(...params));
 });
 
 router.post('/business-book', (req, res) => {
-  const { po_id, client_name, project_name, po_amount, advance_received } = req.body;
+  const {
+    po_id, lead_type, client_name, company_name, project_name, client_contact,
+    source_of_enquiry, district, state, billing_address, shipping_address,
+    guarantee_required, sale_amount_without_gst, po_amount, order_type, penalty_clause,
+    committed_start_date, committed_delivery_date, committed_completion_date,
+    category, customer_type, management_person_name, management_person_contact,
+    employee_assigned, employee_id, tpa_items_count, tpa_material_amount, tpa_labour_amount,
+    advance_received, boq_file_link, tpa_material_link, tpa_labour_link, remarks
+  } = req.body;
   const db = getDb();
 
-  // 1. Create Business Book entry
-  const r = db.prepare(
-    'INSERT INTO business_book (po_id, client_name, project_name, po_amount, advance_received, balance_amount) VALUES (?,?,?,?,?,?)'
-  ).run(po_id, client_name, project_name, po_amount, advance_received || 0, po_amount - (advance_received || 0));
+  // Auto-generate Lead No: SEPL + count
+  const count = db.prepare('SELECT COUNT(*) as c FROM business_book').get().c;
+  const leadNo = `SEPL${String(count + 20001).padStart(5, '0')}`;
+
+  // 1. Create Business Book entry with ALL Master Business fields
+  const r = db.prepare(`INSERT INTO business_book (
+    lead_no, po_id, lead_type, client_name, company_name, project_name, client_contact,
+    source_of_enquiry, district, state, billing_address, shipping_address,
+    guarantee_required, sale_amount_without_gst, po_amount, order_type, penalty_clause,
+    committed_start_date, committed_delivery_date, committed_completion_date,
+    category, customer_type, management_person_name, management_person_contact,
+    employee_assigned, employee_id, tpa_items_count, tpa_material_amount, tpa_labour_amount,
+    advance_received, balance_amount, boq_file_link, tpa_material_link, tpa_labour_link, remarks, created_by
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    leadNo, po_id, lead_type || 'Private', client_name, company_name, project_name, client_contact,
+    source_of_enquiry, district, state, billing_address, shipping_address,
+    guarantee_required ? 1 : 0, sale_amount_without_gst || 0, po_amount || 0, order_type || 'Supply', penalty_clause,
+    committed_start_date, committed_delivery_date, committed_completion_date,
+    category, customer_type, management_person_name, management_person_contact,
+    employee_assigned, employee_id, tpa_items_count || 0, tpa_material_amount || 0, tpa_labour_amount || 0,
+    advance_received || 0, (po_amount || 0) - (advance_received || 0),
+    boq_file_link, tpa_material_link, tpa_labour_link, remarks, req.user.id
+  );
   const bbId = r.lastInsertRowid;
 
   // === AUTO-FLOW: PO → Order Planning → DPR Site ===
 
-  // 2. Auto-create Order Planning entry
+  // 2. Auto-create Order Planning entry with committed dates
   const planResult = db.prepare(
-    'INSERT INTO order_planning (po_id, business_book_id, notes, created_by) VALUES (?,?,?,?)'
-  ).run(po_id, bbId, `Auto-created from Business Book: ${project_name || client_name}`, req.user.id);
+    'INSERT INTO order_planning (po_id, business_book_id, planned_start, planned_end, notes, created_by) VALUES (?,?,?,?,?,?)'
+  ).run(po_id, bbId, committed_start_date || null, committed_completion_date || null,
+    `Auto-created from Master Business: ${leadNo} - ${project_name || client_name} [${category || ''} | ${order_type || 'Supply'}]`, req.user.id);
 
-  // 3. Auto-create DPR Site from project
+  // 3. Auto-create DPR Site from project with full details
   const existingSite = po_id ? db.prepare('SELECT id FROM sites WHERE po_id=?').get(po_id) : null;
   let siteId = existingSite?.id;
   if (!siteId) {
+    const siteName = project_name || `${client_name} - ${category || 'Project'}`;
+    const siteAddress = shipping_address || billing_address || `${district || ''}, ${state || ''}`;
     const siteResult = db.prepare(
-      'INSERT INTO sites (name, client_name, po_id) VALUES (?,?,?)'
-    ).run(project_name || `${client_name} Project`, client_name, po_id);
+      'INSERT INTO sites (name, address, client_name, po_id, supervisor) VALUES (?,?,?,?,?)'
+    ).run(siteName, siteAddress, client_name || company_name, po_id, employee_assigned || management_person_name);
     siteId = siteResult.lastInsertRowid;
   }
 
@@ -110,7 +148,8 @@ router.post('/business-book', (req, res) => {
 
   res.status(201).json({
     id: bbId,
-    message: 'Business Book entry created with auto-links',
+    lead_no: leadNo,
+    message: 'Master Business entry created with auto-links',
     auto_created: {
       order_planning: planResult.lastInsertRowid,
       dpr_site: siteId,
