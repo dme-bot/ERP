@@ -710,6 +710,7 @@ function initializeDatabase() {
     { name: 'Site Engineer', desc: 'Installation and testing', is_system: 0 },
     { name: 'HR Manager', desc: 'HR, hiring, employees', is_system: 0 },
     { name: 'Accountant', desc: 'Billing, expenses, payments', is_system: 0 },
+    { name: 'Data Entry', desc: 'Data entry for Business Book and orders', is_system: 0 },
     { name: 'Viewer', desc: 'View-only access to all modules', is_system: 0 },
   ];
 
@@ -730,10 +731,19 @@ function initializeDatabase() {
       // Admin gets full access
       for (const m of ALL_MODULES) insertPerm.run(adminRole.id, m, 1, 1, 1, 1, 1);
 
+      // Data Entry - full access to business_book + orders, view others
+      const deRole = db.prepare("SELECT id FROM roles WHERE name='Data Entry'").get();
+      if (deRole) {
+        for (const m of ['dashboard']) insertPerm.run(deRole.id, m, 1, 0, 0, 0, 0);
+        for (const m of ['business_book','orders']) insertPerm.run(deRole.id, m, 1, 1, 1, 1, 0);
+        for (const m of ['leads','quotations','vendors','procurement','cashflow','collections','indent_fms','dpr','installation','billing','complaints','hr','employees','expenses','checklists']) insertPerm.run(deRole.id, m, 1, 0, 0, 0, 0);
+      }
+
       // Sales Manager
       const smRole = db.prepare("SELECT id FROM roles WHERE name='Sales Manager'").get();
       if (smRole) {
         for (const m of ['dashboard','leads','quotations','orders']) insertPerm.run(smRole.id, m, 1, 1, 1, 1, 1);
+        for (const m of ['business_book']) insertPerm.run(smRole.id, m, 1, 0, 0, 0, 0);
         for (const m of ['vendors','procurement','installation','billing','complaints']) insertPerm.run(smRole.id, m, 1, 0, 0, 0, 0);
       }
 
@@ -741,7 +751,7 @@ function initializeDatabase() {
       const seRole = db.prepare("SELECT id FROM roles WHERE name='Sales Executive'").get();
       if (seRole) {
         for (const m of ['dashboard','leads','quotations']) insertPerm.run(seRole.id, m, 1, 1, 1, 0, 0);
-        for (const m of ['orders']) insertPerm.run(seRole.id, m, 1, 0, 0, 0, 0);
+        for (const m of ['orders','business_book']) insertPerm.run(seRole.id, m, 1, 0, 0, 0, 0);
       }
 
       // Purchase Manager
@@ -749,6 +759,7 @@ function initializeDatabase() {
       if (pmRole) {
         for (const m of ['dashboard','vendors','procurement']) insertPerm.run(pmRole.id, m, 1, 1, 1, 1, 1);
         for (const m of ['orders','billing']) insertPerm.run(pmRole.id, m, 1, 1, 1, 0, 0);
+        for (const m of ['business_book']) insertPerm.run(pmRole.id, m, 1, 0, 0, 0, 0);
       }
 
       // Site Engineer
@@ -756,20 +767,21 @@ function initializeDatabase() {
       if (engRole) {
         for (const m of ['dashboard','installation','complaints']) insertPerm.run(engRole.id, m, 1, 1, 1, 0, 0);
         for (const m of ['billing']) insertPerm.run(engRole.id, m, 1, 1, 0, 0, 0);
-        for (const m of ['orders']) insertPerm.run(engRole.id, m, 1, 0, 0, 0, 0);
+        for (const m of ['orders','business_book']) insertPerm.run(engRole.id, m, 1, 0, 0, 0, 0);
       }
 
       // HR Manager
       const hrRole = db.prepare("SELECT id FROM roles WHERE name='HR Manager'").get();
       if (hrRole) {
         for (const m of ['dashboard','hr','employees','expenses','checklists']) insertPerm.run(hrRole.id, m, 1, 1, 1, 1, 1);
+        for (const m of ['business_book']) insertPerm.run(hrRole.id, m, 1, 0, 0, 0, 0);
       }
 
       // Accountant
       const accRole = db.prepare("SELECT id FROM roles WHERE name='Accountant'").get();
       if (accRole) {
         for (const m of ['dashboard','billing','expenses']) insertPerm.run(accRole.id, m, 1, 1, 1, 0, 1);
-        for (const m of ['orders','procurement','vendors']) insertPerm.run(accRole.id, m, 1, 0, 0, 0, 0);
+        for (const m of ['orders','procurement','vendors','business_book']) insertPerm.run(accRole.id, m, 1, 0, 0, 0, 0);
       }
 
       // Viewer
