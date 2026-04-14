@@ -21,12 +21,12 @@ router.get('/po', (req, res) => {
 });
 
 router.post('/po', (req, res) => {
-  const { business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, items } = req.body;
+  const { business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, items } = req.body;
   const db = getDb();
 
   const r = db.prepare(
-    'INSERT INTO purchase_orders (business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, created_by) VALUES (?,?,?,?,?,?,?,?)'
-  ).run(business_book_id || null, lead_id || null, quotation_id || null, po_number, po_date, total_amount, advance_amount || 0, req.user.id);
+    'INSERT INTO purchase_orders (business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(business_book_id || null, lead_id || null, quotation_id || null, po_number, po_date, total_amount, advance_amount || 0, po_copy_link || null, pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0, req.user.id);
   const poId = r.lastInsertRowid;
 
   // Insert PO items

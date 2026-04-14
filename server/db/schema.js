@@ -152,6 +152,12 @@ function initializeDatabase() {
       total_amount REAL DEFAULT 0,
       advance_amount REAL DEFAULT 0,
       advance_received INTEGER DEFAULT 0,
+      po_copy_link TEXT,
+      pt_advance REAL DEFAULT 0,
+      pt_delivery REAL DEFAULT 0,
+      pt_installation REAL DEFAULT 0,
+      pt_commissioning REAL DEFAULT 0,
+      pt_retention REAL DEFAULT 0,
       status TEXT DEFAULT 'received' CHECK(status IN ('received','booked','planning','in_progress','completed')),
       created_by INTEGER REFERENCES users(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
