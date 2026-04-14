@@ -264,7 +264,25 @@ export default function Orders() {
           <div className="border rounded-lg p-3 bg-indigo-50">
             <div className="flex justify-between items-center mb-3">
               <h4 className="font-semibold text-sm text-indigo-700">PO Items (Item-wise Entry)</h4>
-              <button type="button" onClick={addItem} className="btn btn-secondary text-xs flex items-center gap-1"><FiPlus size={12} /> Add Item</button>
+              <div className="flex gap-2">
+                <a href="/api/orders/po-template" className="btn btn-secondary text-xs flex items-center gap-1"><FiUpload size={12} /> Download Template</a>
+                <label className="btn btn-secondary text-xs flex items-center gap-1 cursor-pointer">
+                  <FiUpload size={12} /> Upload Excel
+                  <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async (e) => {
+                    const file = e.target.files[0]; if (!file) return;
+                    const fd = new FormData(); fd.append('file', file);
+                    try {
+                      const res = await api.post('/orders/po-upload-excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                      if (res.data.items?.length > 0) {
+                        setPoItems(res.data.items.map(i => ({ ...i, item_master_id: '' })));
+                        toast.success(`Loaded ${res.data.count} items from Excel`);
+                      } else { toast.error('No items found in Excel'); }
+                    } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
+                    e.target.value = '';
+                  }} />
+                </label>
+                <button type="button" onClick={addItem} className="btn btn-secondary text-xs flex items-center gap-1"><FiPlus size={12} /> Add Item</button>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 px-1">
@@ -273,22 +291,26 @@ export default function Orders() {
               {poItems.map((item, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
                   <div className="col-span-4">
-                    <SearchableSelect
-                      options={masterItems.map(mi => ({ id: mi.id, label: `[${mi.item_code}] ${mi.display_name}`, ...mi }))}
-                      value={item.item_master_id || null}
-                      valueKey="id"
-                      displayKey="label"
-                      placeholder="Type to search items..."
-                      onChange={(mi) => {
-                        const items = [...poItems];
-                        items[i].item_master_id = mi?.id || '';
-                        items[i].description = mi?.display_name || '';
-                        items[i].unit = mi?.uom?.toLowerCase() || items[i].unit;
-                        items[i].rate = mi?.current_price || items[i].rate;
-                        items[i].amount = (items[i].quantity || 0) * (items[i].rate || 0);
-                        setPoItems(items);
-                      }}
-                    />
+                    {item.description && !item.item_master_id ? (
+                      <div className="input text-sm bg-blue-50 font-medium text-blue-800 truncate" title={item.description}>{item.description}</div>
+                    ) : (
+                      <SearchableSelect
+                        options={masterItems.map(mi => ({ id: mi.id, label: `[${mi.item_code}] ${mi.display_name}`, ...mi }))}
+                        value={item.item_master_id || null}
+                        valueKey="id"
+                        displayKey="label"
+                        placeholder="Search or upload Excel..."
+                        onChange={(mi) => {
+                          const items = [...poItems];
+                          items[i].item_master_id = mi?.id || '';
+                          items[i].description = mi?.display_name || '';
+                          items[i].unit = mi?.uom?.toLowerCase() || items[i].unit;
+                          items[i].rate = mi?.current_price || items[i].rate;
+                          items[i].amount = (items[i].quantity || 0) * (items[i].rate || 0);
+                          setPoItems(items);
+                        }}
+                      />
+                    )}
                   </div>
                   <input className="input text-sm" type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', +e.target.value)} />
                   <select className="select text-sm" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>

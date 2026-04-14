@@ -161,7 +161,7 @@ router.post('/', requirePermission('business_book', 'create'), (req, res) => {
   if ((b.po_amount || 0) > (b.advance_received || 0)) {
     const dueDate = new Date(Date.now() + (b.credit_days || 30) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     db.prepare('INSERT INTO receivables (client_name, project_name, invoice_amount, received_amount, outstanding_amount, due_date, status, created_by) VALUES (?,?,?,?,?,?,?,?)')
-      .run(b.client_name, b.project_name, b.po_amount, b.advance_received || 0, balanceAmount, dueDate, 'green', req.user.id);
+      .run(b.client_name, b.company_name || b.project_name, b.po_amount, b.advance_received || 0, balanceAmount, dueDate, 'green', req.user.id);
   }
 
   res.status(201).json({

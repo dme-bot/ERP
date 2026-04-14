@@ -1,8 +1,17 @@
 const express = require('express');
+const path = require('path');
+const multer = require('multer');
+const XLSX = require('xlsx');
 const { getDb } = require('../db/schema');
 const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
+
+// Multer for Excel upload
+const fs = require('fs');
+const uploadDir = path.join(__dirname, '..', '..', 'data', 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const upload = multer({ dest: uploadDir, limits: { fileSize: 10 * 1024 * 1024 } });
 
 // Business Book entries for PO dropdown
 router.get('/business-book-entries', (req, res) => {
@@ -136,6 +145,107 @@ router.get('/po/:id/boq-items', (req, res) => {
   if (!quotation?.boq_id) return res.json([]);
   const items = db.prepare('SELECT * FROM boq_items WHERE boq_id=?').all(quotation.boq_id);
   res.json(items);
+});
+
+// Download PO Excel template
+router.get('/po-template', (req, res) => {
+  const wb = XLSX.utils.book_new();
+  const headers = [
+    ['SEPL - Purchase Order Items Template'],
+    [''],
+    ['Instructions: Fill in the items below and upload. Item Name, Qty, Unit, Rate are required.'],
+    [''],
+    ['Sr No', 'Item Name', 'Specification', 'Size', 'Qty', 'Unit', 'Rate (Rs)', 'Amount (Rs)', 'HSN Code'],
+    [1, 'BRANCH PIPE', 'SS TYPE', '63MM', 10, 'PCS', 1050, '=E6*G6', ''],
+    [2, 'HOSE REEL DRUM', 'WITH 30 MTR PIPE', '20mm dia', 5, 'PCS', 3650, '=E7*G7', ''],
+    [3, '', '', '', '', 'PCS', '', '', ''],
+    [4, '', '', '', '', 'PCS', '', '', ''],
+    [5, '', '', '', '', 'PCS', '', '', ''],
+    [6, '', '', '', '', 'PCS', '', '', ''],
+    [7, '', '', '', '', 'PCS', '', '', ''],
+    [8, '', '', '', '', 'PCS', '', '', ''],
+    [9, '', '', '', '', 'PCS', '', '', ''],
+    [10, '', '', '', '', 'PCS', '', '', ''],
+    [11, '', '', '', '', 'PCS', '', '', ''],
+    [12, '', '', '', '', 'PCS', '', '', ''],
+    [13, '', '', '', '', 'PCS', '', '', ''],
+    [14, '', '', '', '', 'PCS', '', '', ''],
+    [15, '', '', '', '', 'PCS', '', '', ''],
+    [16, '', '', '', '', 'PCS', '', '', ''],
+    [17, '', '', '', '', 'PCS', '', '', ''],
+    [18, '', '', '', '', 'PCS', '', '', ''],
+    [19, '', '', '', '', 'PCS', '', '', ''],
+    [20, '', '', '', '', 'PCS', '', '', ''],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(headers);
+  ws['!cols'] = [{ wch: 6 }, { wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'PO Items');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename=PO-Items-Template.xlsx');
+  res.send(Buffer.from(buf));
+});
+
+// Upload PO Excel and auto-import items
+router.post('/po-upload-excel', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    const wb = XLSX.readFile(req.file.path);
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+    // Find header row (contains 'Item Name' or 'Qty')
+    let headerIdx = -1;
+    for (let i = 0; i < Math.min(10, data.length); i++) {
+      const row = (data[i] || []).map(c => String(c || '').toLowerCase());
+      if (row.some(c => c.includes('item name') || c.includes('item') || c.includes('description'))) { headerIdx = i; break; }
+    }
+    if (headerIdx === -1) headerIdx = 4; // Default: row 5 (0-indexed)
+
+    const headers = (data[headerIdx] || []).map(h => String(h || '').toLowerCase().trim());
+    // Map columns
+    const colMap = {};
+    headers.forEach((h, i) => {
+      if (h.includes('item name') || h.includes('description') || h === 'item') colMap.name = i;
+      if (h.includes('specification') || h.includes('spec')) colMap.spec = i;
+      if (h.includes('size')) colMap.size = i;
+      if (h.includes('qty') || h.includes('quantity')) colMap.qty = i;
+      if (h.includes('unit') || h.includes('uom')) colMap.unit = i;
+      if (h.includes('rate')) colMap.rate = i;
+      if (h.includes('amount')) colMap.amount = i;
+      if (h.includes('hsn')) colMap.hsn = i;
+    });
+
+    if (colMap.name === undefined) return res.status(400).json({ error: 'Could not find "Item Name" column in Excel' });
+
+    const items = [];
+    for (let i = headerIdx + 1; i < data.length; i++) {
+      const row = data[i] || [];
+      const name = String(row[colMap.name] || '').trim();
+      if (!name) continue;
+      const spec = colMap.spec !== undefined ? String(row[colMap.spec] || '').trim() : '';
+      const size = colMap.size !== undefined ? String(row[colMap.size] || '').trim() : '';
+      const description = [name, spec, size].filter(Boolean).join(' / ');
+      items.push({
+        description,
+        item_name: name,
+        specification: spec,
+        size: size,
+        quantity: parseFloat(row[colMap.qty]) || 0,
+        unit: String(row[colMap.unit] || 'PCS').trim(),
+        rate: parseFloat(row[colMap.rate]) || 0,
+        amount: parseFloat(row[colMap.amount]) || 0,
+        hsn_code: colMap.hsn !== undefined ? String(row[colMap.hsn] || '').trim() : '',
+      });
+    }
+
+    // Clean up uploaded file
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
+
+    res.json({ items, count: items.length });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to parse Excel: ' + err.message });
+  }
 });
 
 module.exports = router;
