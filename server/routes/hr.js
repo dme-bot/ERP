@@ -49,6 +49,26 @@ router.post('/employees', (req, res) => {
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
+// Bulk import employees
+router.post('/employees/bulk', (req, res) => {
+  const { employees } = req.body;
+  if (!employees || !Array.isArray(employees) || employees.length === 0) {
+    return res.status(400).json({ error: 'No employee data provided' });
+  }
+  const db = getDb();
+  const insert = db.prepare('INSERT INTO employees (name,phone,email,designation,department,join_date,salary) VALUES (?,?,?,?,?,?,?)');
+  let added = 0, errors = [];
+  for (let i = 0; i < employees.length; i++) {
+    const e = employees[i];
+    if (!e.name || !e.name.trim()) { errors.push(`Row ${i + 1}: Name is required`); continue; }
+    try {
+      insert.run(e.name?.trim(), e.phone?.trim() || '', e.email?.trim() || '', e.designation?.trim() || '', e.department?.trim() || '', e.join_date || '', e.salary || 0);
+      added++;
+    } catch (err) { errors.push(`Row ${i + 1}: ${err.message}`); }
+  }
+  res.json({ added, errors, total: employees.length });
+});
+
 router.put('/employees/:id', (req, res) => {
   const { name, phone, email, designation, department, salary, status } = req.body;
   getDb().prepare('UPDATE employees SET name=?,phone=?,email=?,designation=?,department=?,salary=?,status=? WHERE id=?')
