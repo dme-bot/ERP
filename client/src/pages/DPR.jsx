@@ -3,9 +3,8 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiMapPin, FiAlertTriangle, FiCheck, FiEye } from 'react-icons/fi';
+import { FiPlus, FiMapPin, FiAlertTriangle, FiCheck, FiEye, FiTrash2 } from 'react-icons/fi';
 
-const MEPF_TRADES = ['Electrician', 'Plumber', 'Fire Fitter', 'Welder', 'CCTV Technician', 'AC Technician', 'Cable Jointer', 'Helper', 'Supervisor', 'Site Engineer'];
 const SYSTEMS = ['Electrical', 'Fire Fighting', 'Fire Alarm', 'CCTV', 'Access Control', 'PA System', 'Plumbing', 'HVAC', 'Solar', 'Networking', 'Combined'];
 const EQUIPMENT_LIST = ['Welding Machine', 'Pipe Threading Machine', 'Drill Machine', 'Grinder', 'Ladder', 'Scaffolding', 'Pipe Bending Machine', 'Cable Pulling Machine', 'Multimeter', 'Megger', 'Earth Tester', 'Hydro Test Pump', 'Generator', 'Compressor'];
 
@@ -20,9 +19,16 @@ export default function DPR() {
   const [detailModal, setDetailModal] = useState(false);
   const [selectedDpr, setSelectedDpr] = useState(null);
   const [form, setForm] = useState({});
+  // Table A: Installation items from PO
   const [workItems, setWorkItems] = useState([]);
-  const [manpower, setManpower] = useState(MEPF_TRADES.slice(0, 5).map(t => ({ trade: t, required: 0, deployed: 0 })));
-  const [materials, setMaterials] = useState([]);
+  // Table B: Costs
+  const [costs, setCosts] = useState([
+    { type: 'Skilled Manpower', qty: 0, rate: 0, amount: 0 },
+    { type: 'Helper', qty: 0, rate: 0, amount: 0 },
+    { type: 'Rental Cost', qty: 0, rate: 0, amount: 0 },
+    { type: 'Staff Cost', qty: 0, rate: 0, amount: 0 },
+    { type: 'TA/DA', qty: 0, rate: 0, amount: 0 },
+  ]);
   const [machinery, setMachinery] = useState([{ equipment: '', quantity: 1, hours_used: 0, condition: 'working' }]);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [poItemsForSite, setPoItemsForSite] = useState([]);
@@ -40,40 +46,49 @@ export default function DPR() {
     setWorkItems([]);
     if (siteId) {
       api.get(`/dpr/sites/${siteId}/po-items`).then(r => setPoItemsForSite(r.data)).catch(() => setPoItemsForSite([]));
-    } else {
-      setPoItemsForSite([]);
-    }
+    } else { setPoItemsForSite([]); }
   };
 
-  const addWorkItem = () => {
-    setWorkItems([...workItems, { po_item_id: '', description: '', unit: 'nos', boq_qty: 0, floor_zone: '', qty_today: 0, cumulative_qty: 0, installation_rate: 0, amount: 0 }]);
-  };
-
-  const selectWorkItem = (index, poItemId) => {
+  const addWorkItem = () => setWorkItems([...workItems, { po_item_id: '', description: '', qty: 0, location: '', rate: 0, amount: 0 }]);
+  const removeWorkItem = (i) => setWorkItems(workItems.filter((_, idx) => idx !== i));
+  const selectWorkItem = (i, poItemId) => {
     const item = poItemsForSite.find(p => p.id === +poItemId);
     const n = [...workItems];
-    n[index].po_item_id = +poItemId || '';
-    n[index].description = item?.description || '';
-    n[index].unit = item?.unit || 'nos';
-    n[index].boq_qty = item?.quantity || 0;
+    n[i].po_item_id = +poItemId || '';
+    n[i].description = item?.description || '';
+    n[i].unit = item?.unit || 'nos';
+    n[i].boq_qty = item?.quantity || 0;
     setWorkItems(n);
   };
-
-  const updateWorkField = (index, field, value) => {
+  const updateWork = (i, field, val) => {
     const n = [...workItems];
-    n[index][field] = value;
-    if (field === 'qty_today' || field === 'installation_rate') {
-      n[index].amount = (n[index].qty_today || 0) * (n[index].installation_rate || 0);
-    }
+    n[i][field] = val;
+    if (field === 'qty' || field === 'rate') n[i].amount = (n[i].qty || 0) * (n[i].rate || 0);
     setWorkItems(n);
   };
+  const updateCost = (i, field, val) => {
+    const n = [...costs];
+    n[i][field] = val;
+    if (field === 'qty' || field === 'rate') n[i].amount = (n[i].qty || 0) * (n[i].rate || 0);
+    setCosts(n);
+  };
 
-  const removeWorkItem = (index) => setWorkItems(workItems.filter((_, i) => i !== index));
+  const grandTotalA = workItems.reduce((s, w) => s + (w.amount || 0), 0);
+  const grandTotalB = costs.reduce((s, c) => s + (c.amount || 0), 0);
+  const profitLoss = grandTotalA - grandTotalB;
 
   const submitDpr = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/dpr', { ...form, work_items: workItems.filter(w => w.po_item_id), manpower, machinery: machinery.filter(m => m.equipment) });
+      await api.post('/dpr', {
+        ...form,
+        work_items: workItems.filter(w => w.po_item_id || w.description),
+        manpower: costs.filter(c => c.qty > 0 || c.amount > 0),
+        machinery: machinery.filter(m => m.equipment),
+        grand_total_a: grandTotalA,
+        grand_total_b: grandTotalB,
+        profit_loss: profitLoss
+      });
       toast.success('DPR submitted!'); setModal(false); load();
     } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
   };
@@ -119,33 +134,34 @@ export default function DPR() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <input type="date" className="input w-48" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
             <button onClick={() => {
-              setForm({ site_id: '', report_date: filterDate, weather: 'clear', overall_status: 'on_track', system_type: '', floor_zone: '', safety_toolbox_talk: false, safety_ppe_compliance: false, safety_incidents: '', next_day_plan: '', hindrances: '', remarks: '' });
-              setWorkItems([]); setMaterials([]); setPoItemsForSite([]);
-              setManpower(MEPF_TRADES.slice(0, 5).map(t => ({ trade: t, required: 0, deployed: 0 })));
+              setForm({ site_id: '', report_date: filterDate, weather: 'clear', overall_status: 'on_track', system_type: '', shift: 'day', contractor_name: '', contractor_manpower: 0, mb_sheet_no: '', safety_toolbox_talk: false, safety_ppe_compliance: false, safety_incidents: '', next_day_plan: '', hindrances: '', remarks: '' });
+              setWorkItems([]); setPoItemsForSite([]);
+              setCosts([{ type: 'Skilled Manpower', qty: 0, rate: 0, amount: 0 }, { type: 'Helper', qty: 0, rate: 0, amount: 0 }, { type: 'Rental Cost', qty: 0, rate: 0, amount: 0 }, { type: 'Staff Cost', qty: 0, rate: 0, amount: 0 }, { type: 'TA/DA', qty: 0, rate: 0, amount: 0 }]);
               setMachinery([{ equipment: '', quantity: 1, hours_used: 0, condition: 'working' }]);
               setModal(true);
             }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Submit DPR</button>
           </div>
           <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>Site</th><th>Date</th><th>System</th><th>By</th><th>Weather</th><th>Status</th><th>Safety</th><th>Approval</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Site</th><th>Date</th><th>Shift</th><th>By</th><th>Status</th><th>Total(A)</th><th>Cost(B)</th><th>P/L</th><th>Approval</th><th>Actions</th></tr></thead>
             <tbody>
               {dprs.map(d => (
                 <tr key={d.id}>
-                  <td className="font-medium">{d.site_name}</td><td>{d.report_date}</td><td className="text-xs">{d.system_type || '-'}</td>
-                  <td>{d.submitted_by_name}</td><td className="capitalize">{d.weather}</td><td><StatusBadge status={d.overall_status} /></td>
-                  <td>{d.safety_toolbox_talk ? <span className="text-emerald-600 text-xs font-bold">TBT Done</span> : <span className="text-red-500 text-xs">No TBT</span>}</td>
+                  <td className="font-medium">{d.site_name}</td><td>{d.report_date}</td><td className="capitalize text-xs">{d.shift || '-'}</td>
+                  <td>{d.submitted_by_name}</td><td><StatusBadge status={d.overall_status} /></td>
+                  <td className="font-semibold text-emerald-600 text-sm">Rs {(d.grand_total_a || 0).toLocaleString()}</td>
+                  <td className="font-semibold text-red-600 text-sm">Rs {(d.grand_total_b || 0).toLocaleString()}</td>
+                  <td className={`font-bold text-sm ${(d.profit_loss || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Rs {(d.profit_loss || 0).toLocaleString()}</td>
                   <td><StatusBadge status={d.approval_status} /></td>
                   <td><div className="flex gap-1">
                     <button onClick={() => viewDpr(d.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600"><FiEye size={14} /></button>
                     {d.approval_status === 'pending' && <>
                       <button onClick={() => approveDpr(d.id, 'approved', true)} className="btn btn-success text-[10px] py-0.5 px-1.5">Approve+Bill</button>
-                      <button onClick={() => approveDpr(d.id, 'approved', false)} className="btn btn-primary text-[10px] py-0.5 px-1.5">Approve</button>
                       <button onClick={() => approveDpr(d.id, 'rejected', false)} className="btn btn-danger text-[10px] py-0.5 px-1.5">Reject</button>
                     </>}
                   </div></td>
                 </tr>
               ))}
-              {dprs.length === 0 && <tr><td colSpan="9" className="text-center py-8 text-gray-400">No DPR for this date</td></tr>}
+              {dprs.length === 0 && <tr><td colSpan="10" className="text-center py-8 text-gray-400">No DPR for this date</td></tr>}
             </tbody>
           </table></div>
         </>
@@ -164,129 +180,117 @@ export default function DPR() {
         </>
       )}
 
-      {/* ===== SUBMIT MEPF DPR MODAL ===== */}
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Submit MEPF Daily Progress Report" wide>
+      {/* ===== SUBMIT DPR MODAL - Matches SEPL DPR Format ===== */}
+      <Modal isOpen={modal} onClose={() => setModal(false)} title="DAILY PROGRESS SHEET - SECURED ENGINEERS PVT LTD" wide>
         <form onSubmit={submitDpr} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
 
-          {/* 1. Site + Date + System */}
-          <div className="grid grid-cols-4 gap-3">
-            <div><label className="label">Site *</label>
-              <select className="select" value={form.site_id || ''} onChange={e => handleSiteSelect(e.target.value)} required>
-                <option value="">Select Site</option>{sites.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.lead_no ? `[${s.lead_no}] ` : ''}{s.name}</option>)}
-              </select>
-            </div>
-            <div><label className="label">Date *</label><input className="input" type="date" value={form.report_date || ''} onChange={e => setForm({ ...form, report_date: e.target.value })} required /></div>
-            <div><label className="label">MEPF System</label>
-              <select className="select" value={form.system_type || ''} onChange={e => setForm({ ...form, system_type: e.target.value })}>
-                <option value="">Select</option>{SYSTEMS.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div><label className="label">Weather</label>
-              <select className="select" value={form.weather || 'clear'} onChange={e => setForm({ ...form, weather: e.target.value })}>
-                <option value="clear">Clear</option><option value="rainy">Rainy</option><option value="cloudy">Cloudy</option><option value="hot">Hot</option><option value="windy">Windy</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Floor / Zone / Area</label><input className="input" value={form.floor_zone || ''} onChange={e => setForm({ ...form, floor_zone: e.target.value })} placeholder="e.g. Ground Floor Block-A, 2nd Floor Zone-2" /></div>
-            <div><label className="label">Overall Status</label>
-              <select className="select" value={form.overall_status || 'on_track'} onChange={e => setForm({ ...form, overall_status: e.target.value })}>
-                <option value="on_track">On Track</option><option value="delayed">Delayed</option><option value="ahead">Ahead</option><option value="blocked">Blocked</option>
-              </select>
+          {/* Header */}
+          <div className="border rounded-lg p-3 bg-gray-50">
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">Site Name *</label>
+                <select className="select" value={form.site_id || ''} onChange={e => handleSiteSelect(e.target.value)} required>
+                  <option value="">Select Site</option>{sites.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.lead_no ? `[${s.lead_no}] ` : ''}{s.name}</option>)}
+                </select>
+              </div>
+              <div><label className="label">MB Sheet No</label><input className="input" value={form.mb_sheet_no || ''} onChange={e => setForm({ ...form, mb_sheet_no: e.target.value })} /></div>
+              <div><label className="label">Date *</label><input className="input" type="date" value={form.report_date || ''} onChange={e => setForm({ ...form, report_date: e.target.value })} required /></div>
+              <div><label className="label">Engineer Name</label>
+                <select className="select" value={form.engineer_id || ''} onChange={e => setForm({ ...form, engineer_id: e.target.value })}>
+                  <option value="">Select</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
+              <div><label className="label">Contractor Name</label><input className="input" value={form.contractor_name || ''} onChange={e => setForm({ ...form, contractor_name: e.target.value })} /></div>
+              <div><label className="label">Contractor Manpower</label><input className="input" type="number" value={form.contractor_manpower || ''} onChange={e => setForm({ ...form, contractor_manpower: +e.target.value })} /></div>
+              <div><label className="label">Shift</label>
+                <div className="flex gap-4 mt-1">
+                  {['day', 'evening', 'night'].map(s => (
+                    <label key={s} className="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" name="shift" value={s} checked={form.shift === s} onChange={() => setForm({ ...form, shift: s })} className="w-4 h-4" />
+                      <span className="text-sm capitalize">{s}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div><label className="label">MEPF System</label>
+                <select className="select" value={form.system_type || ''} onChange={e => setForm({ ...form, system_type: e.target.value })}>
+                  <option value="">Select</option>{SYSTEMS.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div><label className="label">Weather</label>
+                <select className="select" value={form.weather || 'clear'} onChange={e => setForm({ ...form, weather: e.target.value })}>
+                  <option value="clear">Clear</option><option value="rainy">Rainy</option><option value="cloudy">Cloudy</option><option value="hot">Hot</option><option value="windy">Windy</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* 2. Installation Work - pick from PO items */}
-          <div className="border rounded-lg p-3 bg-blue-50">
-            <div className="flex justify-between items-center mb-2">
-              <h5 className="font-semibold text-sm text-blue-700">Installation Work (from Client PO)</h5>
+          {/* TABLE A: Installation Work from PO */}
+          <div className="border-2 border-blue-300 rounded-lg p-3 bg-blue-50">
+            <div className="flex justify-between items-center mb-3">
+              <h5 className="font-bold text-blue-800">TABLE A: Installation Work (BOQ Items from PO)</h5>
               {poItemsForSite.length > 0 && <button type="button" onClick={addWorkItem} className="btn btn-secondary text-xs flex items-center gap-1"><FiPlus size={12} /> Add Item</button>}
             </div>
             {poItemsForSite.length > 0 ? (
               <>
-                <p className="text-xs text-blue-600 mb-3">Select items you installed today. Enter qty, installation rate. Amount auto-calculated.</p>
-                {workItems.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Click "+ Add Item" to add items you worked on today</p>}
+                <div className="grid grid-cols-12 gap-1 text-[10px] font-bold text-gray-600 mb-1 px-1 uppercase">
+                  <div className="col-span-4">BOQ Item</div><div>Qty</div><div className="col-span-2">Location</div><div className="col-span-2">Rate (Rs)</div><div className="col-span-2">Amount (Rs)</div><div></div>
+                </div>
                 {workItems.map((w, i) => (
-                  <div key={i} className="bg-white border rounded-lg p-3 mb-2">
-                    <div className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-5">
-                        <label className="text-[10px] text-gray-500 font-semibold">PO Item</label>
-                        <select className="select text-sm" value={w.po_item_id || ''} onChange={e => selectWorkItem(i, e.target.value)}>
-                          <option value="">-- Select PO Item --</option>
-                          {poItemsForSite.map(item => (
-                            <option key={item.id} value={item.id}>{item.description} ({item.quantity} {item.unit})</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-500 font-semibold">Unit</label>
-                        <div className="input text-sm bg-gray-50">{w.unit}</div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-500 font-semibold">BOQ Qty</label>
-                        <div className="input text-sm bg-gray-50 font-semibold">{w.boq_qty}</div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-500 font-semibold">Floor/Zone</label>
-                        <input className="input text-sm" placeholder="GF/1F/2F" value={w.floor_zone || ''} onChange={e => updateWorkField(i, 'floor_zone', e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-500 font-semibold">Qty Today</label>
-                        <input className="input text-sm" type="number" placeholder="0" value={w.qty_today || ''} onChange={e => updateWorkField(i, 'qty_today', +e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-500 font-semibold">Cumulative</label>
-                        <input className="input text-sm" type="number" placeholder="0" value={w.cumulative_qty || ''} onChange={e => updateWorkField(i, 'cumulative_qty', +e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-500 font-semibold">Install Rate</label>
-                        <input className="input text-sm" type="number" placeholder="Rs" value={w.installation_rate || ''} onChange={e => updateWorkField(i, 'installation_rate', +e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-gray-500 font-semibold">Amount</label>
-                        <div className="input text-sm bg-emerald-50 font-bold text-emerald-700">Rs {(w.amount || 0).toLocaleString()}</div>
-                      </div>
-                    </div>
-                    <div className="flex justify-end mt-1">
-                      <button type="button" onClick={() => removeWorkItem(i)} className="text-xs text-red-500 hover:underline">Remove</button>
-                    </div>
+                  <div key={i} className="grid grid-cols-12 gap-1 mb-1.5 items-center bg-white rounded p-1">
+                    <select className="input col-span-4 text-sm" value={w.po_item_id || ''} onChange={e => selectWorkItem(i, e.target.value)}>
+                      <option value="">-- Select PO Item --</option>
+                      {poItemsForSite.map(item => <option key={item.id} value={item.id}>{item.description} ({item.quantity} {item.unit})</option>)}
+                    </select>
+                    <input className="input text-sm text-center" type="number" placeholder="0" value={w.qty || ''} onChange={e => updateWork(i, 'qty', +e.target.value)} />
+                    <input className="input col-span-2 text-sm" placeholder="GF/1F/2F" value={w.location || ''} onChange={e => updateWork(i, 'location', e.target.value)} />
+                    <input className="input col-span-2 text-sm" type="number" placeholder="0" value={w.rate || ''} onChange={e => updateWork(i, 'rate', +e.target.value)} />
+                    <div className="col-span-2 text-sm font-bold text-right pr-2">Rs {(w.amount || 0).toLocaleString()}</div>
+                    <button type="button" onClick={() => removeWorkItem(i)} className="p-1 text-red-400 hover:text-red-600"><FiTrash2 size={13} /></button>
                   </div>
                 ))}
-                {workItems.length > 0 && (
-                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-blue-200 text-sm">
-                    <span className="text-blue-600">{workItems.filter(w => w.po_item_id).length} items</span>
-                    <span className="font-bold text-blue-800">Today's Total: Rs {workItems.reduce((s, w) => s + (w.amount || 0), 0).toLocaleString()}</span>
-                  </div>
-                )}
+                {workItems.length === 0 && <p className="text-xs text-gray-400 text-center py-3">Click "+ Add Item" for items installed today</p>}
+                <div className="mt-2 pt-2 border-t-2 border-blue-300 text-right">
+                  <span className="font-bold text-blue-800 text-lg">Grand Total (A): Rs {grandTotalA.toLocaleString()}</span>
+                </div>
               </>
-            ) : (
-              <p className="text-xs text-amber-600">{form.site_id ? 'No PO items found for this site. Add PO items in Orders first.' : 'Select a site to see PO items.'}</p>
-            )}
+            ) : <p className="text-xs text-amber-600">{form.site_id ? 'No PO items for this site. Add PO items in Orders first.' : 'Select a site to load PO items.'}</p>}
           </div>
 
-          {/* 3. MEPF Trade-wise Manpower */}
-          <div className="border rounded-lg p-3 bg-amber-50">
-            <h5 className="font-semibold text-sm text-amber-700 mb-2">Manpower by MEPF Trade</h5>
-            <div className="grid grid-cols-3 gap-1 text-xs font-semibold text-gray-500 mb-1"><div>Trade</div><div>Required</div><div>Deployed</div></div>
-            {manpower.map((m, i) => (
-              <div key={i} className="grid grid-cols-3 gap-2 mb-1.5">
-                <select className="input text-sm" value={m.trade} onChange={e => { const n = [...manpower]; n[i].trade = e.target.value; setManpower(n); }}>
-                  {MEPF_TRADES.map(t => <option key={t}>{t}</option>)}
-                </select>
-                <input className="input text-sm" type="number" placeholder="0" value={m.required || ''} onChange={e => { const n = [...manpower]; n[i].required = +e.target.value; setManpower(n); }} />
-                <input className="input text-sm" type="number" placeholder="0" value={m.deployed || ''} onChange={e => { const n = [...manpower]; n[i].deployed = +e.target.value; setManpower(n); }} />
+          {/* TABLE B: Costs */}
+          <div className="border-2 border-red-300 rounded-lg p-3 bg-red-50">
+            <h5 className="font-bold text-red-800 mb-3">TABLE B: Costs</h5>
+            <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-gray-600 mb-1 px-1 uppercase">
+              <div>Type</div><div>Qty</div><div>Rate (Rs)</div><div>Amount (Rs)</div>
+            </div>
+            {costs.map((c, i) => (
+              <div key={i} className="grid grid-cols-4 gap-1 mb-1.5 items-center bg-white rounded p-1">
+                <div className="text-sm font-medium">{c.type}</div>
+                <input className="input text-sm text-center" type="number" placeholder="0" value={c.qty || ''} onChange={e => updateCost(i, 'qty', +e.target.value)} />
+                <input className="input text-sm text-center" type="number" placeholder="0" value={c.rate || ''} onChange={e => updateCost(i, 'rate', +e.target.value)} />
+                <div className="text-sm font-bold text-right pr-2">Rs {(c.amount || 0).toLocaleString()}</div>
               </div>
             ))}
-            <button type="button" onClick={() => setManpower([...manpower, { trade: 'Helper', required: 0, deployed: 0 }])} className="text-xs text-amber-700 hover:underline">+ Add Trade</button>
+            <button type="button" onClick={() => setCosts([...costs, { type: '', qty: 0, rate: 0, amount: 0 }])} className="text-xs text-red-700 hover:underline">+ Add Cost Type</button>
+            <div className="mt-2 pt-2 border-t-2 border-red-300 text-right">
+              <span className="font-bold text-red-800 text-lg">Grand Total (B): Rs {grandTotalB.toLocaleString()}</span>
+            </div>
           </div>
 
-          {/* 4. Machinery/Tools */}
+          {/* Profit/Loss */}
+          <div className={`border-2 rounded-lg p-4 text-center ${profitLoss >= 0 ? 'border-emerald-400 bg-emerald-50' : 'border-red-400 bg-red-50'}`}>
+            <span className={`text-2xl font-bold ${profitLoss >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+              {profitLoss >= 0 ? 'PROFIT' : 'LOSS'}: Rs {Math.abs(profitLoss).toLocaleString()}
+            </span>
+            <p className="text-xs text-gray-500 mt-1">(A) Rs {grandTotalA.toLocaleString()} - (B) Rs {grandTotalB.toLocaleString()}</p>
+          </div>
+
+          {/* Machinery/Tools */}
           <div className="border rounded-lg p-3 bg-cyan-50">
             <h5 className="font-semibold text-sm text-cyan-700 mb-2">Machinery / Tools Used</h5>
             {machinery.map((m, i) => (
               <div key={i} className="grid grid-cols-4 gap-2 mb-1.5">
                 <select className="input text-sm" value={m.equipment} onChange={e => { const n = [...machinery]; n[i].equipment = e.target.value; setMachinery(n); }}>
-                  <option value="">Select Equipment</option>{EQUIPMENT_LIST.map(eq => <option key={eq}>{eq}</option>)}
+                  <option value="">Select</option>{EQUIPMENT_LIST.map(eq => <option key={eq}>{eq}</option>)}
                 </select>
                 <input className="input text-sm" type="number" placeholder="Qty" value={m.quantity || ''} onChange={e => { const n = [...machinery]; n[i].quantity = +e.target.value; setMachinery(n); }} />
                 <input className="input text-sm" type="number" placeholder="Hours" value={m.hours_used || ''} onChange={e => { const n = [...machinery]; n[i].hours_used = +e.target.value; setMachinery(n); }} />
@@ -298,42 +302,31 @@ export default function DPR() {
             <button type="button" onClick={() => setMachinery([...machinery, { equipment: '', quantity: 1, hours_used: 0, condition: 'working' }])} className="text-xs text-cyan-700 hover:underline">+ Add Equipment</button>
           </div>
 
-          {/* 6. Safety */}
+          {/* Safety */}
           <div className="border rounded-lg p-3 bg-red-50">
             <h5 className="font-semibold text-sm text-red-700 mb-2">Safety & Compliance</h5>
             <div className="grid grid-cols-2 gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-emerald-600" checked={form.safety_toolbox_talk || false} onChange={e => setForm({ ...form, safety_toolbox_talk: e.target.checked })} />
-                <span className="text-sm">Toolbox Talk (TBT) Conducted</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-emerald-600" checked={form.safety_ppe_compliance || false} onChange={e => setForm({ ...form, safety_ppe_compliance: e.target.checked })} />
-                <span className="text-sm">PPE Compliance (Helmet, Shoes, Vest)</span>
-              </label>
+              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="w-4 h-4 rounded" checked={form.safety_toolbox_talk || false} onChange={e => setForm({ ...form, safety_toolbox_talk: e.target.checked })} /><span className="text-sm">Toolbox Talk (TBT)</span></label>
+              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="w-4 h-4 rounded" checked={form.safety_ppe_compliance || false} onChange={e => setForm({ ...form, safety_ppe_compliance: e.target.checked })} /><span className="text-sm">PPE Compliance</span></label>
             </div>
-            <div className="mt-2"><label className="label text-xs">Safety Incidents (if any)</label>
-              <input className="input" value={form.safety_incidents || ''} onChange={e => setForm({ ...form, safety_incidents: e.target.value })} placeholder="Nil / Describe incident" />
+            <div className="mt-2"><input className="input" value={form.safety_incidents || ''} onChange={e => setForm({ ...form, safety_incidents: e.target.value })} placeholder="Safety Incidents (Nil if none)" /></div>
+          </div>
+
+          {/* Hindrances + Next Day */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="border rounded-lg p-3 bg-orange-50">
+              <h5 className="font-semibold text-sm text-orange-700 mb-2">Hindrances / Issues</h5>
+              <textarea className="input" rows="2" value={form.hindrances || ''} onChange={e => setForm({ ...form, hindrances: e.target.value })} placeholder="Material shortage, Drawing pending..." />
+            </div>
+            <div className="border rounded-lg p-3 bg-emerald-50">
+              <h5 className="font-semibold text-sm text-emerald-700 mb-2">Next Day Plan</h5>
+              <textarea className="input" rows="2" value={form.next_day_plan || ''} onChange={e => setForm({ ...form, next_day_plan: e.target.value })} placeholder="Tomorrow's work plan..." />
             </div>
           </div>
 
-          {/* 7. Hindrances */}
-          <div className="border rounded-lg p-3 bg-orange-50">
-            <h5 className="font-semibold text-sm text-orange-700 mb-2">Hindrances / Issues</h5>
-            <textarea className="input" rows="2" value={form.hindrances || ''} onChange={e => setForm({ ...form, hindrances: e.target.value })}
-              placeholder="Material shortage, Drawing pending, Client dependency, No access, Rain stoppage, etc." />
-          </div>
-
-          {/* 8. Next Day Plan */}
-          <div className="border rounded-lg p-3 bg-emerald-50">
-            <h5 className="font-semibold text-sm text-emerald-700 mb-2">Next Day Plan</h5>
-            <textarea className="input" rows="2" value={form.next_day_plan || ''} onChange={e => setForm({ ...form, next_day_plan: e.target.value })}
-              placeholder="Tomorrow's planned work - which floor/zone, which system, expected manpower..." />
-          </div>
-
-          {/* 9. Remarks */}
           <div><label className="label">Remarks</label><textarea className="input" rows="2" value={form.remarks || ''} onChange={e => setForm({ ...form, remarks: e.target.value })} /></div>
 
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Submit MEPF DPR</button></div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Submit DPR</button></div>
         </form>
       </Modal>
 
@@ -352,39 +345,55 @@ export default function DPR() {
       </Modal>
 
       {/* DPR Detail Modal */}
-      <Modal isOpen={detailModal} onClose={() => setDetailModal(false)} title={`MEPF DPR - ${selectedDpr?.site_name}`} wide>
+      <Modal isOpen={detailModal} onClose={() => setDetailModal(false)} title={`DPR - ${selectedDpr?.site_name} - ${selectedDpr?.report_date}`} wide>
         {selectedDpr && (
           <div className="space-y-4 max-h-[70vh] overflow-y-auto">
             <div className="grid grid-cols-4 gap-3 text-sm bg-gray-50 p-3 rounded-lg">
               <div><strong>Site:</strong> {selectedDpr.site_name}</div>
               <div><strong>Date:</strong> {selectedDpr.report_date}</div>
+              <div><strong>Shift:</strong> {selectedDpr.shift || '-'}</div>
+              <div><strong>Contractor:</strong> {selectedDpr.contractor_name || '-'}</div>
               <div><strong>System:</strong> {selectedDpr.system_type || '-'}</div>
-              <div><strong>Floor/Zone:</strong> {selectedDpr.floor_zone || '-'}</div>
               <div><strong>Weather:</strong> {selectedDpr.weather}</div>
-              <div><strong>Status:</strong> <StatusBadge status={selectedDpr.overall_status} /></div>
               <div><strong>By:</strong> {selectedDpr.submitted_by_name}</div>
-              <div><strong>Billing:</strong> {selectedDpr.billing_ready ? 'Yes' : 'No'}</div>
-            </div>
-
-            {/* Safety */}
-            <div className="flex gap-4 text-sm">
-              <span className={selectedDpr.safety_toolbox_talk ? 'text-emerald-600 font-bold' : 'text-red-500'}>TBT: {selectedDpr.safety_toolbox_talk ? 'Done' : 'Not Done'}</span>
-              <span className={selectedDpr.safety_ppe_compliance ? 'text-emerald-600 font-bold' : 'text-red-500'}>PPE: {selectedDpr.safety_ppe_compliance ? 'Compliant' : 'Non-Compliant'}</span>
-              {selectedDpr.safety_incidents && <span className="text-red-600">Incident: {selectedDpr.safety_incidents}</span>}
+              <div><strong>Status:</strong> <StatusBadge status={selectedDpr.overall_status} /></div>
             </div>
 
             {selectedDpr.work_items?.length > 0 && (
-              <div><h5 className="font-semibold text-sm mb-2">Installation Work</h5><table className="text-xs"><thead><tr><th>Item</th><th>Floor/Zone</th><th>BOQ Qty</th><th>Qty Today</th><th>Cumulative</th><th>Install Rate</th><th>Amount</th></tr></thead>
-                <tbody>{selectedDpr.work_items.map(w => (<tr key={w.id}><td>{w.description}</td><td>{w.floor_zone || '-'}</td><td>{w.boq_qty}</td><td className="font-bold">{w.actual_qty}</td><td>{w.cumulative_qty}</td><td>Rs {(w.rate || 0).toLocaleString()}</td><td className="font-bold text-emerald-600">Rs {(w.amount || 0).toLocaleString()}</td></tr>))}</tbody></table>
-                <div className="text-right text-sm font-bold mt-1">Total: Rs {selectedDpr.work_items.reduce((s, w) => s + (w.amount || 0), 0).toLocaleString()}</div></div>
+              <div className="border-2 border-blue-300 rounded-lg p-3">
+                <h5 className="font-bold text-blue-800 mb-2">TABLE A: Installation Work</h5>
+                <table className="text-xs"><thead><tr><th>BOQ Item</th><th>Qty</th><th>Location</th><th>Rate</th><th>Amount</th></tr></thead>
+                  <tbody>{selectedDpr.work_items.map(w => (<tr key={w.id}><td>{w.description}</td><td className="font-bold">{w.actual_qty || w.planned_qty}</td><td>{w.floor_zone || '-'}</td><td>Rs {(w.rate || 0).toLocaleString()}</td><td className="font-bold text-emerald-600">Rs {(w.amount || 0).toLocaleString()}</td></tr>))}</tbody>
+                </table>
+                <div className="text-right font-bold text-blue-800 mt-2">Grand Total (A): Rs {selectedDpr.work_items.reduce((s, w) => s + (w.amount || 0), 0).toLocaleString()}</div>
+              </div>
             )}
+
             {selectedDpr.manpower?.length > 0 && (
-              <div><h5 className="font-semibold text-sm mb-2">Manpower (MEPF Trades)</h5><table className="text-xs"><thead><tr><th>Trade</th><th>Required</th><th>Deployed</th><th>Shortage</th></tr></thead>
-                <tbody>{selectedDpr.manpower.map(m => (<tr key={m.id}><td>{m.trade}</td><td>{m.required}</td><td>{m.deployed}</td><td className={m.shortage > 0 ? 'text-red-600 font-bold' : ''}>{m.shortage}</td></tr>))}</tbody></table></div>
+              <div className="border-2 border-red-300 rounded-lg p-3">
+                <h5 className="font-bold text-red-800 mb-2">TABLE B: Costs</h5>
+                <table className="text-xs"><thead><tr><th>Type</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+                  <tbody>{selectedDpr.manpower.map(m => (<tr key={m.id}><td>{m.trade}</td><td>{m.required}</td><td>Rs {(m.deployed || 0).toLocaleString()}</td><td className="font-bold text-red-600">Rs {(m.shortage || 0).toLocaleString()}</td></tr>))}</tbody>
+                </table>
+                <div className="text-right font-bold text-red-800 mt-2">Grand Total (B): Rs {selectedDpr.manpower.reduce((s, m) => s + (m.shortage || 0), 0).toLocaleString()}</div>
+              </div>
             )}
+
+            <div className={`border-2 rounded-lg p-3 text-center ${(selectedDpr.profit_loss || 0) >= 0 ? 'border-emerald-400 bg-emerald-50' : 'border-red-400 bg-red-50'}`}>
+              <span className={`text-xl font-bold ${(selectedDpr.profit_loss || 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                {(selectedDpr.profit_loss || 0) >= 0 ? 'PROFIT' : 'LOSS'}: Rs {Math.abs(selectedDpr.profit_loss || 0).toLocaleString()}
+              </span>
+            </div>
+
             {selectedDpr.machinery?.length > 0 && (
               <div><h5 className="font-semibold text-sm mb-2">Machinery/Tools</h5><table className="text-xs"><thead><tr><th>Equipment</th><th>Qty</th><th>Hours</th><th>Condition</th></tr></thead>
-                <tbody>{selectedDpr.machinery.map(m => (<tr key={m.id}><td>{m.equipment}</td><td>{m.quantity}</td><td>{m.hours_used}h</td><td className={m.condition === 'breakdown' ? 'text-red-600 font-bold' : ''}>{m.condition}</td></tr>))}</tbody></table></div>
+                <tbody>{selectedDpr.machinery.map(m => (<tr key={m.id}><td>{m.equipment}</td><td>{m.quantity}</td><td>{m.hours_used}h</td><td>{m.condition}</td></tr>))}</tbody></table></div>
+            )}
+            {selectedDpr.safety_toolbox_talk !== undefined && (
+              <div className="flex gap-4 text-sm">
+                <span className={selectedDpr.safety_toolbox_talk ? 'text-emerald-600 font-bold' : 'text-red-500'}>TBT: {selectedDpr.safety_toolbox_talk ? 'Done' : 'Not Done'}</span>
+                <span className={selectedDpr.safety_ppe_compliance ? 'text-emerald-600 font-bold' : 'text-red-500'}>PPE: {selectedDpr.safety_ppe_compliance ? 'OK' : 'No'}</span>
+              </div>
             )}
             {selectedDpr.hindrances && <div className="bg-orange-50 p-3 rounded text-sm"><strong className="text-orange-700">Hindrances:</strong> {selectedDpr.hindrances}</div>}
             {selectedDpr.next_day_plan && <div className="bg-emerald-50 p-3 rounded text-sm"><strong className="text-emerald-700">Next Day Plan:</strong> {selectedDpr.next_day_plan}</div>}

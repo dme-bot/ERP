@@ -734,7 +734,14 @@ function initializeDatabase() {
       submission_time DATETIME,
       weather TEXT DEFAULT 'clear' CHECK(weather IN ('clear','rainy','cloudy','hot','windy')),
       overall_status TEXT DEFAULT 'on_track' CHECK(overall_status IN ('on_track','delayed','ahead','blocked')),
-      -- MEPF specific
+      -- SEPL DPR format
+      shift TEXT DEFAULT 'day',
+      contractor_name TEXT,
+      contractor_manpower INTEGER DEFAULT 0,
+      mb_sheet_no TEXT,
+      grand_total_a REAL DEFAULT 0,
+      grand_total_b REAL DEFAULT 0,
+      profit_loss REAL DEFAULT 0,
       floor_zone TEXT,
       system_type TEXT,
       safety_toolbox_talk INTEGER DEFAULT 0,

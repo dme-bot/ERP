@@ -69,10 +69,10 @@ router.get('/summary', (req, res) => {
 
 // Submit MEPF DPR
 router.post('/', (req, res) => {
-  const { site_id, report_date, weather, overall_status, floor_zone, system_type,
-    safety_toolbox_talk, safety_ppe_compliance, safety_incidents,
-    next_day_plan, hindrances, remarks,
-    work_items, manpower, materials, machinery } = req.body;
+  const { site_id, report_date, weather, overall_status, shift, contractor_name, contractor_manpower, mb_sheet_no,
+    floor_zone, system_type, safety_toolbox_talk, safety_ppe_compliance, safety_incidents,
+    next_day_plan, hindrances, remarks, grand_total_a, grand_total_b, profit_loss,
+    work_items, manpower, machinery } = req.body;
 
   if (!site_id || !report_date) return res.status(400).json({ error: 'Site and date required' });
   const db = getDb();
@@ -81,30 +81,35 @@ router.post('/', (req, res) => {
   if (existing) return res.status(409).json({ error: 'DPR already submitted for this site and date' });
 
   const r = db.prepare(`INSERT INTO dpr (site_id, report_date, submitted_by, submission_time, weather, overall_status,
+    shift, contractor_name, contractor_manpower, mb_sheet_no, grand_total_a, grand_total_b, profit_loss,
     floor_zone, system_type, safety_toolbox_talk, safety_ppe_compliance, safety_incidents,
-    next_day_plan, hindrances, remarks) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?,?)`)
+    next_day_plan, hindrances, remarks) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(site_id, report_date, req.user.id, weather || 'clear', overall_status || 'on_track',
+      shift || 'day', contractor_name, contractor_manpower || 0, mb_sheet_no,
+      grand_total_a || 0, grand_total_b || 0, profit_loss || 0,
       floor_zone, system_type, safety_toolbox_talk ? 1 : 0, safety_ppe_compliance ? 1 : 0,
       safety_incidents, next_day_plan, hindrances, remarks);
   const dprId = r.lastInsertRowid;
 
-  // Work items - installation progress from PO items
+  // Table A: Installation work items from PO
   const insertWork = db.prepare('INSERT INTO dpr_work_items (dpr_id, po_item_id, description, unit, floor_zone, boq_qty, rate, amount, planned_qty, actual_qty, cumulative_qty, variance_pct, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
   for (const w of (work_items || [])) {
     if (!w.description && !w.po_item_id) continue;
-    const qtyToday = w.qty_today || w.actual_qty || 0;
-    const installRate = w.installation_rate || w.rate || 0;
-    const amount = qtyToday * installRate;
-    insertWork.run(dprId, w.po_item_id || null, w.description, w.unit, w.floor_zone,
-      w.boq_qty || 0, installRate, amount,
-      qtyToday, qtyToday, w.cumulative_qty || 0,
-      0, w.remarks);
+    const qty = w.qty || 0;
+    const rate = w.rate || 0;
+    const amount = qty * rate;
+    insertWork.run(dprId, w.po_item_id || null, w.description, w.unit, w.location || w.floor_zone,
+      w.boq_qty || 0, rate, amount, qty, qty, w.cumulative_qty || 0, 0, w.remarks);
   }
 
-  // Manpower by MEPF trade
-  const insertMan = db.prepare('INSERT INTO dpr_manpower (dpr_id, trade, required, deployed, shortage) VALUES (?,?,?,?,?)');
-  for (const m of (manpower || [])) {
-    insertMan.run(dprId, m.trade, m.required || 0, m.deployed || 0, Math.max(0, (m.required || 0) - (m.deployed || 0)));
+  // Table B: Costs (stored in manpower table - trade=type, required=qty, deployed=rate, shortage=amount)
+  const insertCost = db.prepare('INSERT INTO dpr_manpower (dpr_id, trade, required, deployed, shortage) VALUES (?,?,?,?,?)');
+  for (const c of (manpower || [])) {
+    const costType = c.type || c.trade || '';
+    const qty = c.qty || c.required || 0;
+    const rate = c.rate || c.deployed || 0;
+    const amount = c.amount || c.shortage || (qty * rate);
+    if (costType) insertCost.run(dprId, costType, qty, rate, amount);
   }
 
   // Materials from PO items
