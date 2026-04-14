@@ -732,8 +732,17 @@ function initializeDatabase() {
       report_date DATE NOT NULL,
       submitted_by INTEGER REFERENCES users(id),
       submission_time DATETIME,
-      weather TEXT DEFAULT 'clear' CHECK(weather IN ('clear','rainy','cloudy','hot')),
+      weather TEXT DEFAULT 'clear' CHECK(weather IN ('clear','rainy','cloudy','hot','windy')),
       overall_status TEXT DEFAULT 'on_track' CHECK(overall_status IN ('on_track','delayed','ahead','blocked')),
+      -- MEPF specific
+      floor_zone TEXT,
+      system_type TEXT,
+      safety_toolbox_talk INTEGER DEFAULT 0,
+      safety_ppe_compliance INTEGER DEFAULT 0,
+      safety_incidents TEXT,
+      next_day_plan TEXT,
+      hindrances TEXT,
+      site_photos TEXT,
       remarks TEXT,
       billing_ready INTEGER DEFAULT 0,
       approved_by INTEGER REFERENCES users(id),
@@ -742,12 +751,17 @@ function initializeDatabase() {
       UNIQUE(site_id, report_date)
     );
 
+    -- Work items from PO (item name, qty, rate, amount + floor/zone + planned/actual)
     CREATE TABLE IF NOT EXISTS dpr_work_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       dpr_id INTEGER REFERENCES dpr(id) ON DELETE CASCADE,
+      po_item_id INTEGER REFERENCES po_items(id),
       description TEXT NOT NULL,
       unit TEXT DEFAULT 'nos',
+      floor_zone TEXT,
       boq_qty REAL DEFAULT 0,
+      rate REAL DEFAULT 0,
+      amount REAL DEFAULT 0,
       planned_qty REAL DEFAULT 0,
       actual_qty REAL DEFAULT 0,
       cumulative_qty REAL DEFAULT 0,
@@ -755,15 +769,17 @@ function initializeDatabase() {
       remarks TEXT
     );
 
+    -- MEPF Trade-wise manpower
     CREATE TABLE IF NOT EXISTS dpr_manpower (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       dpr_id INTEGER REFERENCES dpr(id) ON DELETE CASCADE,
-      category TEXT NOT NULL,
+      trade TEXT NOT NULL,
       required INTEGER DEFAULT 0,
       deployed INTEGER DEFAULT 0,
       shortage INTEGER DEFAULT 0
     );
 
+    -- Material consumed from PO items
     CREATE TABLE IF NOT EXISTS dpr_material (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       dpr_id INTEGER REFERENCES dpr(id) ON DELETE CASCADE,
@@ -774,6 +790,17 @@ function initializeDatabase() {
       consumed_today REAL DEFAULT 0,
       cumulative_consumed REAL DEFAULT 0,
       balance_qty REAL DEFAULT 0,
+      remarks TEXT
+    );
+
+    -- Machinery/Tools used on site
+    CREATE TABLE IF NOT EXISTS dpr_machinery (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dpr_id INTEGER REFERENCES dpr(id) ON DELETE CASCADE,
+      equipment TEXT NOT NULL,
+      quantity INTEGER DEFAULT 1,
+      hours_used REAL DEFAULT 0,
+      condition TEXT DEFAULT 'working',
       remarks TEXT
     );
   `);
