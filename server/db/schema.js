@@ -917,34 +917,24 @@ function initializeDatabase() {
     console.log('Seeded 10 Business Book entries from Master Sheet');
   }
 
-  // Seed Item Master (from Drive Item-wise sheet)
+  // Seed Item Master (from Drive Item-wise Master Sheet 24-25)
   const itemCount = db.prepare('SELECT COUNT(*) as c FROM item_master').get().c;
   if (itemCount === 0) {
-    const insertItem = db.prepare('INSERT OR IGNORE INTO item_master (item_code, department, item_name, specification, size, uom, gst, type, make, current_price) VALUES (?,?,?,?,?,?,?,?,?,?)');
-    const items = [
-      ['FF0001','FF','BRANCH PIPE','SS TYPE','63MM','PCS','18%','PO','AGNI ORIGINAL',1050],
-      ['FF0002','FF','HOSE REEL DRUM','WITH 30 MTR PIPE WITH NOZZLE','20mm dia','PCS','18%','PO','AGNI ORIGINAL',3650],
-      ['FF0003','FF','RRL PIPE ( 15 MTR)','SS COUPLING & SS BINDING','63MM','PCS','12%','PO','AGNI ORIGINAL',2250],
-      ['FF0004','FF','TWO WAY FIRE BRIGADE','SS COUPLING ,CI BODY','100MM','PCS','18%','PO','AGNI ORIGINAL',2200],
-      ['FF0005','FF','HYDRANT VALVE','SS BODY SS COUPLING(SINGLE WAY)','63MM','PCS','18%','PO','AGNI',2180],
-      ['FF0006','FF','FIRE FIGHTING PANEL','MAIN PUMP + JOCKEY PUMP PANEL','40HP + 7.5 HP','PCS','18%','PO','L&T',52000],
-      ['LV0007','LV','EMERGENCY EXIT LIGHT','24VOLT INCLUDE Battery','','PCS','18%','PO','AGNI',2350],
-      ['LV0008','LV','SMOKE DETECTOR','','','PCS','18%','PO','AGNI',550],
-      ['LV0009','LV','FIRE PANEL','CONVENTIONAL','4 ZONE','PCS','18%','PO','AGNI PALLADIUM',3800],
-      ['FF0010','FF','MS NIPPLE','','4"X6"','PCS','18%','FOC','OEM',350],
-      ['FF0011','FF','FIRE EXTINGUISHER','ABC TYPE','6KG','PCS','18%','PO','ATASEE',700],
-      ['FF0012','FF','FIRE EXTINGUISHER','CO2 TYPE','9KG','PCS','18%','PO','ATASEE',8400],
-      ['FF0013','FF','FIRE HOSE BOX','MS 16 GAUGE','36X24X18','PCS','18%','PO','FABRICATED',4000],
-      ['FF0014','FF','BUTTERFLY VALVE','CI TYPE PN 1.0','65MM','PCS','18%','PO','KARTAR',1630],
-      ['FF0019','FF','SPRITE LEVEL','HAND TOOL','','PCS','18%','RGP','OEM',120],
-      ['LV0016','LV','PU FOAM','DOWSIL','','PCS','18%','FOC','OEM',450],
-      ['LV0017','LV','SCREW','WALL SCREW','35X8','PACKET','18%','FOC','OEM',60],
-      ['LV0018','LV','CLUMP','PVC TYPE','25MM','PACKET','18%','FOC','OEM',190],
-      ['ELE0100','ELE','MCB','SP','16A','PCS','18%','PO','HAVELLS',250],
-      ['ELE0101','ELE','WIRE','FR GRADE','1.5 SQMM','MTR','18%','PO','POLYCAB',12],
-    ];
-    for (const item of items) insertItem.run(...item);
-    console.log('Seeded 20 Item Master entries from Drive sheet');
+    const fs = require('fs');
+    const seedFile = path.join(__dirname, '..', '..', 'data', 'items_seed.json');
+    if (fs.existsSync(seedFile)) {
+      const items = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
+      const insertItem = db.prepare('INSERT OR IGNORE INTO item_master (item_code, department, item_name, specification, size, uom, gst, type, make, current_price) VALUES (?,?,?,?,?,?,?,?,?,?)');
+      const insertMany = db.transaction((items) => {
+        for (const [code, dept, name, spec, size, unit, price, make] of items) {
+          insertItem.run(code, dept, name, spec || '', size || '', unit || 'PCS', '18%', 'PO', make || '', price || 0);
+        }
+      });
+      insertMany(items);
+      console.log(`Seeded ${items.length} Item Master entries from Excel sheet`);
+    } else {
+      console.log('No items_seed.json found, skipping item master seed');
+    }
   }
 
   console.log('Database initialized successfully');
