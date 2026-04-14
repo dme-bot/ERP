@@ -921,7 +921,7 @@ function initializeDatabase() {
   const itemCount = db.prepare('SELECT COUNT(*) as c FROM item_master').get().c;
   if (itemCount === 0) {
     const fs = require('fs');
-    const seedFile = path.join(__dirname, '..', '..', 'data', 'items_seed.json');
+    const seedFile = path.join(__dirname, 'items_seed.json');
     if (fs.existsSync(seedFile)) {
       const items = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
       const insertItem = db.prepare('INSERT OR IGNORE INTO item_master (item_code, department, item_name, specification, size, uom, gst, type, make, current_price) VALUES (?,?,?,?,?,?,?,?,?,?)');
