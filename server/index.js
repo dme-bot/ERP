@@ -17,6 +17,17 @@ app.use(express.json({ limit: '10mb' }));
 // Trust proxy for cloud deployments
 app.set('trust proxy', 1);
 
+// File uploads
+const multer = require('multer');
+const fs = require('fs');
+const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`)
+});
+const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+
 // Initialize DB
 initializeDatabase();
 
@@ -37,6 +48,16 @@ app.use('/api/cashflow', require('./routes/cashflow'));
 app.use('/api/collections', require('./routes/collections'));
 app.use('/api/indent-fms', require('./routes/indentfms'));
 app.use('/api/dpr', require('./routes/dpr'));
+
+// File upload endpoint
+const { authMiddleware } = require('./middleware/auth');
+app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.originalname, size: req.file.size });
+});
+
+// Serve uploaded files
+app.use('/uploads', express.static(uploadsDir));
 
 // Health check for deployment platforms
 app.get('/api/health', (req, res) => {

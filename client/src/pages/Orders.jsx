@@ -14,6 +14,7 @@ export default function Orders() {
   const [form, setForm] = useState({});
   const [poItems, setPoItems] = useState([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
   const [masterItems, setMasterItems] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   const load = () => {
     api.get('/orders/po').then(r => setPos(r.data));
@@ -161,8 +162,28 @@ export default function Orders() {
               <div><label className="label">PO Date *</label><input className="input" type="date" value={form.po_date || ''} onChange={e => setForm({ ...form, po_date: e.target.value })} required /></div>
               <div><label className="label">Total Amount (Rs)</label><input className="input" type="number" value={form.total_amount || 0} onChange={e => setForm({ ...form, total_amount: +e.target.value })} /></div>
               <div>
-                <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload PO Copy (Drive/URL Link)</label>
-                <input className="input" value={form.po_copy_link || ''} onChange={e => setForm({ ...form, po_copy_link: e.target.value })} placeholder="Paste Google Drive or file link" />
+                <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload PO Copy</label>
+                {form.po_copy_link ? (
+                  <div className="flex items-center gap-2">
+                    <a href={form.po_copy_link} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline truncate flex-1">{form.po_copy_link.split('/').pop()}</a>
+                    <button type="button" onClick={() => setForm({ ...form, po_copy_link: '' })} className="text-red-500 text-xs">Remove</button>
+                  </div>
+                ) : (
+                  <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" disabled={uploading}
+                    onChange={async (e) => {
+                      const file = e.target.files[0]; if (!file) return;
+                      setUploading(true);
+                      try {
+                        const fd = new FormData(); fd.append('file', file);
+                        const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                        setForm(f => ({ ...f, po_copy_link: res.data.url }));
+                        toast.success(`Uploaded: ${res.data.filename}`);
+                      } catch { toast.error('Upload failed'); }
+                      setUploading(false); e.target.value = '';
+                    }}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                )}
+                {uploading && <p className="text-xs text-blue-500 mt-1">Uploading...</p>}
               </div>
             </div>
           </div>
