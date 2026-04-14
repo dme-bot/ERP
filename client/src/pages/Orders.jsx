@@ -3,7 +3,7 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiUpload, FiEdit2, FiExternalLink, FiEye } from 'react-icons/fi';
 import SearchableSelect from '../components/SearchableSelect';
 
 export default function Orders() {
@@ -16,6 +16,7 @@ export default function Orders() {
   const [poItems, setPoItems] = useState([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
   const [masterItems, setMasterItems] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [editingPO, setEditingPO] = useState(null);
 
   const load = () => {
     api.get('/orders/po').then(r => setPos(r.data));
@@ -46,13 +47,36 @@ export default function Orders() {
     }
   };
 
+  const handleEditPO = (po) => {
+    setEditingPO(po);
+    setForm({
+      business_book_id: po.business_book_id || '',
+      po_number: po.po_number, po_date: po.po_date, total_amount: po.total_amount || 0,
+      advance_amount: po.advance_amount || 0, po_copy_link: po.po_copy_link || '',
+      pt_advance: po.pt_advance || '', pt_delivery: po.pt_delivery || '',
+      pt_installation: po.pt_installation || '', pt_commissioning: po.pt_commissioning || '',
+      pt_retention: po.pt_retention || '', status: po.status || 'received'
+    });
+    // Load existing PO items
+    api.get(`/orders/po/${po.id}/items`).then(r => {
+      setPoItems(r.data.length > 0 ? r.data.map(i => ({ ...i, item_master_id: i.item_master_id || '' })) : [{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
+    }).catch(() => setPoItems([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]));
+    setModal('po');
+  };
+
   const savePo = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/orders/po', { ...form, items: poItems.filter(item => item.description && item.description.trim()) });
-      toast.success('PO created');
-      setModal(false);
-      setPoItems([{ description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
+      if (editingPO) {
+        await api.put(`/orders/po/${editingPO.id}`, { ...form });
+        await api.post(`/orders/po/${editingPO.id}/items`, { items: poItems.filter(item => item.description && item.description.trim()) });
+        toast.success('PO updated');
+      } else {
+        await api.post('/orders/po', { ...form, items: poItems.filter(item => item.description && item.description.trim()) });
+        toast.success('PO created');
+      }
+      setModal(false); setEditingPO(null);
+      setPoItems([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
       load();
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
@@ -83,13 +107,14 @@ export default function Orders() {
           <div className="flex justify-between items-center">
             <h3 className="font-semibold">Client Purchase Orders</h3>
             <button onClick={() => {
+              setEditingPO(null);
               setForm({ business_book_id: '', po_number: '', po_date: '', total_amount: 0, advance_amount: 0, po_copy_link: '', pt_advance: '', pt_delivery: '', pt_installation: '', pt_commissioning: '', pt_retention: '' });
-              setPoItems([{ description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
+              setPoItems([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
               setModal('po');
             }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add PO</button>
           </div>
           <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table>
-            <thead><tr><th>PO Number</th><th>Lead No</th><th>Client</th><th>Project</th><th>Category</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
+            <thead><tr><th>PO Number</th><th>Lead No</th><th>Client</th><th>Project</th><th>Category</th><th>Date</th><th>Amount</th><th>PO Copy</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {pos.map(p => (
                 <tr key={p.id}>
@@ -100,10 +125,14 @@ export default function Orders() {
                   <td>{p.bb_category || '-'}</td>
                   <td>{p.po_date}</td>
                   <td className="font-semibold">Rs {p.total_amount?.toLocaleString()}</td>
+                  <td>{p.po_copy_link ? <a href={p.po_copy_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
                   <td><StatusBadge status={p.status} /></td>
+                  <td>
+                    <button onClick={() => handleEditPO(p)} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded" title="Edit"><FiEdit2 size={15} /></button>
+                  </td>
                 </tr>
               ))}
-              {pos.length === 0 && <tr><td colSpan="8" className="text-center py-8 text-gray-400">No orders yet</td></tr>}
+              {pos.length === 0 && <tr><td colSpan="10" className="text-center py-8 text-gray-400">No orders yet</td></tr>}
             </tbody>
           </table></div></div>
         </>
@@ -128,7 +157,7 @@ export default function Orders() {
       )}
 
       {/* Add PO Modal */}
-      <Modal isOpen={modal === 'po'} onClose={() => setModal(false)} title="Upload Client Purchase Order" wide>
+      <Modal isOpen={modal === 'po'} onClose={() => { setModal(false); setEditingPO(null); }} title={editingPO ? `Edit PO - ${editingPO.po_number}` : 'Upload Client Purchase Order'} wide>
         <form onSubmit={savePo} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
 
           {/* 1. Business Book Entry */}
@@ -162,6 +191,7 @@ export default function Orders() {
               <div><label className="label">PO Number *</label><input className="input" value={form.po_number || ''} onChange={e => setForm({ ...form, po_number: e.target.value })} required /></div>
               <div><label className="label">PO Date *</label><input className="input" type="date" value={form.po_date || ''} onChange={e => setForm({ ...form, po_date: e.target.value })} required /></div>
               <div><label className="label">Total Amount (Rs)</label><input className="input" type="number" value={form.total_amount || 0} onChange={e => setForm({ ...form, total_amount: +e.target.value })} /></div>
+              {editingPO && <div><label className="label">Status</label><select className="select" value={form.status || 'received'} onChange={e => setForm({ ...form, status: e.target.value })}><option value="received">Received</option><option value="booked">Booked</option><option value="planning">Planning</option><option value="in_progress">In Progress</option><option value="completed">Completed</option></select></div>}
               <div>
                 <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload PO Copy</label>
                 {form.po_copy_link ? (
@@ -278,8 +308,8 @@ export default function Orders() {
           </div>
 
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button>
-            <button type="submit" className="btn btn-primary">Create Purchase Order</button>
+            <button type="button" onClick={() => { setModal(false); setEditingPO(null); }} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary">{editingPO ? 'Update Purchase Order' : 'Create Purchase Order'}</button>
           </div>
         </form>
       </Modal>

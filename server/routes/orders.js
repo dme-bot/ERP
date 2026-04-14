@@ -59,9 +59,14 @@ router.post('/po', (req, res) => {
 });
 
 router.put('/po/:id', (req, res) => {
-  const { status, advance_received } = req.body;
-  getDb().prepare('UPDATE purchase_orders SET status=?, advance_received=? WHERE id=?')
-    .run(status, advance_received ? 1 : 0, req.params.id);
+  const { po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, status } = req.body;
+  getDb().prepare(`UPDATE purchase_orders SET po_number=COALESCE(?,po_number), po_date=COALESCE(?,po_date),
+    total_amount=COALESCE(?,total_amount), advance_amount=COALESCE(?,advance_amount),
+    po_copy_link=?, pt_advance=?, pt_delivery=?, pt_installation=?, pt_commissioning=?, pt_retention=?,
+    status=COALESCE(?,status) WHERE id=?`)
+    .run(po_number, po_date, total_amount, advance_amount, po_copy_link || null,
+      pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0,
+      status, req.params.id);
   res.json({ message: 'Updated' });
 });
 
