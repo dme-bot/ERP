@@ -25,14 +25,21 @@ router.put('/sites/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
-// Get PO items for a site
+// Get PO items for a site (with remaining qty after previous DPRs)
 router.get('/sites/:site_id/po-items', (req, res) => {
   const db = getDb();
   const site = db.prepare('SELECT po_id, business_book_id FROM sites WHERE id=?').get(req.params.site_id);
   if (!site) return res.json([]);
   if (site.business_book_id) {
     const items = db.prepare('SELECT * FROM po_items WHERE business_book_id=?').all(site.business_book_id);
-    if (items.length > 0) return res.json(items);
+    // Calculate already filled qty from previous DPRs
+    const result = items.map(item => {
+      const filled = db.prepare('SELECT COALESCE(SUM(actual_qty),0) as total FROM dpr_work_items WHERE po_item_id=?').get(item.id);
+      const filledQty = filled?.total || 0;
+      const remaining = Math.max(0, (item.quantity || 0) - filledQty);
+      return { ...item, filled_qty: filledQty, remaining_qty: remaining };
+    });
+    return res.json(result);
   }
   res.json([]);
 });

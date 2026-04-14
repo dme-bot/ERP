@@ -60,6 +60,8 @@ export default function DPR() {
     n[i].description = item?.description || '';
     n[i].unit = item?.unit || 'nos';
     n[i].boq_qty = item?.quantity || 0;
+    n[i].remaining_qty = item?.remaining_qty ?? item?.quantity ?? 0;
+    n[i].filled_qty = item?.filled_qty || 0;
     setWorkItems(n);
   };
   const updateWork = (i, field, val) => {
@@ -244,11 +246,16 @@ export default function DPR() {
                   <div key={i} className="grid grid-cols-12 gap-1 mb-1.5 items-center bg-white rounded p-1">
                     <select className="input col-span-4 text-sm" value={w.po_item_id || ''} onChange={e => selectWorkItem(i, e.target.value)}>
                       <option value="">-- Select PO Item --</option>
-                      {poItemsForSite.map(item => <option key={item.id} value={item.id}>{item.description} ({item.quantity} {item.unit})</option>)}
+                      {poItemsForSite.map(item => (
+                        <option key={item.id} value={item.id} disabled={item.remaining_qty <= 0}>
+                          {item.description} (BOQ:{item.quantity} | Remaining:{item.remaining_qty ?? item.quantity} {item.unit}){item.remaining_qty <= 0 ? ' - COMPLETED' : ''}
+                        </option>
+                      ))}
                     </select>
-                    <input className="input text-sm text-center" type="number" placeholder="0" max={w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
+                    <input className="input text-sm text-center" type="number" placeholder="0" max={w.remaining_qty || w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
                       const val = +e.target.value;
-                      if (w.boq_qty && val > w.boq_qty) { toast.error(`Qty cannot exceed BOQ qty (${w.boq_qty})`); return; }
+                      const maxQty = w.remaining_qty ?? w.boq_qty ?? 999999;
+                      if (val > maxQty) { toast.error(`Max qty: ${maxQty} (BOQ: ${w.boq_qty}, Already filled: ${w.filled_qty || 0})`); return; }
                       updateWork(i, 'qty', val);
                     }} />
                     <input className="input col-span-2 text-sm" placeholder="GF/1F/2F" value={w.location || ''} onChange={e => updateWork(i, 'location', e.target.value)} />
