@@ -88,14 +88,17 @@ router.post('/', (req, res) => {
       safety_incidents, next_day_plan, hindrances, remarks);
   const dprId = r.lastInsertRowid;
 
-  // Work items (from PO items with floor/zone, rate, amount)
+  // Work items - installation progress from PO items
   const insertWork = db.prepare('INSERT INTO dpr_work_items (dpr_id, po_item_id, description, unit, floor_zone, boq_qty, rate, amount, planned_qty, actual_qty, cumulative_qty, variance_pct, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
   for (const w of (work_items || [])) {
-    const variance = w.planned_qty > 0 ? ((w.actual_qty - w.planned_qty) / w.planned_qty * 100) : 0;
+    if (!w.description && !w.po_item_id) continue;
+    const qtyToday = w.qty_today || w.actual_qty || 0;
+    const installRate = w.installation_rate || w.rate || 0;
+    const amount = qtyToday * installRate;
     insertWork.run(dprId, w.po_item_id || null, w.description, w.unit, w.floor_zone,
-      w.boq_qty || 0, w.rate || 0, w.amount || 0,
-      w.planned_qty || 0, w.actual_qty || 0, w.cumulative_qty || 0,
-      Math.round(variance * 100) / 100, w.remarks);
+      w.boq_qty || 0, installRate, amount,
+      qtyToday, qtyToday, w.cumulative_qty || 0,
+      0, w.remarks);
   }
 
   // Manpower by MEPF trade

@@ -37,31 +37,43 @@ export default function DPR() {
 
   const handleSiteSelect = (siteId) => {
     setForm(f => ({ ...f, site_id: siteId }));
+    setWorkItems([]);
     if (siteId) {
-      api.get(`/dpr/sites/${siteId}/po-items`).then(r => {
-        setPoItemsForSite(r.data);
-        if (r.data.length > 0) {
-          setWorkItems(r.data.map(item => ({
-            po_item_id: item.id, description: item.description, unit: item.unit || 'nos',
-            floor_zone: '', boq_qty: item.quantity || 0, rate: item.rate || 0, amount: item.amount || 0,
-            planned_qty: 0, actual_qty: 0, cumulative_qty: 0
-          })));
-          setMaterials(r.data.map(item => ({
-            po_item_id: item.id, material_name: item.description, unit: item.unit || 'nos',
-            boq_qty: item.quantity || 0, consumed_today: 0, cumulative_consumed: 0
-          })));
-        } else {
-          setWorkItems([{ description: '', unit: 'nos', floor_zone: '', boq_qty: 0, planned_qty: 0, actual_qty: 0, cumulative_qty: 0 }]);
-          setMaterials([{ material_name: '', unit: 'nos', boq_qty: 0, consumed_today: 0, cumulative_consumed: 0 }]);
-        }
-      }).catch(() => { setPoItemsForSite([]); });
+      api.get(`/dpr/sites/${siteId}/po-items`).then(r => setPoItemsForSite(r.data)).catch(() => setPoItemsForSite([]));
+    } else {
+      setPoItemsForSite([]);
     }
   };
+
+  const addWorkItem = () => {
+    setWorkItems([...workItems, { po_item_id: '', description: '', unit: 'nos', boq_qty: 0, floor_zone: '', qty_today: 0, cumulative_qty: 0, installation_rate: 0, amount: 0 }]);
+  };
+
+  const selectWorkItem = (index, poItemId) => {
+    const item = poItemsForSite.find(p => p.id === +poItemId);
+    const n = [...workItems];
+    n[index].po_item_id = +poItemId || '';
+    n[index].description = item?.description || '';
+    n[index].unit = item?.unit || 'nos';
+    n[index].boq_qty = item?.quantity || 0;
+    setWorkItems(n);
+  };
+
+  const updateWorkField = (index, field, value) => {
+    const n = [...workItems];
+    n[index][field] = value;
+    if (field === 'qty_today' || field === 'installation_rate') {
+      n[index].amount = (n[index].qty_today || 0) * (n[index].installation_rate || 0);
+    }
+    setWorkItems(n);
+  };
+
+  const removeWorkItem = (index) => setWorkItems(workItems.filter((_, i) => i !== index));
 
   const submitDpr = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/dpr', { ...form, work_items: workItems, manpower, materials, machinery: machinery.filter(m => m.equipment) });
+      await api.post('/dpr', { ...form, work_items: workItems.filter(w => w.po_item_id), manpower, machinery: machinery.filter(m => m.equipment) });
       toast.success('DPR submitted!'); setModal(false); load();
     } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
   };
@@ -184,32 +196,71 @@ export default function DPR() {
             </div>
           </div>
 
-          {/* 2. Work Progress from PO Items */}
+          {/* 2. Installation Work - pick from PO items */}
           <div className="border rounded-lg p-3 bg-blue-50">
-            <h5 className="font-semibold text-sm text-blue-700 mb-2">Work Progress (PO Items)</h5>
+            <div className="flex justify-between items-center mb-2">
+              <h5 className="font-semibold text-sm text-blue-700">Installation Work (from Client PO)</h5>
+              {poItemsForSite.length > 0 && <button type="button" onClick={addWorkItem} className="btn btn-secondary text-xs flex items-center gap-1"><FiPlus size={12} /> Add Item</button>}
+            </div>
             {poItemsForSite.length > 0 ? (
               <>
-                <p className="text-xs text-blue-600 mb-2">Items from PO. Enter floor/zone, planned & actual qty.</p>
-                <div className="overflow-x-auto">
-                  <div className="grid grid-cols-12 gap-1 text-[10px] font-semibold text-gray-500 mb-1 min-w-[800px]">
-                    <div className="col-span-3">Item (from PO)</div><div>Unit</div><div>BOQ</div><div>Rate</div><div className="col-span-2">Floor/Zone</div><div>Planned</div><div>Actual</div><div>Cum.</div>
-                  </div>
-                  {workItems.map((w, i) => (
-                    <div key={i} className="grid grid-cols-12 gap-1 mb-1 items-center min-w-[800px]">
-                      <div className="col-span-3 text-xs font-medium truncate" title={w.description}>{w.description}</div>
-                      <div className="text-xs text-gray-500">{w.unit}</div>
-                      <div className="text-xs font-semibold">{w.boq_qty}</div>
-                      <div className="text-xs">Rs{(w.rate||0).toLocaleString()}</div>
-                      <input className="input text-xs col-span-2" placeholder="Floor/Zone" value={w.floor_zone || ''} onChange={e => { const n = [...workItems]; n[i].floor_zone = e.target.value; setWorkItems(n); }} />
-                      <input className="input text-xs" type="number" value={w.planned_qty || ''} onChange={e => { const n = [...workItems]; n[i].planned_qty = +e.target.value; setWorkItems(n); }} />
-                      <input className="input text-xs" type="number" value={w.actual_qty || ''} onChange={e => { const n = [...workItems]; n[i].actual_qty = +e.target.value; setWorkItems(n); }} />
-                      <input className="input text-xs" type="number" value={w.cumulative_qty || ''} onChange={e => { const n = [...workItems]; n[i].cumulative_qty = +e.target.value; setWorkItems(n); }} />
+                <p className="text-xs text-blue-600 mb-3">Select items you installed today. Enter qty, installation rate. Amount auto-calculated.</p>
+                {workItems.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Click "+ Add Item" to add items you worked on today</p>}
+                {workItems.map((w, i) => (
+                  <div key={i} className="bg-white border rounded-lg p-3 mb-2">
+                    <div className="grid grid-cols-12 gap-2 items-center">
+                      <div className="col-span-5">
+                        <label className="text-[10px] text-gray-500 font-semibold">PO Item</label>
+                        <select className="select text-sm" value={w.po_item_id || ''} onChange={e => selectWorkItem(i, e.target.value)}>
+                          <option value="">-- Select PO Item --</option>
+                          {poItemsForSite.map(item => (
+                            <option key={item.id} value={item.id}>{item.description} ({item.quantity} {item.unit})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 font-semibold">Unit</label>
+                        <div className="input text-sm bg-gray-50">{w.unit}</div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 font-semibold">BOQ Qty</label>
+                        <div className="input text-sm bg-gray-50 font-semibold">{w.boq_qty}</div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 font-semibold">Floor/Zone</label>
+                        <input className="input text-sm" placeholder="GF/1F/2F" value={w.floor_zone || ''} onChange={e => updateWorkField(i, 'floor_zone', e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 font-semibold">Qty Today</label>
+                        <input className="input text-sm" type="number" placeholder="0" value={w.qty_today || ''} onChange={e => updateWorkField(i, 'qty_today', +e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 font-semibold">Cumulative</label>
+                        <input className="input text-sm" type="number" placeholder="0" value={w.cumulative_qty || ''} onChange={e => updateWorkField(i, 'cumulative_qty', +e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 font-semibold">Install Rate</label>
+                        <input className="input text-sm" type="number" placeholder="Rs" value={w.installation_rate || ''} onChange={e => updateWorkField(i, 'installation_rate', +e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 font-semibold">Amount</label>
+                        <div className="input text-sm bg-emerald-50 font-bold text-emerald-700">Rs {(w.amount || 0).toLocaleString()}</div>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex justify-end mt-1">
+                      <button type="button" onClick={() => removeWorkItem(i)} className="text-xs text-red-500 hover:underline">Remove</button>
+                    </div>
+                  </div>
+                ))}
+                {workItems.length > 0 && (
+                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-blue-200 text-sm">
+                    <span className="text-blue-600">{workItems.filter(w => w.po_item_id).length} items</span>
+                    <span className="font-bold text-blue-800">Today's Total: Rs {workItems.reduce((s, w) => s + (w.amount || 0), 0).toLocaleString()}</span>
+                  </div>
+                )}
               </>
             ) : (
-              <p className="text-xs text-amber-600">Select a site with PO items to auto-load work items.</p>
+              <p className="text-xs text-amber-600">{form.site_id ? 'No PO items found for this site. Add PO items in Orders first.' : 'Select a site to see PO items.'}</p>
             )}
           </div>
 
@@ -323,8 +374,9 @@ export default function DPR() {
             </div>
 
             {selectedDpr.work_items?.length > 0 && (
-              <div><h5 className="font-semibold text-sm mb-2">Work Progress</h5><table className="text-xs"><thead><tr><th>Item</th><th>Floor</th><th>BOQ</th><th>Rate</th><th>Planned</th><th>Actual</th><th>Cum.</th><th>Var%</th></tr></thead>
-                <tbody>{selectedDpr.work_items.map(w => (<tr key={w.id}><td>{w.description}</td><td>{w.floor_zone}</td><td>{w.boq_qty}</td><td>Rs{w.rate}</td><td>{w.planned_qty}</td><td>{w.actual_qty}</td><td>{w.cumulative_qty}</td><td className={w.variance_pct < 0 ? 'text-red-600' : 'text-emerald-600'}>{w.variance_pct}%</td></tr>))}</tbody></table></div>
+              <div><h5 className="font-semibold text-sm mb-2">Installation Work</h5><table className="text-xs"><thead><tr><th>Item</th><th>Floor/Zone</th><th>BOQ Qty</th><th>Qty Today</th><th>Cumulative</th><th>Install Rate</th><th>Amount</th></tr></thead>
+                <tbody>{selectedDpr.work_items.map(w => (<tr key={w.id}><td>{w.description}</td><td>{w.floor_zone || '-'}</td><td>{w.boq_qty}</td><td className="font-bold">{w.actual_qty}</td><td>{w.cumulative_qty}</td><td>Rs {(w.rate || 0).toLocaleString()}</td><td className="font-bold text-emerald-600">Rs {(w.amount || 0).toLocaleString()}</td></tr>))}</tbody></table>
+                <div className="text-right text-sm font-bold mt-1">Total: Rs {selectedDpr.work_items.reduce((s, w) => s + (w.amount || 0), 0).toLocaleString()}</div></div>
             )}
             {selectedDpr.manpower?.length > 0 && (
               <div><h5 className="font-semibold text-sm mb-2">Manpower (MEPF Trades)</h5><table className="text-xs"><thead><tr><th>Trade</th><th>Required</th><th>Deployed</th><th>Shortage</th></tr></thead>
