@@ -4,6 +4,7 @@ import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
+import SearchableSelect from '../components/SearchableSelect';
 
 export default function Orders() {
   const [tab, setTab] = useState('po');
@@ -241,19 +242,24 @@ export default function Orders() {
               </div>
               {poItems.map((item, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                  <select className="input col-span-4 text-sm" value={item.item_master_id || ''} onChange={e => {
-                    const mi = masterItems.find(m => m.id === +e.target.value);
-                    const items = [...poItems];
-                    items[i].item_master_id = +e.target.value || '';
-                    items[i].description = mi?.display_name || '';
-                    items[i].unit = mi?.uom?.toLowerCase() || 'nos';
-                    items[i].rate = mi?.current_price || items[i].rate;
-                    items[i].amount = (items[i].quantity || 0) * (items[i].rate || 0);
-                    setPoItems(items);
-                  }}>
-                    <option value="">-- Select Item --</option>
-                    {masterItems.map(mi => <option key={mi.id} value={mi.id}>[{mi.item_code}] {mi.display_name}</option>)}
-                  </select>
+                  <div className="col-span-4">
+                    <SearchableSelect
+                      options={masterItems.map(mi => ({ id: mi.id, label: `[${mi.item_code}] ${mi.display_name}`, ...mi }))}
+                      value={item.item_master_id || null}
+                      valueKey="id"
+                      displayKey="label"
+                      placeholder="Type to search items..."
+                      onChange={(mi) => {
+                        const items = [...poItems];
+                        items[i].item_master_id = mi?.id || '';
+                        items[i].description = mi?.display_name || '';
+                        items[i].unit = mi?.uom?.toLowerCase() || items[i].unit;
+                        items[i].rate = mi?.current_price || items[i].rate;
+                        items[i].amount = (items[i].quantity || 0) * (items[i].rate || 0);
+                        setPoItems(items);
+                      }}
+                    />
+                  </div>
                   <input className="input text-sm" type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', +e.target.value)} />
                   <select className="select text-sm" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
                     <option>nos</option><option>mtr</option><option>kg</option><option>sqm</option><option>rft</option><option>set</option><option>lot</option><option>pair</option>

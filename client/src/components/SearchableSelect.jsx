@@ -1,0 +1,63 @@
+import { useState, useRef, useEffect } from 'react';
+
+export default function SearchableSelect({ options, value, onChange, placeholder = 'Search...', displayKey = 'label', valueKey = 'value' }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef(null);
+  const inputRef = useRef(null);
+
+  const selected = options.find(o => o[valueKey] === value);
+  const filtered = options.filter(o => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (o[displayKey] || '').toLowerCase().includes(q);
+  });
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    if (open && inputRef.current) inputRef.current.focus();
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => { setOpen(!open); setSearch(''); }}
+        className="input text-left text-sm w-full truncate flex items-center justify-between gap-1 cursor-pointer">
+        <span className={selected ? 'text-gray-900' : 'text-gray-400'}>
+          {selected ? selected[displayKey] : placeholder}
+        </span>
+        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden">
+          <div className="p-2 border-b">
+            <input ref={inputRef} type="text" className="input text-sm w-full" placeholder="Type to search..."
+              value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') setOpen(false); }} />
+          </div>
+          <div className="overflow-y-auto max-h-48">
+            {value && (
+              <button type="button" onClick={() => { onChange(null); setOpen(false); }}
+                className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 border-b">
+                Clear selection
+              </button>
+            )}
+            {filtered.length === 0 && <div className="px-3 py-4 text-sm text-gray-400 text-center">No items found</div>}
+            {filtered.slice(0, 100).map(o => (
+              <button type="button" key={o[valueKey]} onClick={() => { onChange(o); setOpen(false); setSearch(''); }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors ${o[valueKey] === value ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}>
+                {o[displayKey]}
+              </button>
+            ))}
+            {filtered.length > 100 && <div className="px-3 py-2 text-xs text-gray-400 text-center">Showing 100 of {filtered.length} — type more to narrow</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
