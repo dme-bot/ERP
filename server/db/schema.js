@@ -914,7 +914,49 @@ function initializeDatabase() {
     for (const d of seedData) {
       insertBB.run(...d);
     }
-    console.log('Seeded 10 Business Book entries from Master Sheet');
+
+    // Auto-create sites + PO + PO items for each Business Book entry
+    const allBB = db.prepare('SELECT id, lead_no, client_name, company_name, project_name, category, district, state, billing_address, shipping_address, employee_assigned, management_person_name, sale_amount_without_gst, committed_start_date, committed_completion_date FROM business_book').all();
+    const insertSite = db.prepare('INSERT INTO sites (name, address, client_name, business_book_id, supervisor) VALUES (?,?,?,?,?)');
+    const insertPO = db.prepare('INSERT INTO purchase_orders (business_book_id, po_number, po_date, total_amount, created_by) VALUES (?,?,?,?,1)');
+    const insertPOItem = db.prepare('INSERT INTO po_items (business_book_id, item_master_id, description, quantity, unit, rate, amount) VALUES (?,?,?,?,?,?,?)');
+    const insertPlan = db.prepare('INSERT INTO order_planning (business_book_id, planned_start, planned_end, notes, created_by) VALUES (?,?,?,?,1)');
+
+    // Get some PO-type items from item_master for sample PO items
+    const sampleItems = db.prepare("SELECT id, item_name, specification, size, uom, current_price FROM item_master WHERE type='PO' LIMIT 50").all();
+
+    for (let i = 0; i < allBB.length; i++) {
+      const bb = allBB[i];
+      const siteName = bb.project_name || `${bb.client_name} - ${bb.category || 'Project'}`;
+      const siteAddr = bb.shipping_address || bb.billing_address || `${bb.district}, ${bb.state}`;
+
+      // Create site
+      const siteR = insertSite.run(siteName, siteAddr, bb.client_name || bb.company_name, bb.id, bb.employee_assigned || bb.management_person_name);
+
+      // Create PO
+      const poNum = `PO-${bb.lead_no}-${String(i + 1).padStart(3, '0')}`;
+      const poR = insertPO.run(bb.id, poNum, '2026-03-01', bb.sale_amount_without_gst || 0);
+      const poId = poR.lastInsertRowid;
+
+      // Update BB with PO number
+      db.prepare('UPDATE business_book SET po_number=? WHERE id=?').run(poNum, bb.id);
+      // Update site with po_id
+      db.prepare('UPDATE sites SET po_id=? WHERE id=?').run(poId, siteR.lastInsertRowid);
+
+      // Add 3-5 sample PO items from item_master
+      const itemCount = 3 + (i % 3); // 3 to 5 items
+      const startIdx = (i * 5) % sampleItems.length;
+      for (let j = 0; j < itemCount && j < sampleItems.length; j++) {
+        const item = sampleItems[(startIdx + j) % sampleItems.length];
+        const qty = Math.floor(Math.random() * 20) + 2;
+        const desc = [item.item_name, item.specification, item.size].filter(Boolean).join(' / ');
+        insertPOItem.run(bb.id, item.id, desc, qty, item.uom || 'PCS', item.current_price || 0, qty * (item.current_price || 0));
+      }
+
+      // Create order planning
+      insertPlan.run(bb.id, bb.committed_start_date, bb.committed_completion_date, `Auto: ${bb.lead_no} - ${siteName}`, 1);
+    }
+    console.log(`Seeded 10 Business Book entries with sites, POs, and PO items`);
   }
 
   // Seed Item Master (from Drive Item-wise Master Sheet 24-25)
