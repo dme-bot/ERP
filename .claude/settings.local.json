@@ -17,7 +17,9 @@
       "WebFetch(domain:docs.google.com)",
       "WebFetch(domain:doc-00-3g-sheets.googleusercontent.com)",
       "Bash(rm -f data/erp.db)",
-      "Bash(curl -s \"http://localhost:5000/api/item-master?search=branch\" -H \"Authorization: Bearer test\")"
+      "Bash(curl -s \"http://localhost:5000/api/item-master?search=branch\" -H \"Authorization: Bearer test\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install:*)"
     ]
   }
 }

@@ -145,9 +145,9 @@ export default function DPR() {
             <button onClick={() => { setForm({ name: '', address: '', client_name: '', site_engineer_id: '', supervisor: '' }); setSiteModal(true); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Site</button>
           </div>
           <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>Site</th><th>Address</th><th>Client</th><th>Engineer</th><th>Supervisor</th><th>Status</th></tr></thead>
-            <tbody>{sites.map(s => (<tr key={s.id}><td className="font-medium">{s.name}</td><td>{s.address}</td><td>{s.client_name}</td><td>{s.engineer_name}</td><td>{s.supervisor}</td><td><StatusBadge status={s.status} /></td></tr>))}
-              {sites.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No sites</td></tr>}</tbody>
+            <thead><tr><th>Lead No</th><th>Site</th><th>Address</th><th>Client</th><th>Engineer</th><th>Supervisor</th><th>Status</th></tr></thead>
+            <tbody>{sites.map(s => (<tr key={s.id}><td className="text-blue-600 font-bold">{s.lead_no || '-'}</td><td className="font-medium">{s.name}</td><td>{s.address}</td><td>{s.client_name}</td><td>{s.engineer_name}</td><td>{s.supervisor}</td><td><StatusBadge status={s.status} /></td></tr>))}
+              {sites.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No sites</td></tr>}</tbody>
           </table></div>
         </>
       )}
@@ -160,7 +160,7 @@ export default function DPR() {
           <div className="grid grid-cols-4 gap-3">
             <div><label className="label">Site *</label>
               <select className="select" value={form.site_id || ''} onChange={e => handleSiteSelect(e.target.value)} required>
-                <option value="">Select Site</option>{sites.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="">Select Site</option>{sites.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.lead_no ? `[${s.lead_no}] ` : ''}{s.name}</option>)}
               </select>
             </div>
             <div><label className="label">Date *</label><input className="input" type="date" value={form.report_date || ''} onChange={e => setForm({ ...form, report_date: e.target.value })} required /></div>
@@ -229,25 +229,7 @@ export default function DPR() {
             <button type="button" onClick={() => setManpower([...manpower, { trade: 'Helper', required: 0, deployed: 0 }])} className="text-xs text-amber-700 hover:underline">+ Add Trade</button>
           </div>
 
-          {/* 4. Material Consumed */}
-          <div className="border rounded-lg p-3 bg-purple-50">
-            <h5 className="font-semibold text-sm text-purple-700 mb-2">Material Consumed</h5>
-            {poItemsForSite.length > 0 ? (
-              <>
-                <div className="grid grid-cols-5 gap-1 text-[10px] font-semibold text-gray-500 mb-1"><div className="col-span-2">Material</div><div>BOQ</div><div>Today</div><div>Cumulative</div></div>
-                {materials.map((m, i) => (
-                  <div key={i} className="grid grid-cols-5 gap-1 mb-1 items-center">
-                    <div className="col-span-2 text-xs font-medium truncate">{m.material_name}</div>
-                    <div className="text-xs font-semibold">{m.boq_qty}</div>
-                    <input className="input text-xs" type="number" value={m.consumed_today || ''} onChange={e => { const n = [...materials]; n[i].consumed_today = +e.target.value; setMaterials(n); }} />
-                    <input className="input text-xs" type="number" value={m.cumulative_consumed || ''} onChange={e => { const n = [...materials]; n[i].cumulative_consumed = +e.target.value; setMaterials(n); }} />
-                  </div>
-                ))}
-              </>
-            ) : <p className="text-xs text-amber-600">Materials auto-load from PO items when site is selected.</p>}
-          </div>
-
-          {/* 5. Machinery/Tools */}
+          {/* 4. Machinery/Tools */}
           <div className="border rounded-lg p-3 bg-cyan-50">
             <h5 className="font-semibold text-sm text-cyan-700 mb-2">Machinery / Tools Used</h5>
             {machinery.map((m, i) => (
@@ -347,10 +329,6 @@ export default function DPR() {
             {selectedDpr.manpower?.length > 0 && (
               <div><h5 className="font-semibold text-sm mb-2">Manpower (MEPF Trades)</h5><table className="text-xs"><thead><tr><th>Trade</th><th>Required</th><th>Deployed</th><th>Shortage</th></tr></thead>
                 <tbody>{selectedDpr.manpower.map(m => (<tr key={m.id}><td>{m.trade}</td><td>{m.required}</td><td>{m.deployed}</td><td className={m.shortage > 0 ? 'text-red-600 font-bold' : ''}>{m.shortage}</td></tr>))}</tbody></table></div>
-            )}
-            {selectedDpr.materials?.length > 0 && (
-              <div><h5 className="font-semibold text-sm mb-2">Material Consumption</h5><table className="text-xs"><thead><tr><th>Material</th><th>BOQ</th><th>Today</th><th>Cum.</th><th>Balance</th></tr></thead>
-                <tbody>{selectedDpr.materials.map(m => (<tr key={m.id}><td>{m.material_name}</td><td>{m.boq_qty}</td><td>{m.consumed_today}</td><td>{m.cumulative_consumed}</td><td className={m.balance_qty < 0 ? 'text-red-600' : ''}>{m.balance_qty}</td></tr>))}</tbody></table></div>
             )}
             {selectedDpr.machinery?.length > 0 && (
               <div><h5 className="font-semibold text-sm mb-2">Machinery/Tools</h5><table className="text-xs"><thead><tr><th>Equipment</th><th>Qty</th><th>Hours</th><th>Condition</th></tr></thead>

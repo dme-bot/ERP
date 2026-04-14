@@ -7,16 +7,19 @@ router.use(authMiddleware);
 // Business Book entries for PO dropdown
 router.get('/business-book-entries', (req, res) => {
   res.json(getDb().prepare(
-    "SELECT id, lead_no, client_name, company_name, project_name, category, order_type, po_amount, sale_amount_without_gst, district, state FROM business_book ORDER BY created_at DESC"
+    `SELECT bb.id, bb.lead_no, bb.client_name, bb.company_name, COALESCE(s.name, bb.project_name) as project_name,
+     bb.category, bb.order_type, bb.po_amount, bb.sale_amount_without_gst, bb.district, bb.state
+     FROM business_book bb LEFT JOIN sites s ON s.business_book_id=bb.id ORDER BY bb.created_at DESC`
   ).all());
 });
 
 // Purchase Orders
 router.get('/po', (req, res) => {
   res.json(getDb().prepare(`SELECT po.*, bb.lead_no, bb.client_name as bb_client, bb.company_name as bb_company,
-    bb.project_name as bb_project, bb.category as bb_category,
+    COALESCE(s.name, bb.project_name) as bb_project, bb.category as bb_category,
     l.company_name, q.quotation_number FROM purchase_orders po
     LEFT JOIN business_book bb ON po.business_book_id=bb.id
+    LEFT JOIN sites s ON s.business_book_id=bb.id
     LEFT JOIN leads l ON po.lead_id=l.id LEFT JOIN quotations q ON po.quotation_id=q.id ORDER BY po.created_at DESC`).all());
 });
 

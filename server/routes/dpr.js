@@ -6,7 +6,9 @@ router.use(authMiddleware);
 
 // ===== SITES =====
 router.get('/sites', (req, res) => {
-  res.json(getDb().prepare(`SELECT s.*, u.name as engineer_name FROM sites s LEFT JOIN users u ON s.site_engineer_id=u.id ORDER BY s.name`).all());
+  res.json(getDb().prepare(`SELECT s.*, u.name as engineer_name, bb.lead_no FROM sites s
+    LEFT JOIN users u ON s.site_engineer_id=u.id
+    LEFT JOIN business_book bb ON s.business_book_id=bb.id ORDER BY s.name`).all());
 });
 
 router.post('/sites', (req, res) => {
