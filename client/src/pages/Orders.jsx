@@ -12,7 +12,8 @@ export default function Orders() {
   const [bbEntries, setBbEntries] = useState([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({});
-  const [poItems, setPoItems] = useState([{ description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
+  const [poItems, setPoItems] = useState([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
+  const [masterItems, setMasterItems] = useState([]);
 
   const load = () => {
     api.get('/orders/po').then(r => setPos(r.data));
@@ -22,9 +23,10 @@ export default function Orders() {
   useEffect(() => {
     load();
     api.get('/orders/business-book-entries').then(r => setBbEntries(r.data));
+    api.get('/item-master/dropdown').then(r => setMasterItems(r.data)).catch(() => {});
   }, []);
 
-  const addItem = () => setPoItems([...poItems, { description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
+  const addItem = () => setPoItems([...poItems, { item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
   const removeItem = (i) => setPoItems(poItems.filter((_, idx) => idx !== i));
   const updateItem = (i, key, val) => {
     const items = [...poItems];
@@ -218,7 +220,19 @@ export default function Orders() {
               </div>
               {poItems.map((item, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                  <input className="input col-span-4 text-sm" placeholder="Item description" value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} />
+                  <select className="input col-span-4 text-sm" value={item.item_master_id || ''} onChange={e => {
+                    const mi = masterItems.find(m => m.id === +e.target.value);
+                    const items = [...poItems];
+                    items[i].item_master_id = +e.target.value || '';
+                    items[i].description = mi?.display_name || '';
+                    items[i].unit = mi?.uom?.toLowerCase() || 'nos';
+                    items[i].rate = mi?.current_price || items[i].rate;
+                    items[i].amount = (items[i].quantity || 0) * (items[i].rate || 0);
+                    setPoItems(items);
+                  }}>
+                    <option value="">-- Select Item --</option>
+                    {masterItems.map(mi => <option key={mi.id} value={mi.id}>[{mi.item_code}] {mi.display_name}</option>)}
+                  </select>
                   <input className="input text-sm" type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', +e.target.value)} />
                   <select className="select text-sm" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
                     <option>nos</option><option>mtr</option><option>kg</option><option>sqm</option><option>rft</option><option>set</option><option>lot</option><option>pair</option>

@@ -31,10 +31,10 @@ router.post('/po', (req, res) => {
 
   // Insert PO items
   if (items && items.length > 0) {
-    const insertItem = db.prepare('INSERT INTO po_items (business_book_id, description, quantity, unit, rate, amount, hsn_code) VALUES (?,?,?,?,?,?,?)');
+    const insertItem = db.prepare('INSERT INTO po_items (business_book_id, item_master_id, description, quantity, unit, rate, amount, hsn_code) VALUES (?,?,?,?,?,?,?,?)');
     for (const item of items) {
       if (item.description && item.description.trim()) {
-        insertItem.run(business_book_id || null, item.description.trim(), item.quantity || 0, item.unit || 'nos', item.rate || 0, item.amount || 0, item.hsn_code || '');
+        insertItem.run(business_book_id || null, item.item_master_id || null, item.description.trim(), item.quantity || 0, item.unit || 'nos', item.rate || 0, item.amount || 0, item.hsn_code || '');
       }
     }
   }
@@ -82,11 +82,11 @@ router.post('/po/:id/items', (req, res) => {
   // Clear old items for this business_book
   if (bbId) db.prepare('DELETE FROM po_items WHERE business_book_id=?').run(bbId);
 
-  const insert = db.prepare('INSERT INTO po_items (business_book_id, description, quantity, unit, rate, amount, hsn_code) VALUES (?,?,?,?,?,?,?)');
+  const insert = db.prepare('INSERT INTO po_items (business_book_id, item_master_id, description, quantity, unit, rate, amount, hsn_code) VALUES (?,?,?,?,?,?,?,?)');
   let count = 0;
   for (const item of (items || [])) {
     if (item.description && item.description.trim()) {
-      insert.run(bbId, item.description.trim(), item.quantity || 0, item.unit || 'nos', item.rate || 0, item.amount || 0, item.hsn_code || '');
+      insert.run(bbId, item.item_master_id || null, item.description.trim(), item.quantity || 0, item.unit || 'nos', item.rate || 0, item.amount || 0, item.hsn_code || '');
       count++;
     }
   }

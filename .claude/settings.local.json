@@ -13,7 +13,9 @@
       "Bash(npm run:*)",
       "Bash(curl -s http://localhost:5000/api/health)",
       "Bash(curl -s http://localhost:5000)",
-      "Bash(grep -l \"BusinessBook\\\\|business-book\" \"C:\\\\Users\\\\admin\\\\Desktop\\\\business-erp\\\\client\\\\dist\\\\assets\"/*.js)"
+      "Bash(grep -l \"BusinessBook\\\\|business-book\" \"C:\\\\Users\\\\admin\\\\Desktop\\\\business-erp\\\\client\\\\dist\\\\assets\"/*.js)",
+      "WebFetch(domain:docs.google.com)",
+      "WebFetch(domain:doc-00-3g-sheets.googleusercontent.com)"
     ]
   }
 }
