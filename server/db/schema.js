@@ -920,7 +920,7 @@ function initializeDatabase() {
     const insertSite = db.prepare('INSERT INTO sites (name, address, client_name, business_book_id, supervisor) VALUES (?,?,?,?,?)');
     const insertPO = db.prepare('INSERT INTO purchase_orders (business_book_id, po_number, po_date, total_amount, created_by) VALUES (?,?,?,?,1)');
     const insertPOItem = db.prepare('INSERT INTO po_items (business_book_id, item_master_id, description, quantity, unit, rate, amount) VALUES (?,?,?,?,?,?,?)');
-    const insertPlan = db.prepare('INSERT INTO order_planning (business_book_id, planned_start, planned_end, notes, created_by) VALUES (?,?,?,?,1)');
+    const insertPlan = db.prepare('INSERT INTO order_planning (business_book_id, planned_start, planned_end, notes) VALUES (?,?,?,?)');
 
     // Get some PO-type items from item_master for sample PO items
     const sampleItems = db.prepare("SELECT id, item_name, specification, size, uom, current_price FROM item_master WHERE type='PO' LIMIT 50").all();
@@ -954,7 +954,7 @@ function initializeDatabase() {
       }
 
       // Create order planning
-      insertPlan.run(bb.id, bb.committed_start_date, bb.committed_completion_date, `Auto: ${bb.lead_no} - ${siteName}`, 1);
+      insertPlan.run(bb.id, bb.committed_start_date || null, bb.committed_completion_date || null, `Auto: ${bb.lead_no} - ${siteName}`);
     }
     console.log(`Seeded 10 Business Book entries with sites, POs, and PO items`);
   }
