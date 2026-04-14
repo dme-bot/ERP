@@ -62,13 +62,22 @@ router.get('/summary', (req, res) => {
   const monthInflow = db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM cash_flow_entries WHERE date >= ? AND type = 'inflow'").get(monthStart);
   const monthOutflow = db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM cash_flow_entries WHERE date >= ? AND type = 'outflow'").get(monthStart);
 
+  // Site-wise summary (from business_book)
+  const siteWise = db.prepare(`SELECT bb.company_name as site_name, bb.lead_no, bb.sale_amount_without_gst as project_value,
+    COALESCE(SUM(CASE WHEN e.type='inflow' THEN e.amount ELSE 0 END),0) as total_inflow,
+    COALESCE(SUM(CASE WHEN e.type='outflow' THEN e.amount ELSE 0 END),0) as total_outflow
+    FROM business_book bb
+    LEFT JOIN cash_flow_entries e ON e.party_name LIKE '%' || bb.client_name || '%'
+    GROUP BY bb.id ORDER BY bb.sale_amount_without_gst DESC`).all();
+
   res.json({
     today: todayData || { opening_balance: 0, total_inflows: 0, total_outflows: 0, closing_balance: 0 },
     last7Days: last7,
     inflowByCategory,
     outflowByCategory,
     monthlyInflow: monthInflow.total,
-    monthlyOutflow: monthOutflow.total
+    monthlyOutflow: monthOutflow.total,
+    siteWise
   });
 });
 
