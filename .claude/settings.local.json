@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/admin/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/36537606-5f0d-4d9f-8c17-30c3eb9fc7b4/20cf942c-7b66-4d33-99d8-a9b85afa9ca4/skills/xlsx/**)",
+      "Bash(python -c ':*)",
+      "Bash(where python3:*)",
+      "Bash(where py:*)",
+      "Bash(where node:*)",
+      "Bash(py -c ':*)",
+      "Read(//c/Users/admin/Desktop/business-erp/**)",
+      "Bash(npx kill-port:*)",
+      "Bash(node server/index.js)",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:5000/api/health)",
+      "Bash(curl -s http://localhost:5000)",
+      "Bash(grep -l \"BusinessBook\\\\|business-book\" \"C:\\\\Users\\\\admin\\\\Desktop\\\\business-erp\\\\client\\\\dist\\\\assets\"/*.js)"
+    ]
+  }
+}

@@ -144,6 +144,7 @@ function initializeDatabase() {
     -- Purchase Orders (from client)
     CREATE TABLE IF NOT EXISTS purchase_orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_book_id INTEGER REFERENCES business_book(id),
       lead_id INTEGER REFERENCES leads(id),
       quotation_id INTEGER REFERENCES quotations(id),
       po_number TEXT UNIQUE NOT NULL,
@@ -237,6 +238,19 @@ function initializeDatabase() {
       created_by INTEGER REFERENCES users(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PO Items (item-wise data for each PO / Business Book entry)
+    CREATE TABLE IF NOT EXISTS po_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_book_id INTEGER REFERENCES business_book(id) ON DELETE CASCADE,
+      description TEXT NOT NULL,
+      quantity REAL DEFAULT 0,
+      unit TEXT DEFAULT 'nos',
+      rate REAL DEFAULT 0,
+      amount REAL DEFAULT 0,
+      hsn_code TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     -- Order Planning
@@ -678,6 +692,7 @@ function initializeDatabase() {
       address TEXT,
       client_name TEXT,
       po_id INTEGER REFERENCES purchase_orders(id),
+      business_book_id INTEGER REFERENCES business_book(id),
       site_engineer_id INTEGER REFERENCES users(id),
       supervisor TEXT,
       status TEXT DEFAULT 'active' CHECK(status IN ('active','completed','on_hold')),
@@ -725,6 +740,7 @@ function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS dpr_material (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       dpr_id INTEGER REFERENCES dpr(id) ON DELETE CASCADE,
+      po_item_id INTEGER REFERENCES po_items(id),
       material_name TEXT NOT NULL,
       unit TEXT DEFAULT 'nos',
       boq_qty REAL DEFAULT 0,

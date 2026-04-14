@@ -23,6 +23,19 @@ router.put('/sites/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+// Get PO items for a site (for material dropdown)
+router.get('/sites/:site_id/po-items', (req, res) => {
+  const db = getDb();
+  const site = db.prepare('SELECT po_id, business_book_id FROM sites WHERE id=?').get(req.params.site_id);
+  if (!site) return res.json([]);
+  // Try via business_book_id first
+  if (site.business_book_id) {
+    const items = db.prepare('SELECT * FROM po_items WHERE business_book_id=?').all(site.business_book_id);
+    if (items.length > 0) return res.json(items);
+  }
+  res.json([]);
+});
+
 // ===== DPR =====
 // Get all DPRs with filters
 router.get('/', (req, res) => {
@@ -95,9 +108,9 @@ router.post('/', (req, res) => {
   }
 
   // Materials
-  const insertMat = db.prepare('INSERT INTO dpr_material (dpr_id, material_name, unit, boq_qty, consumed_today, cumulative_consumed, balance_qty, remarks) VALUES (?,?,?,?,?,?,?,?)');
+  const insertMat = db.prepare('INSERT INTO dpr_material (dpr_id, po_item_id, material_name, unit, boq_qty, consumed_today, cumulative_consumed, balance_qty, remarks) VALUES (?,?,?,?,?,?,?,?,?)');
   for (const mt of (materials || [])) {
-    insertMat.run(dprId, mt.material_name, mt.unit, mt.boq_qty || 0, mt.consumed_today || 0, mt.cumulative_consumed || 0, (mt.boq_qty || 0) - (mt.cumulative_consumed || 0), mt.remarks);
+    insertMat.run(dprId, mt.po_item_id || null, mt.material_name, mt.unit, mt.boq_qty || 0, mt.consumed_today || 0, mt.cumulative_consumed || 0, (mt.boq_qty || 0) - (mt.cumulative_consumed || 0), mt.remarks);
   }
 
   res.status(201).json({ id: dprId, message: 'DPR submitted' });

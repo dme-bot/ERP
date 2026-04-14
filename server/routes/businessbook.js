@@ -135,8 +135,8 @@ router.post('/', requirePermission('business_book', 'create'), (req, res) => {
   const siteName = b.project_name || `${b.client_name} - ${b.category || 'Project'}`;
   const siteAddress = b.shipping_address || b.billing_address || `${b.district || ''}, ${b.state || ''}`;
   const siteResult = db.prepare(
-    'INSERT INTO sites (name, address, client_name, supervisor) VALUES (?,?,?,?)'
-  ).run(siteName, siteAddress, b.client_name || b.company_name, b.employee_assigned || b.management_person_name);
+    'INSERT INTO sites (name, address, client_name, business_book_id, supervisor) VALUES (?,?,?,?,?)'
+  ).run(siteName, siteAddress, b.client_name || b.company_name, bbId, b.employee_assigned || b.management_person_name);
   const siteId = siteResult.lastInsertRowid;
 
   // Auto-create Cash Flow entry for advance

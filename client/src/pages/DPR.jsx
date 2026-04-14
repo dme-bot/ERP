@@ -20,6 +20,7 @@ export default function DPR() {
   const [manpower, setManpower] = useState([{ category: 'Skilled Labour', required: 0, deployed: 0 }]);
   const [materials, setMaterials] = useState([{ material_name: '', unit: 'nos', boq_qty: 0, consumed_today: 0, cumulative_consumed: 0 }]);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [poItemsForSite, setPoItemsForSite] = useState([]);
 
   const load = () => {
     api.get('/dpr/summary').then(r => setSummary(r.data));
@@ -198,7 +199,15 @@ export default function DPR() {
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Submit Daily Progress Report" wide>
         <form onSubmit={submitDpr} className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
-            <div><label className="label">Site *</label><select className="select" value={form.site_id || ''} onChange={e => setForm({...form, site_id: e.target.value})} required><option value="">Select</option>{sites.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+            <div><label className="label">Site *</label><select className="select" value={form.site_id || ''} onChange={e => {
+              const siteId = e.target.value;
+              setForm({...form, site_id: siteId});
+              if (siteId) {
+                api.get(`/dpr/sites/${siteId}/po-items`).then(r => setPoItemsForSite(r.data)).catch(() => setPoItemsForSite([]));
+              } else {
+                setPoItemsForSite([]);
+              }
+            }} required><option value="">Select</option>{sites.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
             <div><label className="label">Date *</label><input className="input" type="date" value={form.report_date || ''} onChange={e => setForm({...form, report_date: e.target.value})} required /></div>
             <div><label className="label">Weather</label><select className="select" value={form.weather || 'clear'} onChange={e => setForm({...form, weather: e.target.value})}><option value="clear">Clear</option><option value="rainy">Rainy</option><option value="cloudy">Cloudy</option><option value="hot">Hot</option></select></div>
           </div>
@@ -235,15 +244,33 @@ export default function DPR() {
           {/* Materials */}
           <div className="border rounded-lg p-3 bg-purple-50">
             <h5 className="font-semibold text-sm mb-2">Material Consumed vs BOQ</h5>
+            {poItemsForSite.length > 0 && <p className="text-xs text-purple-600 mb-2 font-medium">Select from PO items (auto-fills name, unit, BOQ qty)</p>}
             {materials.map((m, i) => (
               <div key={i} className="grid grid-cols-5 gap-2 mb-2">
-                <input className="input col-span-2" placeholder="Material Name" value={m.material_name} onChange={e => { const n = [...materials]; n[i].material_name = e.target.value; setMaterials(n); }} />
+                {poItemsForSite.length > 0 ? (
+                  <select className="input col-span-2 text-sm" value={m.po_item_id || ''} onChange={e => {
+                    const n = [...materials];
+                    const item = poItemsForSite.find(p => p.id === +e.target.value);
+                    n[i].po_item_id = +e.target.value || null;
+                    n[i].material_name = item?.description || '';
+                    n[i].unit = item?.unit || 'nos';
+                    n[i].boq_qty = item?.quantity || 0;
+                    setMaterials(n);
+                  }}>
+                    <option value="">-- Select PO Item --</option>
+                    {poItemsForSite.map(item => (
+                      <option key={item.id} value={item.id}>{item.description} ({item.quantity} {item.unit})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input className="input col-span-2" placeholder="Material Name" value={m.material_name} onChange={e => { const n = [...materials]; n[i].material_name = e.target.value; setMaterials(n); }} />
+                )}
                 <input className="input" type="number" placeholder="BOQ Qty" value={m.boq_qty} onChange={e => { const n = [...materials]; n[i].boq_qty = +e.target.value; setMaterials(n); }} />
                 <input className="input" type="number" placeholder="Today" value={m.consumed_today} onChange={e => { const n = [...materials]; n[i].consumed_today = +e.target.value; setMaterials(n); }} />
                 <input className="input" type="number" placeholder="Cumulative" value={m.cumulative_consumed} onChange={e => { const n = [...materials]; n[i].cumulative_consumed = +e.target.value; setMaterials(n); }} />
               </div>
             ))}
-            <button type="button" onClick={() => setMaterials([...materials, { material_name: '', unit: 'nos', boq_qty: 0, consumed_today: 0, cumulative_consumed: 0 }])} className="text-xs text-purple-700 hover:underline">+ Add Material</button>
+            <button type="button" onClick={() => setMaterials([...materials, { material_name: '', unit: 'nos', boq_qty: 0, consumed_today: 0, cumulative_consumed: 0, po_item_id: null }])} className="text-xs text-purple-700 hover:underline">+ Add Material</button>
           </div>
 
           <div><label className="label">Remarks</label><textarea className="input" rows="2" value={form.remarks || ''} onChange={e => setForm({...form, remarks: e.target.value})} /></div>
