@@ -5,7 +5,7 @@ import {
   FiHome, FiUsers, FiTarget, FiFileText, FiShoppingCart,
   FiTruck, FiTool, FiAlertCircle, FiUserPlus, FiDollarSign,
   FiCheckSquare, FiMenu, FiX, FiLogOut, FiPackage, FiClipboard,
-  FiSettings, FiShield, FiTrendingUp, FiCreditCard, FiLayers, FiBarChart2
+  FiSettings, FiShield, FiTrendingUp, FiCreditCard, FiLayers, FiBarChart2, FiBook
 } from 'react-icons/fi';
 
 const menuItems = [
@@ -18,6 +18,7 @@ const menuItems = [
   // Other modules
   { path: '/leads', label: 'Leads / CRM', icon: FiTarget, module: 'leads' },
   { path: '/quotations', label: 'BOQ & Quotations', icon: FiFileText, module: 'quotations' },
+  { path: '/business-book', label: 'Business Book', icon: FiBook, module: 'business_book' },
   { path: '/orders', label: 'Orders & Planning', icon: FiShoppingCart, module: 'orders' },
   { path: '/vendors', label: 'Vendors', icon: FiTruck, module: 'vendors' },
   { path: '/procurement', label: 'Procurement', icon: FiPackage, module: 'procurement' },

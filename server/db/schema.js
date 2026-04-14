@@ -714,7 +714,7 @@ function initializeDatabase() {
   ];
 
   const ALL_MODULES = [
-    'dashboard','leads','quotations','orders','vendors','procurement','cashflow','collections','indent_fms','dpr',
+    'dashboard','leads','quotations','orders','business_book','vendors','procurement','cashflow','collections','indent_fms','dpr',
     'installation','billing','complaints','hr','employees','expenses','checklists','users'
   ];
 

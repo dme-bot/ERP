@@ -26,6 +26,7 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/leads', require('./routes/leads'));
 app.use('/api/quotations', require('./routes/quotations'));
 app.use('/api/orders', require('./routes/orders'));
+app.use('/api/business-book', require('./routes/businessbook'));
 app.use('/api/procurement', require('./routes/procurement'));
 app.use('/api/installation', require('./routes/installation'));
 app.use('/api/hr', require('./routes/hr'));
