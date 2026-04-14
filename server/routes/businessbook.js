@@ -132,7 +132,7 @@ router.post('/', requirePermission('business_book', 'create'), (req, res) => {
     `Auto: ${leadNo} - ${b.project_name || b.client_name} [${b.category || ''} | ${b.order_type || 'Supply'}]`, req.user.id);
 
   // Auto-create DPR Site
-  const siteName = b.project_name || `${b.client_name} - ${b.category || 'Project'}`;
+  const siteName = b.company_name || b.project_name || `${b.client_name} - ${b.category || 'Project'}`;
   const siteAddress = b.shipping_address || b.billing_address || `${b.district || ''}, ${b.state || ''}`;
   const siteResult = db.prepare(
     'INSERT INTO sites (name, address, client_name, business_book_id, supervisor) VALUES (?,?,?,?,?)'

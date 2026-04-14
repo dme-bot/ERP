@@ -972,7 +972,7 @@ function initializeDatabase() {
 
     for (let i = 0; i < allBB.length; i++) {
       const bb = allBB[i];
-      const siteName = bb.project_name || `${bb.client_name} - ${bb.category || 'Project'}`;
+      const siteName = bb.company_name || bb.project_name || `${bb.client_name} - ${bb.category || 'Project'}`;
       const siteAddr = bb.shipping_address || bb.billing_address || `${bb.district}, ${bb.state}`;
 
       // Create site
