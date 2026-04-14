@@ -244,7 +244,7 @@ export default function DPR() {
           {/* Materials */}
           <div className="border rounded-lg p-3 bg-purple-50">
             <h5 className="font-semibold text-sm mb-2">Material Consumed vs BOQ</h5>
-            {poItemsForSite.length > 0 && <p className="text-xs text-purple-600 mb-2 font-medium">Select from PO items (auto-fills name, unit, BOQ qty)</p>}
+            {poItemsForSite.length > 0 && <p className="text-xs text-purple-600 mb-2 font-medium">Select from PO items only (auto-fills name, unit, BOQ qty)</p>}
             {materials.map((m, i) => (
               <div key={i} className="grid grid-cols-5 gap-2 mb-2">
                 {poItemsForSite.length > 0 ? (

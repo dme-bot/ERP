@@ -21,7 +21,11 @@ router.get('/', requirePermission('item_master', 'view'), (req, res) => {
 
 // GET all items for dropdown (lightweight - combined name/spec/size)
 router.get('/dropdown', (req, res) => {
-  const items = getDb().prepare('SELECT id, item_code, department, item_name, specification, size, uom, gst, current_price FROM item_master ORDER BY department, item_name').all();
+  const { type } = req.query;
+  let sql = 'SELECT id, item_code, department, item_name, specification, size, uom, gst, type, current_price FROM item_master';
+  if (type) sql += ` WHERE type='${type}'`;
+  sql += ' ORDER BY department, item_name';
+  const items = getDb().prepare(sql).all();
   const result = items.map(i => ({
     ...i,
     display_name: [i.item_name, i.specification, i.size].filter(Boolean).join(' / ')

@@ -926,8 +926,8 @@ function initializeDatabase() {
       const items = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
       const insertItem = db.prepare('INSERT OR IGNORE INTO item_master (item_code, department, item_name, specification, size, uom, gst, type, make, current_price) VALUES (?,?,?,?,?,?,?,?,?,?)');
       const insertMany = db.transaction((items) => {
-        for (const [code, dept, name, spec, size, unit, price, make] of items) {
-          insertItem.run(code, dept, name, spec || '', size || '', unit || 'PCS', '18%', 'PO', make || '', price || 0);
+        for (const [code, dept, name, spec, size, unit, price, type, make] of items) {
+          insertItem.run(code, dept, name, spec || '', size || '', unit || 'PCS', '18%', type || 'PO', make || '', price || 0);
         }
       });
       insertMany(items);

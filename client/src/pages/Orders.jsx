@@ -24,7 +24,7 @@ export default function Orders() {
   useEffect(() => {
     load();
     api.get('/orders/business-book-entries').then(r => setBbEntries(r.data));
-    api.get('/item-master/dropdown').then(r => setMasterItems(r.data)).catch(() => {});
+    api.get('/item-master/dropdown?type=PO').then(r => setMasterItems(r.data)).catch(() => {});
   }, []);
 
   const addItem = () => setPoItems([...poItems, { item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
