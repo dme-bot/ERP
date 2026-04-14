@@ -77,8 +77,7 @@ router.post('/', (req, res) => {
   if (!site_id || !report_date) return res.status(400).json({ error: 'Site and date required' });
   const db = getDb();
 
-  // Allow multiple DPR entries per site per day (different shifts/engineers)
-
+  try {
   const r = db.prepare(`INSERT INTO dpr (site_id, report_date, submitted_by, submission_time, weather, overall_status,
     shift, contractor_name, contractor_manpower, mb_sheet_no, grand_total_a, grand_total_b, profit_loss,
     floor_zone, system_type, safety_toolbox_talk, safety_ppe_compliance, safety_incidents,
@@ -97,7 +96,9 @@ router.post('/', (req, res) => {
     const qty = w.qty || 0;
     const rate = w.rate || 0;
     const amount = qty * rate;
-    insertWork.run(dprId, w.po_item_id || null, w.description, w.unit, w.location || w.floor_zone,
+    // Verify po_item_id exists, set null if not
+    const validPoItemId = w.po_item_id ? (db.prepare('SELECT id FROM po_items WHERE id=?').get(w.po_item_id) ? w.po_item_id : null) : null;
+    insertWork.run(dprId, validPoItemId, w.description, w.unit, w.location || w.floor_zone,
       w.boq_qty || 0, rate, amount, qty, qty, w.cumulative_qty || 0, 0, w.remarks);
   }
 
@@ -125,6 +126,10 @@ router.post('/', (req, res) => {
   }
 
   res.status(201).json({ id: dprId, message: 'DPR submitted' });
+  } catch (err) {
+    console.error('DPR submit error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to submit DPR' });
+  }
 });
 
 // Get DPR details
