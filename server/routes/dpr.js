@@ -119,13 +119,6 @@ router.post('/', (req, res) => {
     if (costType) insertCost.run(dprId, costType, qty, rate, amount);
   }
 
-  // Materials from PO items
-  const insertMat = db.prepare('INSERT INTO dpr_material (dpr_id, po_item_id, material_name, unit, boq_qty, consumed_today, cumulative_consumed, balance_qty, remarks) VALUES (?,?,?,?,?,?,?,?,?)');
-  for (const mt of (materials || [])) {
-    insertMat.run(dprId, mt.po_item_id || null, mt.material_name, mt.unit, mt.boq_qty || 0,
-      mt.consumed_today || 0, mt.cumulative_consumed || 0, (mt.boq_qty || 0) - (mt.cumulative_consumed || 0), mt.remarks);
-  }
-
   // Machinery/Tools
   const insertMach = db.prepare('INSERT INTO dpr_machinery (dpr_id, equipment, quantity, hours_used, condition, remarks) VALUES (?,?,?,?,?,?)');
   for (const mc of (machinery || [])) {
