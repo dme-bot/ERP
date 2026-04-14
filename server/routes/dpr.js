@@ -77,8 +77,7 @@ router.post('/', (req, res) => {
   if (!site_id || !report_date) return res.status(400).json({ error: 'Site and date required' });
   const db = getDb();
 
-  const existing = db.prepare('SELECT id FROM dpr WHERE site_id=? AND report_date=?').get(site_id, report_date);
-  if (existing) return res.status(409).json({ error: 'DPR already submitted for this site and date' });
+  // Allow multiple DPR entries per site per day (different shifts/engineers)
 
   const r = db.prepare(`INSERT INTO dpr (site_id, report_date, submitted_by, submission_time, weather, overall_status,
     shift, contractor_name, contractor_manpower, mb_sheet_no, grand_total_a, grand_total_b, profit_loss,

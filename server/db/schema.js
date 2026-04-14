@@ -754,8 +754,7 @@ function initializeDatabase() {
       billing_ready INTEGER DEFAULT 0,
       approved_by INTEGER REFERENCES users(id),
       approval_status TEXT DEFAULT 'pending' CHECK(approval_status IN ('pending','approved','rejected')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(site_id, report_date)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     -- Work items from PO (item name, qty, rate, amount + floor/zone + planned/actual)

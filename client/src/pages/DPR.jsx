@@ -3,12 +3,14 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiMapPin, FiAlertTriangle, FiCheck, FiEye, FiTrash2 } from 'react-icons/fi';
 
 const SYSTEMS = ['Electrical', 'Fire Fighting', 'Fire Alarm', 'CCTV', 'Access Control', 'PA System', 'Plumbing', 'HVAC', 'Solar', 'Networking', 'Combined'];
 const EQUIPMENT_LIST = ['Welding Machine', 'Pipe Threading Machine', 'Drill Machine', 'Grinder', 'Ladder', 'Scaffolding', 'Pipe Bending Machine', 'Cable Pulling Machine', 'Multimeter', 'Megger', 'Earth Tester', 'Hydro Test Pump', 'Generator', 'Compressor'];
 
 export default function DPR() {
+  const { user, isAdmin } = useAuth();
   const [tab, setTab] = useState('dashboard');
   const [summary, setSummary] = useState(null);
   const [dprs, setDprs] = useState([]);
@@ -192,13 +194,16 @@ export default function DPR() {
                   <option value="">Select Site</option>{sites.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.lead_no ? `[${s.lead_no}] ` : ''}{s.name}</option>)}
                 </select>
               </div>
-              <div><label className="label">MB Sheet No</label><input className="input" value={form.mb_sheet_no || ''} onChange={e => setForm({ ...form, mb_sheet_no: e.target.value })} /></div>
               <div><label className="label">Date *</label><input className="input" type="date" value={form.report_date || ''} onChange={e => setForm({ ...form, report_date: e.target.value })} required /></div>
-              <div><label className="label">Engineer Name</label>
-                <select className="select" value={form.engineer_id || ''} onChange={e => setForm({ ...form, engineer_id: e.target.value })}>
-                  <option value="">Select</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-              </div>
+              {isAdmin() ? (
+                <div><label className="label">Engineer Name</label>
+                  <select className="select" value={form.engineer_id || ''} onChange={e => setForm({ ...form, engineer_id: e.target.value })}>
+                    <option value="">Select</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div><label className="label">Engineer Name</label><div className="input bg-gray-100 text-gray-700">{user?.name}</div></div>
+              )}
               <div><label className="label">Contractor Name</label><input className="input" value={form.contractor_name || ''} onChange={e => setForm({ ...form, contractor_name: e.target.value })} /></div>
               <div><label className="label">Contractor Manpower</label><input className="input" type="number" value={form.contractor_manpower || ''} onChange={e => setForm({ ...form, contractor_manpower: +e.target.value })} /></div>
               <div><label className="label">Shift</label>
@@ -241,7 +246,11 @@ export default function DPR() {
                       <option value="">-- Select PO Item --</option>
                       {poItemsForSite.map(item => <option key={item.id} value={item.id}>{item.description} ({item.quantity} {item.unit})</option>)}
                     </select>
-                    <input className="input text-sm text-center" type="number" placeholder="0" value={w.qty || ''} onChange={e => updateWork(i, 'qty', +e.target.value)} />
+                    <input className="input text-sm text-center" type="number" placeholder="0" max={w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
+                      const val = +e.target.value;
+                      if (w.boq_qty && val > w.boq_qty) { toast.error(`Qty cannot exceed BOQ qty (${w.boq_qty})`); return; }
+                      updateWork(i, 'qty', val);
+                    }} />
                     <input className="input col-span-2 text-sm" placeholder="GF/1F/2F" value={w.location || ''} onChange={e => updateWork(i, 'location', e.target.value)} />
                     <input className="input col-span-2 text-sm" type="number" placeholder="0" value={w.rate || ''} onChange={e => updateWork(i, 'rate', +e.target.value)} />
                     <div className="col-span-2 text-sm font-bold text-right pr-2">Rs {(w.amount || 0).toLocaleString()}</div>
