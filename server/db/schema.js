@@ -886,6 +886,24 @@ function initializeDatabase() {
     }
   }
 
+  // Seed Item Master FIRST (needed for PO items in Business Book seed)
+  const itemCount = db.prepare('SELECT COUNT(*) as c FROM item_master').get().c;
+  if (itemCount === 0) {
+    const fs = require('fs');
+    const seedFile = path.join(__dirname, 'items_seed.json');
+    if (fs.existsSync(seedFile)) {
+      const items = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
+      const insertItem = db.prepare('INSERT OR IGNORE INTO item_master (item_code, department, item_name, specification, size, uom, gst, type, make, current_price) VALUES (?,?,?,?,?,?,?,?,?,?)');
+      const insertMany = db.transaction((items) => {
+        for (const [code, dept, name, spec, size, unit, price, type, make] of items) {
+          insertItem.run(code, dept, name, spec || '', size || '', unit || 'PCS', '18%', type || 'PO', make || '', price || 0);
+        }
+      });
+      insertMany(items);
+      console.log(`Seeded ${items.length} Item Master entries from Excel sheet`);
+    }
+  }
+
   // Seed sample Business Book entries (last 10 from Master Sheet)
   const bbCount = db.prepare('SELECT COUNT(*) as c FROM business_book').get().c;
   if (bbCount === 0) {
@@ -957,26 +975,6 @@ function initializeDatabase() {
       insertPlan.run(bb.id, bb.committed_start_date || null, bb.committed_completion_date || null, `Auto: ${bb.lead_no} - ${siteName}`);
     }
     console.log(`Seeded 10 Business Book entries with sites, POs, and PO items`);
-  }
-
-  // Seed Item Master (from Drive Item-wise Master Sheet 24-25)
-  const itemCount = db.prepare('SELECT COUNT(*) as c FROM item_master').get().c;
-  if (itemCount === 0) {
-    const fs = require('fs');
-    const seedFile = path.join(__dirname, 'items_seed.json');
-    if (fs.existsSync(seedFile)) {
-      const items = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
-      const insertItem = db.prepare('INSERT OR IGNORE INTO item_master (item_code, department, item_name, specification, size, uom, gst, type, make, current_price) VALUES (?,?,?,?,?,?,?,?,?,?)');
-      const insertMany = db.transaction((items) => {
-        for (const [code, dept, name, spec, size, unit, price, type, make] of items) {
-          insertItem.run(code, dept, name, spec || '', size || '', unit || 'PCS', '18%', type || 'PO', make || '', price || 0);
-        }
-      });
-      insertMany(items);
-      console.log(`Seeded ${items.length} Item Master entries from Excel sheet`);
-    } else {
-      console.log('No items_seed.json found, skipping item master seed');
-    }
   }
 
   console.log('Database initialized successfully');
