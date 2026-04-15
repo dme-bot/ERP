@@ -34,13 +34,9 @@ export default function Login() {
           </div>
           <button type="submit" className="btn btn-primary w-full py-3 text-base">Sign In</button>
         </form>
-        <div className="mt-6 p-3 bg-blue-50 rounded-lg text-xs text-blue-700">
-          <p className="font-semibold mb-1">Default Admin Login:</p>
-          <p>Email: <strong>admin@erp.com</strong></p>
-          <p>Password: <strong>admin123</strong></p>
-          <p className="mt-2 text-blue-500">Contact your admin to get a new account.</p>
-        </div>
+        <p className="mt-4 text-center text-xs text-gray-400">Contact your admin to get login credentials.</p>
       </div>
+      <p className="fixed bottom-3 left-3 text-[10px] text-gray-500">Created by Monika Devi</p>
     </div>
   );
 }
