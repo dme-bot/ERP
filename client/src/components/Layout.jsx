@@ -39,7 +39,7 @@ const adminItems = [
 ];
 
 export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const location = useLocation();
   const { user, logout, canView, isAdmin, userRoles } = useAuth();
 
@@ -48,8 +48,10 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {/* Mobile overlay */}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-0 -ml-64'} bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-all duration-300 flex-shrink-0`}>
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-0 -ml-64'} fixed md:relative z-40 h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-all duration-300 flex-shrink-0`}>
         <div className="p-5 border-b border-white/10">
           <h1 className="text-xl font-bold tracking-tight">Business ERP</h1>
           <p className="text-xs text-slate-400 mt-1">Management System</p>
@@ -59,6 +61,7 @@ export default function Layout() {
             <Link
               key={item.path}
               to={item.path}
+              onClick={() => { if (window.innerWidth < 768) setSidebarOpen(false); }}
               className={`sidebar-link ${location.pathname === item.path ? 'active' : ''}`}
             >
               <item.icon size={18} />
