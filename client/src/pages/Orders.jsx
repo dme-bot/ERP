@@ -286,13 +286,14 @@ export default function Orders() {
             </div>
             <div className="space-y-2">
               <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 px-1">
-                <div className="col-span-4">Description</div><div>Qty</div><div>Unit</div><div className="col-span-2">Rate</div><div className="col-span-2">Amount</div><div>HSN</div><div></div>
+                <div>SN</div><div className="col-span-3">Description</div><div>Qty</div><div>Unit</div><div className="col-span-2">Rate (SITC)</div><div className="col-span-2">Amount</div><div></div>
               </div>
               {poItems.map((item, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                  <div className="col-span-4">
+                  <div className="text-xs text-center font-bold text-gray-500">{item.sr_no || i + 1}</div>
+                  <div className="col-span-3">
                     {item.description && !item.item_master_id ? (
-                      <div className="input text-sm bg-blue-50 font-medium text-blue-800 truncate" title={item.description}>{item.description}</div>
+                      <div className="input text-xs bg-blue-50 font-medium text-blue-800 truncate" title={item.description}>{item.description}</div>
                     ) : (
                       <SearchableSelect
                         options={masterItems.map(mi => ({ id: mi.id, label: `[${mi.item_code}] ${mi.display_name}`, ...mi }))}
@@ -314,11 +315,10 @@ export default function Orders() {
                   </div>
                   <input className="input text-sm" type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', +e.target.value)} />
                   <select className="select text-sm" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
-                    <option>nos</option><option>mtr</option><option>kg</option><option>sqm</option><option>rft</option><option>set</option><option>lot</option><option>pair</option>
+                    <option>Nos</option><option>nos</option><option>mtr</option><option>kg</option><option>sqm</option><option>rft</option><option>set</option><option>lot</option><option>pair</option><option>pc</option><option>pcs</option><option>No</option>
                   </select>
                   <input className="input col-span-2 text-sm" type="number" value={item.rate} onChange={e => updateItem(i, 'rate', +e.target.value)} />
                   <div className="col-span-2 text-sm font-medium text-gray-700 px-2">Rs {(item.amount || 0).toLocaleString()}</div>
-                  <input className="input text-sm" placeholder="HSN" value={item.hsn_code || ''} onChange={e => updateItem(i, 'hsn_code', e.target.value)} />
                   <button type="button" onClick={() => removeItem(i)} className="p-1 text-red-400 hover:text-red-600">{poItems.length > 1 && <FiTrash2 size={14} />}</button>
                 </div>
               ))}

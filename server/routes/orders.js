@@ -186,7 +186,9 @@ router.get('/po-template', (req, res) => {
   res.send(Buffer.from(buf));
 });
 
-// Upload PO Excel and auto-import items
+// Upload PO Excel / BOQ and auto-import items
+// Supports: SEPL BOQ format (SN, Item Name, QTY, UNIT, Supply Rate, Installation Rate, SITC Rate, Total Cost)
+// Also supports: simple template (Item Name, Specification, Size, Qty, Unit, Rate, Amount, HSN)
 router.post('/po-upload-excel', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
@@ -194,16 +196,19 @@ router.post('/po-upload-excel', upload.single('file'), (req, res) => {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-    // Find header row (contains 'Item Name' or 'Qty')
+    // Find header row
     let headerIdx = -1;
     for (let i = 0; i < Math.min(10, data.length); i++) {
       const row = (data[i] || []).map(c => String(c || '').toLowerCase());
       if (row.some(c => c.includes('item name') || c.includes('item') || c.includes('description'))) { headerIdx = i; break; }
     }
-    if (headerIdx === -1) headerIdx = 4; // Default: row 5 (0-indexed)
+    if (headerIdx === -1) headerIdx = 1;
 
     const headers = (data[headerIdx] || []).map(h => String(h || '').toLowerCase().trim());
-    // Map columns
+
+    // Detect format: BOQ (has 'sitc rate' or 'sn') vs simple template
+    const isBOQ = headers.some(h => h.includes('sitc') || h.includes('supply rate') || h.includes('total cost'));
+
     const colMap = {};
     headers.forEach((h, i) => {
       if (h.includes('item name') || h.includes('description') || h === 'item') colMap.name = i;
@@ -211,38 +216,63 @@ router.post('/po-upload-excel', upload.single('file'), (req, res) => {
       if (h.includes('size')) colMap.size = i;
       if (h.includes('qty') || h.includes('quantity')) colMap.qty = i;
       if (h.includes('unit') || h.includes('uom')) colMap.unit = i;
-      if (h.includes('rate')) colMap.rate = i;
-      if (h.includes('amount')) colMap.amount = i;
+      if (h.includes('sitc rate')) colMap.sitcRate = i;
+      if (h.includes('supply rate')) colMap.supplyRate = i;
+      if (h.includes('installation')) colMap.installRate = i;
+      if (h.includes('total cost')) colMap.totalCost = i;
+      if (!colMap.rate && (h.includes('rate') && !h.includes('supply') && !h.includes('sitc') && !h.includes('install'))) colMap.rate = i;
+      if (h.includes('amount') && !h.includes('total')) colMap.amount = i;
       if (h.includes('hsn')) colMap.hsn = i;
+      if (h === 'sn' || h === 'sr no' || h === 'sr') colMap.sn = i;
     });
 
     if (colMap.name === undefined) return res.status(400).json({ error: 'Could not find "Item Name" column in Excel' });
 
     const items = [];
+    let serial = 1;
     for (let i = headerIdx + 1; i < data.length; i++) {
       const row = data[i] || [];
       const name = String(row[colMap.name] || '').trim();
-      if (!name) continue;
+      if (!name || name.length < 3) continue;
+
+      // Skip section headers (rows without qty)
+      let qty = 0;
+      if (colMap.qty !== undefined) qty = parseFloat(row[colMap.qty]) || 0;
+      if (qty === 0) continue; // Skip items without quantity
+
+      // Determine rate: SITC Rate > Supply Rate > Rate
+      let rate = 0;
+      if (colMap.sitcRate !== undefined) rate = parseFloat(row[colMap.sitcRate]) || 0;
+      if (!rate && colMap.rate !== undefined) rate = parseFloat(row[colMap.rate]) || 0;
+      if (!rate && colMap.supplyRate !== undefined) rate = parseFloat(row[colMap.supplyRate]) || 0;
+
+      // Amount: Total Cost or qty * rate
+      let amount = 0;
+      if (colMap.totalCost !== undefined) amount = parseFloat(row[colMap.totalCost]) || 0;
+      if (!amount && colMap.amount !== undefined) amount = parseFloat(row[colMap.amount]) || 0;
+      if (!amount) amount = qty * rate;
+
       const spec = colMap.spec !== undefined ? String(row[colMap.spec] || '').trim() : '';
       const size = colMap.size !== undefined ? String(row[colMap.size] || '').trim() : '';
       const description = [name, spec, size].filter(Boolean).join(' / ');
+      const unit = colMap.unit !== undefined ? String(row[colMap.unit] || 'Nos').trim() : 'Nos';
+
       items.push({
+        sr_no: serial++,
         description,
         item_name: name,
         specification: spec,
         size: size,
-        quantity: parseFloat(row[colMap.qty]) || 0,
-        unit: String(row[colMap.unit] || 'PCS').trim(),
-        rate: parseFloat(row[colMap.rate]) || 0,
-        amount: parseFloat(row[colMap.amount]) || 0,
+        quantity: qty,
+        unit: unit,
+        rate: Math.round(rate * 100) / 100,
+        amount: Math.round(amount * 100) / 100,
         hsn_code: colMap.hsn !== undefined ? String(row[colMap.hsn] || '').trim() : '',
       });
     }
 
-    // Clean up uploaded file
     try { fs.unlinkSync(req.file.path); } catch (e) {}
-
-    res.json({ items, count: items.length });
+    res.json({ items, count: items.length, format: isBOQ ? 'BOQ' : 'template' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to parse Excel: ' + err.message });
   }
