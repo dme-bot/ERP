@@ -48,13 +48,16 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Mobile overlay */}
-      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
+      {/* Mobile overlay - tap to close sidebar */}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-0 -ml-64'} fixed md:relative z-40 h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-all duration-300 flex-shrink-0`}>
-        <div className="p-5 border-b border-white/10">
-          <h1 className="text-xl font-bold tracking-tight">Business ERP</h1>
-          <p className="text-xs text-slate-400 mt-1">Management System</p>
+      <aside className={`${sidebarOpen ? 'w-64 translate-x-0' : '-translate-x-full w-0'} fixed md:relative z-40 h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-all duration-300 flex-shrink-0 md:translate-x-0 ${!sidebarOpen && 'md:w-0 md:-ml-64'}`}>
+        <div className="p-5 border-b border-white/10 flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Business ERP</h1>
+            <p className="text-xs text-slate-400 mt-1">Management System</p>
+          </div>
+          <button className="md:hidden p-1 hover:bg-white/10 rounded" onClick={() => setSidebarOpen(false)}><FiX size={20} /></button>
         </div>
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {visibleMenu.map(item => (
@@ -105,15 +108,15 @@ export default function Layout() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+        <header className="bg-white shadow-sm border-b border-gray-200 px-4 md:px-6 py-3 flex items-center gap-3">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 rounded-lg">
-            {sidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
+            <FiMenu size={20} />
           </button>
-          <h2 className="text-lg font-semibold text-gray-800">
+          <h2 className="text-base md:text-lg font-semibold text-gray-800 truncate">
             {[...menuItems, ...adminItems].find(m => m.path === location.pathname)?.label || 'Business ERP'}
           </h2>
         </header>
-        <main className="flex-1 overflow-y-auto p-6 bg-slate-50">
+        <main className="flex-1 overflow-y-auto p-3 md:p-6 bg-slate-50">
           <Outlet />
         </main>
       </div>
