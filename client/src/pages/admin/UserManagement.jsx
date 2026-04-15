@@ -3,7 +3,7 @@ import api from '../../api';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiEdit2, FiUserX, FiUserCheck, FiKey } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiUserX, FiUserCheck, FiKey, FiUpload, FiDownload } from 'react-icons/fi';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -12,6 +12,9 @@ export default function UserManagement() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [selectedRoles, setSelectedRoles] = useState([]);
+  const [bulkModal, setBulkModal] = useState(false);
+  const [bulkData, setBulkData] = useState('');
+  const [bulkPreview, setBulkPreview] = useState([]);
 
   const load = () => {
     api.get('/auth/users').then(r => setUsers(r.data));
@@ -71,7 +74,10 @@ export default function UserManagement() {
           <h3 className="text-xl font-bold text-gray-800">User Management</h3>
           <p className="text-sm text-gray-500">Create users and assign roles to control access</p>
         </div>
-        <button onClick={openCreate} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add User</button>
+        <div className="flex gap-2">
+          <button onClick={() => { setBulkData(''); setBulkPreview([]); setBulkModal(true); }} className="btn btn-secondary flex items-center gap-2"><FiUpload size={15} /> Bulk Import</button>
+          <button onClick={openCreate} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add User</button>
+        </div>
       </div>
 
       {/* Info Cards */}
@@ -184,6 +190,64 @@ export default function UserManagement() {
             <button type="submit" className="btn btn-primary">{editing ? 'Update User' : 'Create User'}</button>
           </div>
         </form>
+      </Modal>
+
+      {/* Bulk Import Modal */}
+      <Modal isOpen={bulkModal} onClose={() => setBulkModal(false)} title="Bulk Import Users" wide>
+        <div className="space-y-4">
+          <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+            <p className="font-semibold mb-1">CSV Format: Name, Email, Phone, Department, Role Name</p>
+            <p className="text-xs">Default password: <strong>sepl@123</strong> (users can change later)</p>
+          </div>
+          <button onClick={() => {
+            const csv = 'Name,Email,Phone,Department,Role Name\nGurcharan Singh,gurcharan@gmail.com,88723 20800,Operation,Site Engineer\nKuldeep Bharti,kuldeep@gmail.com,70505 14246,Operation,Site Engineer';
+            const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob); a.download = 'users-bulk-template.csv'; a.click();
+          }} className="btn btn-secondary text-sm flex items-center gap-2"><FiDownload size={14} /> Download Template</button>
+          <div><label className="label">Upload CSV</label>
+            <input type="file" accept=".csv,.txt" onChange={(e) => {
+              const file = e.target.files[0]; if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const text = ev.target.result; setBulkData(text);
+                const lines = text.trim().split('\n');
+                if (lines.length < 2) return setBulkPreview([]);
+                setBulkPreview(lines.slice(1).map(line => {
+                  const c = line.split(',').map(v => v.replace(/^"|"$/g, '').trim());
+                  return c[0] ? { name: c[0], email: c[1], phone: c[2], department: c[3], role_name: c[4] } : null;
+                }).filter(Boolean));
+              };
+              reader.readAsText(file); e.target.value = '';
+            }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700" />
+          </div>
+          <div><label className="label">Or Paste CSV</label>
+            <textarea className="input font-mono text-xs" rows="5" value={bulkData} onChange={e => {
+              setBulkData(e.target.value);
+              const lines = e.target.value.trim().split('\n');
+              setBulkPreview(lines.length > 1 ? lines.slice(1).map(line => {
+                const c = line.split(',').map(v => v.replace(/^"|"$/g, '').trim());
+                return c[0] ? { name: c[0], email: c[1], phone: c[2], department: c[3], role_name: c[4] } : null;
+              }).filter(Boolean) : []);
+            }} placeholder="Name,Email,Phone,Department,Role Name" />
+          </div>
+          {bulkPreview.length > 0 && (
+            <div><p className="text-sm font-semibold mb-2">{bulkPreview.length} users to import</p>
+              <div className="max-h-48 overflow-y-auto border rounded text-xs"><table><thead><tr className="bg-gray-50"><th className="px-2 py-1">Name</th><th className="px-2 py-1">Email</th><th className="px-2 py-1">Phone</th><th className="px-2 py-1">Dept</th><th className="px-2 py-1">Role</th></tr></thead>
+                <tbody>{bulkPreview.map((u, i) => <tr key={i}><td className="px-2 py-1 font-medium">{u.name}</td><td className="px-2 py-1">{u.email}</td><td className="px-2 py-1">{u.phone}</td><td className="px-2 py-1">{u.department}</td><td className="px-2 py-1">{u.role_name}</td></tr>)}</tbody></table></div>
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            <button onClick={() => setBulkModal(false)} className="btn btn-secondary">Cancel</button>
+            <button disabled={bulkPreview.length === 0} onClick={async () => {
+              try {
+                const res = await api.post('/auth/bulk-import', { users: bulkPreview });
+                toast.success(`Added ${res.data.added} of ${res.data.total} users`);
+                if (res.data.errors.length > 0) toast.error(res.data.errors[0]);
+                setBulkModal(false); load();
+              } catch { toast.error('Import failed'); }
+            }} className="btn btn-primary flex items-center gap-2 disabled:opacity-50"><FiUpload size={14} /> Import {bulkPreview.length} Users</button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

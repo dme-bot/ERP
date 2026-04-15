@@ -154,4 +154,29 @@ router.get('/my-permissions', authMiddleware, (req, res) => {
   res.json(getUserPermissions(req.user.id));
 });
 
+// Bulk import users
+router.post('/bulk-import', authMiddleware, adminOnly, (req, res) => {
+  const { users } = req.body;
+  if (!users || !Array.isArray(users) || users.length === 0) return res.status(400).json({ error: 'No users provided' });
+  const db = getDb();
+  const insert = db.prepare('INSERT OR IGNORE INTO users (name, email, password, role, department, phone) VALUES (?,?,?,?,?,?)');
+  const insertRole = db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?,?)');
+  let added = 0, errors = [];
+  for (let i = 0; i < users.length; i++) {
+    const u = users[i];
+    if (!u.name || !u.email) { errors.push(`Row ${i + 1}: Name and email required`); continue; }
+    try {
+      const hash = bcrypt.hashSync(u.password || 'sepl@123', 10);
+      const r = insert.run(u.name.trim(), u.email.trim().toLowerCase(), hash, u.role || 'user', u.department || '', u.phone || '');
+      if (r.lastInsertRowid && u.role_name) {
+        const role = db.prepare('SELECT id FROM roles WHERE name=?').get(u.role_name);
+        if (role) insertRole.run(r.lastInsertRowid, role.id);
+      }
+      if (r.changes > 0) added++;
+      else errors.push(`Row ${i + 1}: Email ${u.email} already exists`);
+    } catch (err) { errors.push(`Row ${i + 1}: ${err.message}`); }
+  }
+  res.json({ added, errors, total: users.length });
+});
+
 module.exports = router;
