@@ -66,17 +66,31 @@ app.get('/api/health', (req, res) => {
 
 // Serve React build in production
 const clientBuild = path.join(__dirname, '..', 'client', 'dist');
-app.use(express.static(clientBuild));
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(clientBuild, 'index.html'));
-  }
+const fs2 = require('fs');
+if (fs2.existsSync(clientBuild)) {
+  app.use(express.static(clientBuild));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      res.sendFile(path.join(clientBuild, 'index.html'));
+    }
+  });
+  console.log('Serving frontend from client/dist');
+} else {
+  console.log('WARNING: client/dist not found - API only mode');
+  app.get('/', (req, res) => res.json({ status: 'API running', message: 'Frontend not built. Run: npm run build' }));
+}
+
+// Handle uncaught errors
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT ERROR:', err.message);
+  console.error(err.stack);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+const serverPort = process.env.PORT || 5000;
+app.listen(serverPort, '0.0.0.0', () => {
   console.log(`\n======================================`);
   console.log(`  Business ERP Server`);
-  console.log(`  Running on http://localhost:${PORT}`);
+  console.log(`  Running on port ${serverPort}`);
   console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`======================================\n`);
 });
