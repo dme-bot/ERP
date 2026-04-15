@@ -1,0 +1,411 @@
+import { useState, useEffect, useCallback } from 'react';
+import api from '../api';
+import Modal from '../components/Modal';
+import StatusBadge from '../components/StatusBadge';
+import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import { FiPlus, FiSearch, FiFilter, FiEye, FiCheck, FiX, FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiUpload } from 'react-icons/fi';
+
+const CATEGORIES = ['TA/DA', 'Purchase', 'Labour', 'Transport'];
+const STATUSES = ['pending', 'step1_approved', 'accounts_approved', 'dues_checked', 'velocity_checked', 'final_approved', 'rejected'];
+const STATUS_LABELS = { pending: 'Pending', step1_approved: 'Step 1 Approved', accounts_approved: 'Accounts Approved', dues_checked: 'Dues Checked', velocity_checked: 'Velocity Checked', final_approved: 'Final Approved', rejected: 'Rejected' };
+const STEPS = [
+  { step: 1, name: 'Category Approval' },
+  { step: 2, name: 'Accounts (Budget)' },
+  { step: 3, name: 'Dues Validation' },
+  { step: 4, name: 'Velocity Check' },
+  { step: 5, name: 'Final Approval' },
+];
+
+const emptyForm = {
+  employee_name: '', site_id: '', site_name: '', department: '', contact_number: '',
+  category: '', amount: 0, purpose: '', payment_mode: 'Bank', required_by_date: '', attachment_link: '',
+  travel_from_to: '', travel_dates: '', mode_of_travel: '', stay_details: '',
+  indent_number: '', item_description: '', vendor_name: '', quotation_link: '',
+  labour_type: '', number_of_workers: 0, work_duration: '', site_engineer_name: '',
+  vehicle_type: '', from_to_location: '', material_description: '', driver_vendor_name: '',
+};
+
+export default function PaymentRequired() {
+  const { canCreate, canApprove, user } = useAuth();
+  const [tab, setTab] = useState('dashboard');
+  const [requests, setRequests] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [sites, setSites] = useState([]);
+  const [modal, setModal] = useState(null);
+  const [viewData, setViewData] = useState(null);
+  const [form, setForm] = useState({ ...emptyForm });
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState({ status: '', category: '' });
+  const [uploading, setUploading] = useState(false);
+
+  const load = useCallback(() => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
+    api.get(`/payment-required?${params}`).then(r => setRequests(r.data)).catch(() => {});
+    api.get('/payment-required/stats').then(r => setStats(r.data)).catch(() => {});
+  }, [search, filters]);
+
+  useEffect(() => { load(); api.get('/dpr/sites').then(r => setSites(r.data)).catch(() => {}); }, [load]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/payment-required', form);
+      toast.success(`Request ${res.data.request_no} created`);
+      setModal(null); setForm({ ...emptyForm }); load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  };
+
+  const handleApprove = async (id, remarks) => {
+    try {
+      const res = await api.put(`/payment-required/${id}/approve`, { remarks: remarks || '' });
+      toast.success(res.data.message); load(); setModal(null); setViewData(null);
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  };
+
+  const handleReject = async (id) => {
+    const remarks = prompt('Rejection reason:');
+    if (!remarks) return;
+    try {
+      const res = await api.put(`/payment-required/${id}/reject`, { remarks });
+      toast.success(res.data.message); load(); setModal(null); setViewData(null);
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  };
+
+  const viewRequest = async (id) => {
+    const { data } = await api.get(`/payment-required/${id}`);
+    setViewData(data); setModal('view');
+  };
+
+  const F = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const fmt = (n) => `Rs ${(n || 0).toLocaleString('en-IN')}`;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><FiDollarSign className="text-orange-600" /> Payment Required</h1>
+          <p className="text-sm text-gray-500">Request payments with multi-level approval workflow</p>
+        </div>
+        <div className="flex gap-2">
+          {canCreate('payment_required') && (
+            <button onClick={() => { setForm({ ...emptyForm, employee_name: user?.name || '' }); setModal('add'); }} className="btn btn-primary flex items-center gap-2"><FiPlus size={16} /> New Request</button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        {['dashboard', 'all', 'pending', 'approved', 'rejected'].map(t => (
+          <button key={t} onClick={() => setTab(t)} className={`btn ${tab === t ? 'btn-primary' : 'btn-secondary'} text-sm`}>{t === 'all' ? 'All Requests' : t.charAt(0).toUpperCase() + t.slice(1)}</button>
+        ))}
+      </div>
+
+      {/* Dashboard */}
+      {tab === 'dashboard' && stats && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="card p-4 border-l-4 border-blue-500"><p className="text-xs text-gray-500">Total Requests</p><p className="text-2xl font-bold">{stats.total}</p></div>
+            <div className="card p-4 border-l-4 border-orange-500"><p className="text-xs text-gray-500">Total Amount</p><p className="text-2xl font-bold text-orange-600">{fmt(stats.totalAmount)}</p></div>
+            <div className="card p-4 border-l-4 border-amber-500"><p className="text-xs text-gray-500">Pending</p><p className="text-2xl font-bold text-amber-600">{stats.pending}</p></div>
+            <div className="card p-4 border-l-4 border-emerald-500"><p className="text-xs text-gray-500">Approved</p><p className="text-2xl font-bold text-emerald-600">{stats.approved}</p></div>
+            <div className="card p-4 border-l-4 border-red-500"><p className="text-xs text-gray-500">Rejected</p><p className="text-2xl font-bold text-red-600">{stats.rejected}</p></div>
+          </div>
+
+          {/* Category breakdown */}
+          {stats.byCategory?.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {stats.byCategory.map(c => (
+                <div key={c.category} className="card p-3"><p className="text-xs text-gray-500">{c.category}</p><p className="font-bold">{c.count} requests</p><p className="text-sm text-gray-600">{fmt(c.amount)}</p></div>
+              ))}
+            </div>
+          )}
+
+          {/* Pending approvals */}
+          {stats.pendingApprovals?.length > 0 && (
+            <div className="card p-0 overflow-hidden">
+              <div className="p-4 border-b bg-amber-50"><h4 className="font-semibold text-amber-800">Pending Approvals</h4></div>
+              <table><thead><tr><th>Req No</th><th>Employee</th><th>Category</th><th>Amount</th><th>Step</th><th>Actions</th></tr></thead>
+                <tbody>{stats.pendingApprovals.map(r => (
+                  <tr key={r.id}>
+                    <td className="font-bold text-blue-600 cursor-pointer" onClick={() => viewRequest(r.id)}>{r.request_no}</td>
+                    <td>{r.employee_name}</td><td><span className="badge badge-blue">{r.category}</span></td>
+                    <td className="font-semibold">{fmt(r.amount)}</td>
+                    <td><span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Step {r.current_step}/5</span></td>
+                    <td><div className="flex gap-1">
+                      <button onClick={() => viewRequest(r.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600"><FiEye size={14} /></button>
+                      {canApprove('payment_required') && <>
+                        <button onClick={() => handleApprove(r.id)} className="p-1 hover:bg-emerald-50 rounded text-emerald-600"><FiCheck size={14} /></button>
+                        <button onClick={() => handleReject(r.id)} className="p-1 hover:bg-red-50 rounded text-red-600"><FiX size={14} /></button>
+                      </>}
+                    </div></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Request List */}
+      {tab !== 'dashboard' && (
+        <>
+          <div className="flex gap-3">
+            <div className="relative flex-1"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input className="input pl-10" placeholder="Search by employee, request no, purpose, site..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+            <select className="select w-40" value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))}><option value="">All Categories</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
+            <select className="select w-40" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}><option value="">All Status</option>{STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</select>
+          </div>
+
+          <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table>
+            <thead><tr><th>Req No</th><th>Employee</th><th>Site</th><th>Category</th><th>Amount</th><th>Purpose</th><th>Step</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+            <tbody>
+              {requests.filter(r => {
+                if (tab === 'pending') return !['final_approved', 'rejected'].includes(r.status);
+                if (tab === 'approved') return r.status === 'final_approved';
+                if (tab === 'rejected') return r.status === 'rejected';
+                return true;
+              }).map(r => (
+                <tr key={r.id}>
+                  <td className="font-bold text-blue-600 cursor-pointer" onClick={() => viewRequest(r.id)}>{r.request_no}</td>
+                  <td className="font-medium">{r.employee_name}</td>
+                  <td className="text-sm">{r.site_display || r.site_name || '-'}</td>
+                  <td><span className={`badge ${r.category === 'TA/DA' ? 'badge-purple' : r.category === 'Purchase' ? 'badge-blue' : r.category === 'Labour' ? 'badge-green' : 'badge-gray'}`}>{r.category}</span></td>
+                  <td className="font-semibold">{fmt(r.amount)}</td>
+                  <td className="text-sm max-w-[200px] truncate">{r.purpose}</td>
+                  <td><span className="text-xs bg-gray-100 px-2 py-0.5 rounded">{r.current_step}/5</span></td>
+                  <td><StatusBadge status={r.status} /></td>
+                  <td className="text-xs">{r.created_at?.split('T')[0]}</td>
+                  <td><div className="flex gap-1">
+                    <button onClick={() => viewRequest(r.id)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><FiEye size={15} /></button>
+                    {canApprove('payment_required') && r.status !== 'final_approved' && r.status !== 'rejected' && <>
+                      <button onClick={() => handleApprove(r.id)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="Approve"><FiCheckCircle size={15} /></button>
+                      <button onClick={() => handleReject(r.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Reject"><FiXCircle size={15} /></button>
+                    </>}
+                  </div></td>
+                </tr>
+              ))}
+              {requests.length === 0 && <tr><td colSpan="10" className="text-center py-8 text-gray-400">No requests found</td></tr>}
+            </tbody>
+          </table></div></div>
+        </>
+      )}
+
+      {/* View Request Modal */}
+      <Modal isOpen={modal === 'view'} onClose={() => { setModal(null); setViewData(null); }} title={`${viewData?.request_no || ''} - ${viewData?.employee_name || ''}`} wide>
+        {viewData && (
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-lg">
+              <div><h3 className="text-lg font-bold text-orange-800">{viewData.request_no}</h3><p className="text-sm text-orange-600">{viewData.category} - {viewData.purpose}</p></div>
+              <div className="text-right"><p className="text-2xl font-bold text-orange-700">{fmt(viewData.amount)}</p><StatusBadge status={viewData.status} /></div>
+            </div>
+
+            {/* Approval Progress */}
+            <div className="flex gap-1">
+              {STEPS.map(s => {
+                const approval = viewData.approvals?.find(a => a.step === s.step);
+                const isCurrent = viewData.current_step === s.step && viewData.status !== 'final_approved' && viewData.status !== 'rejected';
+                return (
+                  <div key={s.step} className={`flex-1 text-center p-2 rounded text-xs font-medium ${approval?.action === 'approved' ? 'bg-emerald-100 text-emerald-700' : approval?.action === 'rejected' ? 'bg-red-100 text-red-700' : isCurrent ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-400'}`}>
+                    <div className="font-bold">Step {s.step}</div>
+                    <div>{s.name}</div>
+                    {approval && <div className="text-[10px] mt-1">{approval.approved_by_name}</div>}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div><span className="text-gray-400">Employee:</span> <span className="font-medium">{viewData.employee_name}</span></div>
+              <div><span className="text-gray-400">Site:</span> <span className="font-medium">{viewData.site_display || viewData.site_name || '-'}</span></div>
+              <div><span className="text-gray-400">Department:</span> <span className="font-medium">{viewData.department || '-'}</span></div>
+              <div><span className="text-gray-400">Contact:</span> <span className="font-medium">{viewData.contact_number || '-'}</span></div>
+              <div><span className="text-gray-400">Payment Mode:</span> <span className="font-medium">{viewData.payment_mode}</span></div>
+              <div><span className="text-gray-400">Required By:</span> <span className="font-medium">{viewData.required_by_date || '-'}</span></div>
+            </div>
+
+            {/* Category fields */}
+            {viewData.category === 'TA/DA' && (
+              <div className="border rounded p-3 bg-purple-50"><h5 className="font-semibold text-sm text-purple-700 mb-2">TA/DA Details</h5>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-gray-400">Travel:</span> {viewData.travel_from_to}</div>
+                  <div><span className="text-gray-400">Dates:</span> {viewData.travel_dates}</div>
+                  <div><span className="text-gray-400">Mode:</span> {viewData.mode_of_travel}</div>
+                  <div><span className="text-gray-400">Stay:</span> {viewData.stay_details}</div>
+                </div></div>
+            )}
+            {viewData.category === 'Purchase' && (
+              <div className="border rounded p-3 bg-blue-50"><h5 className="font-semibold text-sm text-blue-700 mb-2">Purchase Details</h5>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-gray-400">Indent No:</span> {viewData.indent_number}</div>
+                  <div><span className="text-gray-400">Vendor:</span> {viewData.vendor_name}</div>
+                  <div className="col-span-2"><span className="text-gray-400">Items:</span> {viewData.item_description}</div>
+                </div></div>
+            )}
+            {viewData.category === 'Labour' && (
+              <div className="border rounded p-3 bg-green-50"><h5 className="font-semibold text-sm text-green-700 mb-2">Labour Details</h5>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-gray-400">Type:</span> {viewData.labour_type}</div>
+                  <div><span className="text-gray-400">Workers:</span> {viewData.number_of_workers}</div>
+                  <div><span className="text-gray-400">Duration:</span> {viewData.work_duration}</div>
+                  <div><span className="text-gray-400">Site Engineer:</span> {viewData.site_engineer_name}</div>
+                </div></div>
+            )}
+            {viewData.category === 'Transport' && (
+              <div className="border rounded p-3 bg-gray-50"><h5 className="font-semibold text-sm text-gray-700 mb-2">Transport Details</h5>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-gray-400">Vehicle:</span> {viewData.vehicle_type}</div>
+                  <div><span className="text-gray-400">From-To:</span> {viewData.from_to_location}</div>
+                  <div><span className="text-gray-400">Material:</span> {viewData.material_description}</div>
+                  <div><span className="text-gray-400">Driver/Vendor:</span> {viewData.driver_vendor_name}</div>
+                </div></div>
+            )}
+
+            {viewData.rejection_remarks && <div className="bg-red-50 p-3 rounded text-sm"><strong className="text-red-700">Rejected:</strong> {viewData.rejection_remarks}</div>}
+            {viewData.attachment_link && <a href={viewData.attachment_link} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">View Attachment</a>}
+
+            {/* Approval trail */}
+            {viewData.approvals?.length > 0 && (
+              <div><h5 className="font-semibold text-sm mb-2">Approval Trail</h5>
+                <div className="space-y-1">{viewData.approvals.map(a => (
+                  <div key={a.id} className={`text-xs p-2 rounded flex justify-between ${a.action === 'approved' ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                    <span><strong>Step {a.step}:</strong> {a.step_name} - <span className={a.action === 'approved' ? 'text-emerald-600' : 'text-red-600'}>{a.action.toUpperCase()}</span> by {a.approved_by_name}</span>
+                    <span className="text-gray-400">{a.approved_at}</span>
+                  </div>
+                ))}</div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {canApprove('payment_required') && viewData.status !== 'final_approved' && viewData.status !== 'rejected' && (
+              <div className="flex gap-3 pt-2 border-t">
+                <button onClick={() => handleApprove(viewData.id)} className="btn btn-success flex-1">Approve Step {viewData.current_step}</button>
+                <button onClick={() => handleReject(viewData.id)} className="btn btn-danger flex-1">Reject</button>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* New Request Modal */}
+      <Modal isOpen={modal === 'add'} onClose={() => setModal(null)} title="New Payment Request" wide>
+        <form onSubmit={handleSave} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+
+          {/* Common fields */}
+          <div className="border rounded-lg p-3 bg-gray-50">
+            <h4 className="font-semibold text-sm text-gray-700 mb-3">Request Details</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">Employee Name *</label><input className="input" value={form.employee_name} onChange={e => F('employee_name', e.target.value)} required /></div>
+              <div><label className="label">Site Name *</label>
+                <select className="select" value={form.site_id} onChange={e => { const site = sites.find(s => s.id === +e.target.value); F('site_id', e.target.value); F('site_name', site?.name || ''); }}>
+                  <option value="">Select Site</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div><label className="label">Department</label><input className="input" value={form.department} onChange={e => F('department', e.target.value)} /></div>
+              <div><label className="label">Contact Number</label><input className="input" value={form.contact_number} onChange={e => F('contact_number', e.target.value)} /></div>
+              <div><label className="label">Category *</label>
+                <select className="select" value={form.category} onChange={e => F('category', e.target.value)} required>
+                  <option value="">Select</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div><label className="label">Amount Required (Rs) *</label><input className="input" type="number" value={form.amount} onChange={e => F('amount', +e.target.value)} required /></div>
+              <div className="col-span-2"><label className="label">Purpose / Description *</label><input className="input" value={form.purpose} onChange={e => F('purpose', e.target.value)} required /></div>
+              <div><label className="label">Payment Mode</label>
+                <select className="select" value={form.payment_mode} onChange={e => F('payment_mode', e.target.value)}>
+                  <option>Cash</option><option>Bank</option><option>UPI</option>
+                </select>
+              </div>
+              <div><label className="label">Required By Date</label><input className="input" type="date" value={form.required_by_date} onChange={e => F('required_by_date', e.target.value)} /></div>
+              <div><label className="label">Attachment</label>
+                {form.attachment_link ? (
+                  <div className="flex items-center gap-2"><a href={form.attachment_link} className="text-blue-600 text-sm underline">File uploaded</a><button type="button" onClick={() => F('attachment_link', '')} className="text-red-500 text-xs">Remove</button></div>
+                ) : (
+                  <input type="file" disabled={uploading} onChange={async (e) => {
+                    const file = e.target.files[0]; if (!file) return; setUploading(true);
+                    try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('attachment_link', res.data.url); toast.success('Uploaded'); } catch { toast.error('Upload failed'); }
+                    setUploading(false); e.target.value = '';
+                  }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* TA/DA fields */}
+          {form.category === 'TA/DA' && (
+            <div className="border rounded-lg p-3 bg-purple-50">
+              <h4 className="font-semibold text-sm text-purple-700 mb-3">TA/DA Details</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Travel From-To *</label><input className="input" value={form.travel_from_to} onChange={e => F('travel_from_to', e.target.value)} required /></div>
+                <div><label className="label">Travel Dates *</label><input className="input" value={form.travel_dates} onChange={e => F('travel_dates', e.target.value)} required /></div>
+                <div><label className="label">Mode of Travel</label><select className="select" value={form.mode_of_travel} onChange={e => F('mode_of_travel', e.target.value)}><option value="">Select</option><option>Bus</option><option>Train</option><option>Flight</option><option>Car</option><option>Bike</option><option>Auto</option></select></div>
+                <div><label className="label">Stay Details</label><input className="input" value={form.stay_details} onChange={e => F('stay_details', e.target.value)} placeholder="Hotel name, duration..." /></div>
+              </div>
+            </div>
+          )}
+
+          {/* Purchase fields */}
+          {form.category === 'Purchase' && (
+            <div className="border rounded-lg p-3 bg-blue-50">
+              <h4 className="font-semibold text-sm text-blue-700 mb-3">Purchase Details</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Indent Number *</label><input className="input" value={form.indent_number} onChange={e => F('indent_number', e.target.value)} required /></div>
+                <div><label className="label">Vendor Name</label><input className="input" value={form.vendor_name} onChange={e => F('vendor_name', e.target.value)} /></div>
+                <div className="col-span-2"><label className="label">Item Description</label><textarea className="input" rows="2" value={form.item_description} onChange={e => F('item_description', e.target.value)} /></div>
+                <div><label className="label">Quotation Upload *</label>
+                  {form.quotation_link ? (
+                    <div className="flex items-center gap-2"><a href={form.quotation_link} className="text-blue-600 text-sm underline">Quotation uploaded</a><button type="button" onClick={() => F('quotation_link', '')} className="text-red-500 text-xs">Remove</button></div>
+                  ) : (
+                    <input type="file" onChange={async (e) => {
+                      const file = e.target.files[0]; if (!file) return;
+                      try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('quotation_link', res.data.url); toast.success('Uploaded'); } catch { toast.error('Failed'); }
+                      e.target.value = '';
+                    }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700" />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Labour fields */}
+          {form.category === 'Labour' && (
+            <div className="border rounded-lg p-3 bg-green-50">
+              <h4 className="font-semibold text-sm text-green-700 mb-3">Labour Details</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Labour Type *</label><select className="select" value={form.labour_type} onChange={e => F('labour_type', e.target.value)} required><option value="">Select</option><option>Skilled</option><option>Unskilled</option><option>Semi-skilled</option><option>Contractor</option></select></div>
+                <div><label className="label">Number of Workers *</label><input className="input" type="number" value={form.number_of_workers} onChange={e => F('number_of_workers', +e.target.value)} required /></div>
+                <div><label className="label">Work Duration</label><input className="input" value={form.work_duration} onChange={e => F('work_duration', e.target.value)} placeholder="e.g. 5 days, 2 weeks" /></div>
+                <div><label className="label">Site Engineer Name</label><input className="input" value={form.site_engineer_name} onChange={e => F('site_engineer_name', e.target.value)} /></div>
+              </div>
+            </div>
+          )}
+
+          {/* Transport fields */}
+          {form.category === 'Transport' && (
+            <div className="border rounded-lg p-3 bg-gray-50">
+              <h4 className="font-semibold text-sm text-gray-700 mb-3">Transport Details</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Vehicle Type *</label><select className="select" value={form.vehicle_type} onChange={e => F('vehicle_type', e.target.value)} required><option value="">Select</option><option>Truck</option><option>Pickup</option><option>Tempo</option><option>Car</option><option>Auto</option><option>Crane</option></select></div>
+                <div><label className="label">From-To Location *</label><input className="input" value={form.from_to_location} onChange={e => F('from_to_location', e.target.value)} required /></div>
+                <div><label className="label">Material Description</label><input className="input" value={form.material_description} onChange={e => F('material_description', e.target.value)} /></div>
+                <div><label className="label">Driver / Vendor Name</label><input className="input" value={form.driver_vendor_name} onChange={e => F('driver_vendor_name', e.target.value)} /></div>
+              </div>
+            </div>
+          )}
+
+          {/* Approval workflow info */}
+          {form.category && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+              <strong>Approval Flow:</strong> {form.category === 'TA/DA' ? 'HR' : form.category === 'Purchase' ? 'Purchase Head' : form.category === 'Labour' ? 'Site Engineer' : 'Purchase Dept'} → Accounts (Budget) → Dues Check → Velocity (Auto) → Billing Engineer Final
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2 border-t">
+            <button type="button" onClick={() => setModal(null)} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary">Submit Request</button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}

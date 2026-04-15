@@ -809,6 +809,66 @@ function initializeDatabase() {
       condition TEXT DEFAULT 'working',
       remarks TEXT
     );
+
+    -- ============================================
+    -- PAYMENT REQUIRED MODULE (FMS)
+    -- ============================================
+    CREATE TABLE IF NOT EXISTS payment_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_no TEXT UNIQUE,
+      employee_name TEXT NOT NULL,
+      site_id INTEGER REFERENCES sites(id),
+      site_name TEXT,
+      department TEXT,
+      contact_number TEXT,
+      category TEXT NOT NULL CHECK(category IN ('TA/DA','Purchase','Labour','Transport')),
+      amount REAL NOT NULL DEFAULT 0,
+      purpose TEXT NOT NULL,
+      payment_mode TEXT DEFAULT 'Bank' CHECK(payment_mode IN ('Cash','Bank','UPI')),
+      required_by_date DATE,
+      attachment_link TEXT,
+      -- TA/DA fields
+      travel_from_to TEXT,
+      travel_dates TEXT,
+      mode_of_travel TEXT,
+      stay_details TEXT,
+      -- Purchase fields
+      indent_number TEXT,
+      item_description TEXT,
+      vendor_name TEXT,
+      quotation_link TEXT,
+      -- Labour fields
+      labour_type TEXT,
+      number_of_workers INTEGER DEFAULT 0,
+      work_duration TEXT,
+      site_engineer_name TEXT,
+      -- Transport fields
+      vehicle_type TEXT,
+      from_to_location TEXT,
+      material_description TEXT,
+      driver_vendor_name TEXT,
+      -- Status & Workflow
+      current_step INTEGER DEFAULT 1,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','step1_approved','accounts_approved','dues_checked','velocity_checked','final_approved','rejected')),
+      rejection_remarks TEXT,
+      rejected_by INTEGER REFERENCES users(id),
+      rejected_at DATETIME,
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Approval trail for payment requests
+    CREATE TABLE IF NOT EXISTS payment_approvals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_id INTEGER REFERENCES payment_requests(id) ON DELETE CASCADE,
+      step INTEGER NOT NULL,
+      step_name TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('approved','rejected')),
+      remarks TEXT,
+      approved_by INTEGER REFERENCES users(id),
+      approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Seed lead sources
@@ -830,7 +890,7 @@ function initializeDatabase() {
   ];
 
   const ALL_MODULES = [
-    'dashboard','leads','quotations','orders','business_book','item_master','vendors','procurement','cashflow','collections','indent_fms','dpr',
+    'dashboard','leads','quotations','orders','business_book','item_master','vendors','procurement','cashflow','collections','payment_required','indent_fms','dpr',
     'installation','billing','complaints','hr','employees','expenses','checklists','users'
   ];
 

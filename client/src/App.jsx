@@ -8,6 +8,7 @@ import Quotations from './pages/Quotations';
 import Orders from './pages/Orders';
 import BusinessBook from './pages/BusinessBook';
 import ItemMaster from './pages/ItemMaster';
+import PaymentRequired from './pages/PaymentRequired';
 import Vendors from './pages/Vendors';
 import Procurement from './pages/Procurement';
 import Installation from './pages/Installation';
@@ -61,6 +62,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         {/* 4 Critical Systems */}
         <Route path="cashflow" element={<ModuleRoute module="cashflow"><CashFlow /></ModuleRoute>} />
+        <Route path="payment-required" element={<ModuleRoute module="payment_required"><PaymentRequired /></ModuleRoute>} />
         <Route path="collections" element={<ModuleRoute module="collections"><Collections /></ModuleRoute>} />
         <Route path="indent-fms" element={<ModuleRoute module="indent_fms"><IndentFMS /></ModuleRoute>} />
         <Route path="dpr" element={<ModuleRoute module="dpr"><DPR /></ModuleRoute>} />
