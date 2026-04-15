@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -10,13 +10,11 @@ import {
 
 const menuItems = [
   { path: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
-  // 4 Critical Systems
   { path: '/cashflow', label: 'Cash Flow', icon: FiTrendingUp, module: 'cashflow' },
   { path: '/payment-required', label: 'Payment Required', icon: FiDollarSign, module: 'payment_required' },
   { path: '/collections', label: 'Collection Engine', icon: FiCreditCard, module: 'collections' },
   { path: '/indent-fms', label: 'Indent to Payment', icon: FiLayers, module: 'indent_fms' },
-  { path: '/dpr', label: 'DPR (Daily Progress)', icon: FiBarChart2, module: 'dpr' },
-  // Other modules
+  { path: '/dpr', label: 'DPR', icon: FiBarChart2, module: 'dpr' },
   { path: '/leads', label: 'Leads / CRM', icon: FiTarget, module: 'leads' },
   { path: '/quotations', label: 'BOQ & Quotations', icon: FiFileText, module: 'quotations' },
   { path: '/business-book', label: 'Business Book', icon: FiBook, module: 'business_book' },
@@ -39,85 +37,91 @@ const adminItems = [
 ];
 
 export default function Layout() {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const location = useLocation();
   const { user, logout, canView, isAdmin, userRoles } = useAuth();
 
-  // Filter menu items based on user permissions
+  useEffect(() => {
+    const check = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) setSidebarOpen(true);
+      else setSidebarOpen(false);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Close sidebar on mobile when route changes
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [location.pathname, isMobile]);
+
   const visibleMenu = menuItems.filter(item => canView(item.module));
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Mobile overlay - tap to close sidebar */}
-      {sidebarOpen && isMobile && <div className="fixed inset-0 bg-black/60 z-30" onClick={() => setSidebarOpen(false)} />}
+      {/* Mobile overlay */}
+      {sidebarOpen && isMobile && (
+        <div className="fixed inset-0 bg-black/60 z-30" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className={`fixed md:relative z-40 h-full w-64 bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-transform duration-300 flex-shrink-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'}`}>
-        <div className="p-5 border-b border-white/10 flex justify-between items-center">
+      <aside className={`fixed md:relative z-40 h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-transform duration-300 flex-shrink-0 ${isMobile ? 'w-56' : 'w-64'} ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-4 border-b border-white/10 flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Business ERP</h1>
-            <p className="text-xs text-slate-400 mt-1">Management System</p>
+            <h1 className="text-lg font-bold">SEPL ERP</h1>
           </div>
-          <button className="md:hidden p-1 hover:bg-white/10 rounded" onClick={() => setSidebarOpen(false)}><FiX size={20} /></button>
+          {isMobile && <button className="p-1.5 hover:bg-white/10 rounded" onClick={() => setSidebarOpen(false)}><FiX size={18} /></button>}
         </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
           {visibleMenu.map(item => (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={() => { if (window.innerWidth < 768) setSidebarOpen(false); }}
-              className={`sidebar-link ${location.pathname === item.path ? 'active' : ''}`}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
+            <Link key={item.path} to={item.path}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${location.pathname === item.path ? 'bg-white/15 text-white font-medium' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+              <item.icon size={16} />
+              <span className="truncate">{item.label}</span>
             </Link>
           ))}
-
-          {/* Admin Section */}
           {isAdmin() && (
             <>
-              <div className="pt-4 pb-2 px-4">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Admin</span>
-              </div>
+              <div className="pt-3 pb-1 px-3"><span className="text-[10px] font-semibold text-slate-500 uppercase">Admin</span></div>
               {adminItems.map(item => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`sidebar-link ${location.pathname === item.path ? 'active' : ''}`}
-                >
-                  <item.icon size={18} />
-                  <span>{item.label}</span>
+                <Link key={item.path} to={item.path}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${location.pathname === item.path ? 'bg-white/15 text-white font-medium' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                  <item.icon size={16} />
+                  <span className="truncate">{item.label}</span>
                 </Link>
               ))}
             </>
           )}
         </nav>
-        <div className="p-4 border-t border-white/10">
-          <div className="text-sm text-slate-300 mb-1">{user?.name}</div>
-          <div className="text-xs text-slate-500 mb-1">{user?.email}</div>
-          <div className="flex flex-wrap gap-1 mb-3">
+        <div className="p-3 border-t border-white/10">
+          <div className="text-sm text-slate-300">{user?.name}</div>
+          <div className="text-[10px] text-slate-500 mb-1">{user?.email}</div>
+          <div className="flex flex-wrap gap-1 mb-2">
             {userRoles.map((r, i) => (
-              <span key={i} className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded">{r}</span>
+              <span key={i} className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded">{r}</span>
             ))}
-            {userRoles.length === 0 && <span className="text-[10px] bg-slate-500/20 text-slate-400 px-1.5 py-0.5 rounded capitalize">{user?.role}</span>}
           </div>
-          <button onClick={logout} className="sidebar-link text-red-300 hover:text-red-200 w-full">
-            <FiLogOut size={18} /> <span>Logout</span>
+          <button onClick={logout} className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-300 hover:text-red-200 hover:bg-white/10 rounded w-full">
+            <FiLogOut size={15} /> <span>Logout</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-gray-200 px-4 md:px-6 py-3 flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 rounded-lg">
+      <div className="flex-1 flex flex-col overflow-hidden w-full">
+        <header className="bg-white shadow-sm border-b border-gray-200 px-3 md:px-6 py-2.5 flex items-center gap-2">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
             <FiMenu size={20} />
           </button>
-          <h2 className="text-base md:text-lg font-semibold text-gray-800 truncate">
-            {[...menuItems, ...adminItems].find(m => m.path === location.pathname)?.label || 'Business ERP'}
+          <h2 className="text-sm md:text-lg font-semibold text-gray-800 truncate">
+            {[...menuItems, ...adminItems].find(m => m.path === location.pathname)?.label || 'SEPL ERP'}
           </h2>
         </header>
-        <main className="flex-1 overflow-y-auto p-3 md:p-6 bg-slate-50">
+        <main className="flex-1 overflow-y-auto p-2 md:p-6 bg-slate-50">
           <Outlet />
         </main>
       </div>
