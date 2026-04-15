@@ -39,7 +39,8 @@ const adminItems = [
 ];
 
 export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const location = useLocation();
   const { user, logout, canView, isAdmin, userRoles } = useAuth();
 
@@ -49,9 +50,9 @@ export default function Layout() {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Mobile overlay - tap to close sidebar */}
-      {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && isMobile && <div className="fixed inset-0 bg-black/60 z-30" onClick={() => setSidebarOpen(false)} />}
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64 translate-x-0' : '-translate-x-full w-0'} fixed md:relative z-40 h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-all duration-300 flex-shrink-0 md:translate-x-0 ${!sidebarOpen && 'md:w-0 md:-ml-64'}`}>
+      <aside className={`fixed md:relative z-40 h-full w-64 bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-transform duration-300 flex-shrink-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'}`}>
         <div className="p-5 border-b border-white/10 flex justify-between items-center">
           <div>
             <h1 className="text-xl font-bold tracking-tight">Business ERP</h1>
