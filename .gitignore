@@ -3,3 +3,4 @@ data/
 .env
 client/dist/
 client/node_modules/
+.claude/worktrees/
