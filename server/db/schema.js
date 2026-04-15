@@ -967,6 +967,28 @@ function initializeDatabase() {
     }
   }
 
+  // Migration: ensure ALL modules have permission rows for ALL roles
+  const allRoles = db.prepare('SELECT id, name FROM roles').all();
+  const insertPermIfMissing = db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, module, can_view, can_create, can_edit, can_delete, can_approve) VALUES (?,?,?,?,?,?,?)');
+  for (const role of allRoles) {
+    for (const mod of ALL_MODULES) {
+      const exists = db.prepare('SELECT id FROM role_permissions WHERE role_id=? AND module=?').get(role.id, mod);
+      if (!exists) {
+        if (role.name === 'Admin') {
+          insertPermIfMissing.run(role.id, mod, 1, 1, 1, 1, 1);
+        } else if (role.name === 'Site Engineer' && (mod === 'dpr' || mod === 'payment_required')) {
+          insertPermIfMissing.run(role.id, mod, 1, 1, 1, 0, 0);
+        } else if (role.name === 'Data Entry' && (mod === 'business_book' || mod === 'item_master' || mod === 'orders')) {
+          insertPermIfMissing.run(role.id, mod, 1, 1, 1, 1, 0);
+        } else if (role.name === 'Accountant' && (mod === 'cashflow' || mod === 'collections' || mod === 'payment_required')) {
+          insertPermIfMissing.run(role.id, mod, 1, 1, 1, 0, 1);
+        } else {
+          insertPermIfMissing.run(role.id, mod, 1, 0, 0, 0, 0);
+        }
+      }
+    }
+  }
+
   // Seed default admin user
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@erp.com');
   if (!existing) {
