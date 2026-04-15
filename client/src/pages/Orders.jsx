@@ -89,7 +89,6 @@ export default function Orders() {
   };
 
   const itemsTotal = poItems.reduce((s, i) => s + (i.amount || 0), 0);
-  const paymentTotal = (+(form.pt_advance || 0)) + (+(form.pt_delivery || 0)) + (+(form.pt_installation || 0)) + (+(form.pt_commissioning || 0)) + (+(form.pt_retention || 0));
 
   const tabs = [
     { id: 'po', label: 'Purchase Orders' },
@@ -184,7 +183,7 @@ export default function Orders() {
             })()}
           </div>
 
-          {/* 2. PO Upload & Details */}
+          {/* 2. PO Details + Upload PO Copy */}
           <div className="border rounded-lg p-3 bg-blue-50">
             <h4 className="font-semibold text-sm text-blue-700 mb-3">Purchase Order Details</h4>
             <div className="grid grid-cols-2 gap-4">
@@ -219,70 +218,38 @@ export default function Orders() {
             </div>
           </div>
 
-          {/* 3. Payment Terms */}
-          <div className="border rounded-lg p-3 bg-emerald-50">
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-semibold text-sm text-emerald-700">Payment Terms (%)</h4>
-              <span className={`text-xs font-bold ${paymentTotal === 100 ? 'text-emerald-600' : paymentTotal > 100 ? 'text-red-600' : 'text-amber-600'}`}>
-                Total: {paymentTotal}% {paymentTotal === 100 ? '(Valid)' : paymentTotal > 100 ? '(Exceeds 100%)' : ''}
-              </span>
-            </div>
-            <div className="grid grid-cols-5 gap-3">
-              <div>
-                <label className="label text-xs">Advance %</label>
-                <input className="input text-center" type="number" min="0" max="100" value={form.pt_advance || ''} onChange={e => setForm({ ...form, pt_advance: e.target.value })} placeholder="%" />
-              </div>
-              <div>
-                <label className="label text-xs">Against Delivery %</label>
-                <input className="input text-center" type="number" min="0" max="100" value={form.pt_delivery || ''} onChange={e => setForm({ ...form, pt_delivery: e.target.value })} placeholder="%" />
-              </div>
-              <div>
-                <label className="label text-xs">Against Installation %</label>
-                <input className="input text-center" type="number" min="0" max="100" value={form.pt_installation || ''} onChange={e => setForm({ ...form, pt_installation: e.target.value })} placeholder="%" />
-              </div>
-              <div>
-                <label className="label text-xs">Testing & Commissioning %</label>
-                <input className="input text-center" type="number" min="0" max="100" value={form.pt_commissioning || ''} onChange={e => setForm({ ...form, pt_commissioning: e.target.value })} placeholder="%" />
-              </div>
-              <div>
-                <label className="label text-xs">Retention %</label>
-                <input className="input text-center" type="number" min="0" max="100" value={form.pt_retention || ''} onChange={e => setForm({ ...form, pt_retention: e.target.value })} placeholder="%" />
-              </div>
-            </div>
-            {form.total_amount > 0 && paymentTotal > 0 && (
-              <div className="mt-3 pt-2 border-t border-emerald-200 grid grid-cols-5 gap-3 text-xs text-emerald-700">
-                <div className="text-center"><span className="font-bold">Rs {Math.round((form.total_amount * (form.pt_advance || 0)) / 100).toLocaleString()}</span></div>
-                <div className="text-center"><span className="font-bold">Rs {Math.round((form.total_amount * (form.pt_delivery || 0)) / 100).toLocaleString()}</span></div>
-                <div className="text-center"><span className="font-bold">Rs {Math.round((form.total_amount * (form.pt_installation || 0)) / 100).toLocaleString()}</span></div>
-                <div className="text-center"><span className="font-bold">Rs {Math.round((form.total_amount * (form.pt_commissioning || 0)) / 100).toLocaleString()}</span></div>
-                <div className="text-center"><span className="font-bold">Rs {Math.round((form.total_amount * (form.pt_retention || 0)) / 100).toLocaleString()}</span></div>
-              </div>
+          {/* 3. Upload BOQ Excel → Fetch Items */}
+          <div className="border-2 border-dashed border-indigo-400 rounded-lg p-4 bg-indigo-50 text-center">
+            <h4 className="font-bold text-indigo-800 mb-2">Upload BOQ Excel to Fetch Items</h4>
+            <p className="text-xs text-indigo-600 mb-3">Upload your BOQ Excel file. All items with SN, Qty, Unit, SITC Rate, Amount will auto-fill below.</p>
+            <label className="btn btn-primary inline-flex items-center gap-2 cursor-pointer text-base px-6 py-3">
+              <FiUpload size={18} /> Upload BOQ & Fetch Items
+              <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                const fd = new FormData(); fd.append('file', file);
+                try {
+                  const res = await api.post('/orders/po-upload-excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                  if (res.data.items?.length > 0) {
+                    setPoItems(res.data.items.map(i => ({ ...i, item_master_id: '' })));
+                    const total = res.data.items.reduce((s, i) => s + (i.amount || 0), 0);
+                    setForm(f => ({ ...f, total_amount: Math.round(total) }));
+                    toast.success(`Fetched ${res.data.count} items from BOQ`);
+                  } else { toast.error('No items found in BOQ'); }
+                } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
+                e.target.value = '';
+              }} />
+            </label>
+            {poItems.length > 0 && poItems[0].description && (
+              <p className="text-xs text-emerald-600 font-bold mt-2">{poItems.length} items loaded. Total Amount auto-updated.</p>
             )}
           </div>
 
-          {/* 4. PO Items */}
-          <div className="border rounded-lg p-3 bg-indigo-50">
+          {/* 4. BOQ Items Table */}
+          <div className="border rounded-lg p-3 bg-white">
             <div className="flex justify-between items-center mb-3">
-              <h4 className="font-semibold text-sm text-indigo-700">PO Items (Item-wise Entry)</h4>
-              <div className="flex gap-2">
-                <a href="/api/orders/po-template" className="btn btn-secondary text-xs flex items-center gap-1"><FiUpload size={12} /> Download Template</a>
-                <label className="btn btn-secondary text-xs flex items-center gap-1 cursor-pointer">
-                  <FiUpload size={12} /> Upload Excel
-                  <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async (e) => {
-                    const file = e.target.files[0]; if (!file) return;
-                    const fd = new FormData(); fd.append('file', file);
-                    try {
-                      const res = await api.post('/orders/po-upload-excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-                      if (res.data.items?.length > 0) {
-                        setPoItems(res.data.items.map(i => ({ ...i, item_master_id: '' })));
-                        toast.success(`Loaded ${res.data.count} items from Excel`);
-                      } else { toast.error('No items found in Excel'); }
-                    } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
-                    e.target.value = '';
-                  }} />
-                </label>
-                <button type="button" onClick={addItem} className="btn btn-secondary text-xs flex items-center gap-1"><FiPlus size={12} /> Add Item</button>
-              </div>
+              <h4 className="font-semibold text-sm text-gray-700">BOQ Items ({poItems.filter(i => i.description).length} items)</h4>
+              <button type="button" onClick={addItem} className="btn btn-secondary text-xs flex items-center gap-1"><FiPlus size={12} /> Add Item</button>
+            </div>
             </div>
             <div className="space-y-2">
               <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 px-1">
