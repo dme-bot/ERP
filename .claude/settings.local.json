@@ -23,7 +23,9 @@
       "Bash(py -m pip install pymupdf --quiet)",
       "Bash(py -m pip install pdfplumber --quiet)",
       "Bash(curl -s -X POST http://localhost:5000/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@erp.com\",\"password\":\"admin123\"}')",
-      "Bash(py -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\('token','NO TOKEN'\\)[:50]\\)\")"
+      "Bash(py -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\('token','NO TOKEN'\\)[:50]\\)\")",
+      "Bash(npx vite:*)",
+      "Bash(findstr \"ERROR\")"
     ]
   }
 }

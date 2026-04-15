@@ -250,7 +250,6 @@ export default function Orders() {
               <h4 className="font-semibold text-sm text-gray-700">BOQ Items ({poItems.filter(i => i.description).length} items)</h4>
               <button type="button" onClick={addItem} className="btn btn-secondary text-xs flex items-center gap-1"><FiPlus size={12} /> Add Item</button>
             </div>
-            </div>
             <div className="space-y-2">
               <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 px-1">
                 <div>SN</div><div className="col-span-3">Description</div><div>Qty</div><div>Unit</div><div className="col-span-2">Rate (SITC)</div><div className="col-span-2">Amount</div><div></div>
