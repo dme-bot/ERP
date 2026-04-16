@@ -869,6 +869,58 @@ function initializeDatabase() {
       approved_by INTEGER REFERENCES users(id),
       approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- ============================================
+    -- ATTENDANCE MODULE (Geofencing + Live Photo)
+    -- ============================================
+    CREATE TABLE IF NOT EXISTS attendance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      date DATE NOT NULL,
+      punch_in_time DATETIME,
+      punch_out_time DATETIME,
+      punch_in_lat REAL,
+      punch_in_lng REAL,
+      punch_in_address TEXT,
+      punch_in_photo TEXT,
+      punch_out_lat REAL,
+      punch_out_lng REAL,
+      punch_out_address TEXT,
+      punch_out_photo TEXT,
+      site_id INTEGER REFERENCES sites(id),
+      site_name TEXT,
+      total_hours REAL DEFAULT 0,
+      status TEXT DEFAULT 'present' CHECK(status IN ('present','half_day','absent','late','leave','holiday')),
+      remarks TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Geofence settings per site
+    CREATE TABLE IF NOT EXISTS geofence_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id INTEGER REFERENCES sites(id),
+      site_name TEXT,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      radius_meters INTEGER DEFAULT 200,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Leave requests
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      leave_type TEXT DEFAULT 'casual' CHECK(leave_type IN ('casual','sick','earned','half_day','comp_off')),
+      from_date DATE NOT NULL,
+      to_date DATE NOT NULL,
+      days INTEGER DEFAULT 1,
+      reason TEXT,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+      approved_by INTEGER REFERENCES users(id),
+      remarks TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Seed lead sources
@@ -890,7 +942,7 @@ function initializeDatabase() {
   ];
 
   const ALL_MODULES = [
-    'dashboard','leads','quotations','orders','business_book','item_master','vendors','procurement','cashflow','collections','payment_required','indent_fms','dpr',
+    'dashboard','leads','quotations','orders','business_book','item_master','vendors','procurement','cashflow','collections','payment_required','attendance','indent_fms','dpr',
     'installation','billing','complaints','hr','employees','expenses','checklists','users'
   ];
 

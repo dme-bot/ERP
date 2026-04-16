@@ -12,6 +12,7 @@ const menuItems = [
   { path: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
   { path: '/cashflow', label: 'Cash Flow', icon: FiTrendingUp, module: 'cashflow' },
   { path: '/payment-required', label: 'Payment Required', icon: FiDollarSign, module: 'payment_required' },
+  { path: '/attendance', label: 'Attendance', icon: FiCheckSquare, module: 'attendance' },
   { path: '/collections', label: 'Collection Engine', icon: FiCreditCard, module: 'collections' },
   { path: '/indent-fms', label: 'Indent to Payment', icon: FiLayers, module: 'indent_fms' },
   { path: '/dpr', label: 'DPR', icon: FiBarChart2, module: 'dpr' },

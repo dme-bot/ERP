@@ -9,6 +9,7 @@ import Orders from './pages/Orders';
 import BusinessBook from './pages/BusinessBook';
 import ItemMaster from './pages/ItemMaster';
 import PaymentRequired from './pages/PaymentRequired';
+import Attendance from './pages/Attendance';
 import Vendors from './pages/Vendors';
 import Procurement from './pages/Procurement';
 import Installation from './pages/Installation';
@@ -63,6 +64,7 @@ export default function App() {
         {/* 4 Critical Systems */}
         <Route path="cashflow" element={<ModuleRoute module="cashflow"><CashFlow /></ModuleRoute>} />
         <Route path="payment-required" element={<ModuleRoute module="payment_required"><PaymentRequired /></ModuleRoute>} />
+        <Route path="attendance" element={<ModuleRoute module="attendance"><Attendance /></ModuleRoute>} />
         <Route path="collections" element={<ModuleRoute module="collections"><Collections /></ModuleRoute>} />
         <Route path="indent-fms" element={<ModuleRoute module="indent_fms"><IndentFMS /></ModuleRoute>} />
         <Route path="dpr" element={<ModuleRoute module="dpr"><DPR /></ModuleRoute>} />

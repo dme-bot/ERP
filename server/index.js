@@ -39,6 +39,7 @@ app.use('/api/quotations', require('./routes/quotations'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/business-book', require('./routes/businessbook'));
 app.use('/api/payment-required', require('./routes/paymentrequired'));
+app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/item-master', require('./routes/itemmaster'));
 app.use('/api/procurement', require('./routes/procurement'));
 app.use('/api/installation', require('./routes/installation'));
