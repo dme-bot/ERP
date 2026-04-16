@@ -3,19 +3,23 @@ import api from '../api';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiPlus, FiSearch, FiEye, FiEdit2, FiTrash2, FiChevronRight, FiCheck, FiX, FiUpload, FiCalendar, FiFileText, FiTarget } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEye, FiEdit2, FiTrash2, FiChevronRight, FiCheck, FiX, FiUpload, FiCalendar, FiFileText, FiTarget, FiTrendingUp } from 'react-icons/fi';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
-const STAGE_COLORS = { new_lead: 'bg-blue-500', qualified: 'bg-indigo-500', meeting_assigned: 'bg-purple-500', mom_uploaded: 'bg-violet-500', drawing_uploaded: 'bg-amber-500', boq_created: 'bg-orange-500', quotation_sent: 'bg-cyan-500', won: 'bg-emerald-500', lost: 'bg-red-500' };
-const STAGE_LABELS = { new_lead: 'New Lead', qualified: 'Qualified', meeting_assigned: 'Meeting', mom_uploaded: 'MOM', drawing_uploaded: 'Drawing', boq_created: 'BOQ', quotation_sent: 'Quotation', won: 'Won', lost: 'Lost' };
-const CATEGORIES = ['MEP', 'Fire Fighting', 'Electrical', 'HVAC', 'Low Voltage', 'Solar', 'Plumbing', 'CCTV', 'Access Control'];
+const STAGES = ['new_lead','qualified','meeting_assigned','mom_uploaded','drawing_uploaded','boq_created','quotation_sent','won','lost'];
+const STAGE_LABELS = { new_lead:'New Leads', qualified:'Qualified', meeting_assigned:'Meetings', mom_uploaded:'MOM Done', drawing_uploaded:'Drawings', boq_created:'BOQ Ready', quotation_sent:'Quotation Sent', won:'Won', lost:'Lost' };
+const STAGE_COLORS = { new_lead:'#3b82f6', qualified:'#6366f1', meeting_assigned:'#8b5cf6', mom_uploaded:'#a855f7', drawing_uploaded:'#f59e0b', boq_created:'#f97316', quotation_sent:'#06b6d4', won:'#10b981', lost:'#ef4444' };
+const TAB_STYLES = { new_lead:'bg-blue-500', qualified:'bg-indigo-500', meeting_assigned:'bg-purple-500', mom_uploaded:'bg-violet-500', drawing_uploaded:'bg-amber-500', boq_created:'bg-orange-500', quotation_sent:'bg-cyan-500', won:'bg-emerald-500', lost:'bg-red-500' };
+const CATEGORIES = ['MEP','Fire Fighting','Electrical','HVAC','Low Voltage','Solar','Plumbing','CCTV','Access Control'];
+const PIE_COLORS = ['#3b82f6','#6366f1','#8b5cf6','#f59e0b','#f97316','#06b6d4','#10b981','#ef4444','#ec4899'];
 
 export default function Leads() {
   const { canCreate, canEdit, canDelete, user } = useAuth();
-  const [tab, setTab] = useState('pipeline');
+  const [tab, setTab] = useState('dashboard');
+  const [stageTab, setStageTab] = useState('all');
   const [leads, setLeads] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('all');
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [viewData, setViewData] = useState(null);
@@ -24,13 +28,14 @@ export default function Leads() {
   const load = useCallback(() => {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
-    if (stageFilter !== 'all') params.set('stage', stageFilter);
+    if (stageTab !== 'all' && stageTab !== 'dashboard') params.set('stage', stageTab);
     api.get(`/sales-funnel?${params}`).then(r => setLeads(r.data)).catch(() => {});
     api.get('/sales-funnel/dashboard').then(r => setDashboard(r.data)).catch(() => {});
-  }, [search, stageFilter]);
+  }, [search, stageTab]);
 
   useEffect(() => { load(); }, [load]);
   const F = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const fmt = n => `Rs ${(n||0).toLocaleString('en-IN')}`;
 
   const saveLead = async (e) => {
     e.preventDefault();
@@ -42,134 +47,193 @@ export default function Leads() {
   };
 
   const advanceStage = async (id, stage, data) => {
-    try {
-      await api.post(`/sales-funnel/${id}/stage`, { stage, ...data });
-      toast.success(`Stage: ${STAGE_LABELS[stage] || stage}`);
-      setModal(null); setViewData(null); load();
-    } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
+    try { await api.post(`/sales-funnel/${id}/stage`, { stage, ...data }); toast.success(`${STAGE_LABELS[stage]||stage}`); setModal(null); setViewData(null); load(); }
+    catch (err) { toast.error(err.response?.data?.error || 'Error'); }
   };
 
-  const uploadFile = async (file) => {
-    const fd = new FormData(); fd.append('file', file);
-    const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-    return res.data.url;
-  };
+  const uploadFile = async (file) => { const fd = new FormData(); fd.append('file', file); const r = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); return r.data.url; };
+  const viewLead = (l) => { setViewData(l); setStageForm({}); setModal('view'); };
 
-  const viewLead = (lead) => { setViewData(lead); setStageForm({}); setModal('view'); };
+  // Chart data
+  const stageChartData = dashboard?.byStage?.map(s => ({ name: STAGE_LABELS[s.current_stage]||s.current_stage, count: s.count, fill: STAGE_COLORS[s.current_stage]||'#888' })) || [];
+  const catChartData = dashboard?.byCategory?.map((c,i) => ({ name: c.category, value: c.count, fill: PIE_COLORS[i%PIE_COLORS.length] })) || [];
+  const scChartData = dashboard?.bySC?.map((s,i) => ({ name: s.assigned_sc, count: s.count, fill: PIE_COLORS[i%PIE_COLORS.length] })) || [];
+
+  // Funnel data
+  const funnelData = STAGES.filter(s=>s!=='lost').map(s => ({ stage: STAGE_LABELS[s], count: dashboard?.byStage?.find(b=>b.current_stage===s)?.count||0 }));
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div><h1 className="text-xl font-bold flex items-center gap-2"><FiTarget className="text-blue-600" /> Sales Funnel</h1>
-          <p className="text-[10px] text-gray-400">Lead → Qualified → Meeting → MOM → Drawing → BOQ → Quotation → Won/Lost</p></div>
-        {canCreate('leads') && <button onClick={() => { setForm({ client_name: '', company_name: '', phone: '', email: '', category: '', address: '', source: '', assigned_sc: user?.name || '', assigned_asm: '', remarks: '' }); setModal('add'); }} className="btn btn-primary flex items-center gap-2 text-sm"><FiPlus size={15} /> New Lead</button>}
+        <h1 className="text-xl font-bold flex items-center gap-2"><FiTarget className="text-blue-600" /> Sales CRM</h1>
+        {canCreate('leads') && <button onClick={() => { setForm({ client_name:'',company_name:'',phone:'',email:'',category:'',address:'',source:'',assigned_sc:user?.name||'',assigned_asm:'',remarks:'' }); setModal('add'); }} className="btn btn-primary flex items-center gap-2 text-sm"><FiPlus size={15}/> New Lead</button>}
       </div>
-      <div className="flex gap-2"><button onClick={() => setTab('pipeline')} className={`btn ${tab === 'pipeline' ? 'btn-primary' : 'btn-secondary'} text-xs`}>Pipeline</button><button onClick={() => setTab('list')} className={`btn ${tab === 'list' ? 'btn-primary' : 'btn-secondary'} text-xs`}>All Leads</button></div>
 
-      {tab === 'pipeline' && dashboard && (<>
-        <div className="grid grid-cols-3 md:grid-cols-9 gap-2">{dashboard.stages?.map(s => {
-          const count = dashboard.byStage?.find(b => b.current_stage === s.key)?.count || 0;
-          return (<button key={s.key} onClick={() => setStageFilter(stageFilter === s.key ? 'all' : s.key)} className={`p-2 rounded-xl text-center ${stageFilter === s.key ? 'ring-2 ring-blue-500' : ''}`}>
-            <div className={`w-8 h-8 ${STAGE_COLORS[s.key]} rounded-lg flex items-center justify-center mx-auto mb-1`}><span className="text-white font-bold text-sm">{count}</span></div>
-            <p className="text-[9px] font-semibold text-gray-600">{s.label}</p><p className="text-[8px] text-gray-400">{s.who}</p>
-          </button>);
-        })}</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="card p-3 border-l-4 border-blue-500"><p className="text-xs text-gray-500">Total</p><p className="text-xl font-bold">{dashboard.total}</p></div>
-          <div className="card p-3 border-l-4 border-emerald-500"><p className="text-xs text-gray-500">Won</p><p className="text-xl font-bold text-emerald-600">{dashboard.won?.c}</p></div>
-          <div className="card p-3 border-l-4 border-red-500"><p className="text-xs text-gray-500">Lost</p><p className="text-xl font-bold text-red-600">{dashboard.lost?.c}</p></div>
-          <div className="card p-3 border-l-4 border-purple-500"><p className="text-xs text-gray-500">This Month</p><p className="text-xl font-bold">{dashboard.thisMonth}</p></div>
+      {/* CRM Tabs — Jotform Style */}
+      <div className="flex overflow-x-auto gap-0 bg-white rounded-xl shadow-sm border">
+        <button onClick={()=>{setTab('dashboard');setStageTab('dashboard');}} className={`px-4 py-3 text-xs font-bold whitespace-nowrap border-b-3 transition-all ${tab==='dashboard'?'border-b-2 border-blue-600 text-blue-600 bg-blue-50':'text-gray-500 hover:bg-gray-50'}`}>
+          <FiTrendingUp className="inline mr-1" size={14}/>Dashboard
+        </button>
+        <button onClick={()=>{setTab('list');setStageTab('all');}} className={`px-4 py-3 text-xs font-bold whitespace-nowrap transition-all ${stageTab==='all'&&tab==='list'?'border-b-2 border-gray-800 text-gray-800 bg-gray-50':'text-gray-500 hover:bg-gray-50'}`}>
+          All ({dashboard?.total||0})
+        </button>
+        {STAGES.map(s => {
+          const count = dashboard?.byStage?.find(b=>b.current_stage===s)?.count||0;
+          if (count === 0 && s !== 'won' && s !== 'lost') return null;
+          return (
+            <button key={s} onClick={()=>{setTab('list');setStageTab(s);}} className={`px-3 py-3 text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${stageTab===s?'border-b-2 text-white '+TAB_STYLES[s]:'text-gray-500 hover:bg-gray-50'}`}>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${stageTab===s?'bg-white/30 text-white':'text-white '+TAB_STYLES[s]}`}>{count}</span>
+              {STAGE_LABELS[s]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Dashboard Tab */}
+      {tab === 'dashboard' && dashboard && (
+        <div className="space-y-4">
+          {/* Stats Row */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="card p-4 border-l-4 border-blue-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Total Leads</p><p className="text-3xl font-extrabold text-blue-600">{dashboard.total}</p></div>
+            <div className="card p-4 border-l-4 border-purple-500"><p className="text-[10px] text-gray-500 font-bold uppercase">This Month</p><p className="text-3xl font-extrabold text-purple-600">{dashboard.thisMonth}</p></div>
+            <div className="card p-4 border-l-4 border-emerald-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Won Deals</p><p className="text-3xl font-extrabold text-emerald-600">{dashboard.won?.c||0}</p><p className="text-xs text-emerald-500">{dashboard.won?.amount>0?fmt(dashboard.won.amount):''}</p></div>
+            <div className="card p-4 border-l-4 border-red-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Lost</p><p className="text-3xl font-extrabold text-red-600">{dashboard.lost?.c||0}</p></div>
+            <div className="card p-4 border-l-4 border-amber-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Win Rate</p><p className="text-3xl font-extrabold text-amber-600">{dashboard.total>0?Math.round(((dashboard.won?.c||0)/dashboard.total)*100):0}%</p></div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Stage Bar Chart */}
+            <div className="card">
+              <h4 className="font-bold text-sm text-gray-700 mb-3">Pipeline by Stage</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={stageChartData}><XAxis dataKey="name" tick={{fontSize:9}} angle={-20} textAnchor="end" height={50}/><YAxis tick={{fontSize:10}}/><Tooltip/><Bar dataKey="count" radius={[4,4,0,0]}>{stageChartData.map((e,i)=>(<Cell key={i} fill={e.fill}/>))}</Bar></BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Category Pie */}
+            <div className="card">
+              <h4 className="font-bold text-sm text-gray-700 mb-3">By Category</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart><Pie data={catChartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name,value})=>`${name}: ${value}`} labelLine={false}>
+                  {catChartData.map((e,i)=>(<Cell key={i} fill={e.fill}/>))}</Pie><Legend iconSize={10} wrapperStyle={{fontSize:10}}/></PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Funnel */}
+            <div className="card">
+              <h4 className="font-bold text-sm text-gray-700 mb-3">Sales Funnel</h4>
+              <div className="space-y-1">{funnelData.map((f,i) => {
+                const maxCount = Math.max(...funnelData.map(d=>d.count),1);
+                const width = Math.max(20, (f.count/maxCount)*100);
+                return (<div key={i} className="flex items-center gap-2">
+                  <span className="text-[9px] w-16 text-right text-gray-500 font-medium">{f.stage}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+                    <div className="h-full rounded-full flex items-center px-2 transition-all" style={{width:`${width}%`, backgroundColor:Object.values(STAGE_COLORS)[i]||'#888'}}>
+                      <span className="text-white text-[10px] font-bold">{f.count}</span>
+                    </div>
+                  </div>
+                </div>);
+              })}</div>
+            </div>
+
+            {/* SC Performance */}
+            <div className="card">
+              <h4 className="font-bold text-sm text-gray-700 mb-3">By Sales Coordinator</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart><Pie data={scChartData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} dataKey="count" label={({name,count})=>`${name}: ${count}`}>
+                  {scChartData.map((e,i)=>(<Cell key={i} fill={e.fill}/>))}</Pie><Legend iconSize={10} wrapperStyle={{fontSize:10}}/></PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* List Tab */}
+      {tab === 'list' && (<>
+        <div className="relative"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input className="input pl-10" placeholder="Search client, company, lead no, phone..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+        <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="text-xs">
+          <thead><tr><th className="px-3 py-2">Lead No</th><th className="px-3 py-2">Client</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">Category</th><th className="px-3 py-2">Location</th><th className="px-3 py-2">SC</th><th className="px-3 py-2">Stage</th><th className="px-3 py-2">Date</th><th className="px-3 py-2">Actions</th></tr></thead>
+          <tbody>{leads.map(l => (<tr key={l.id} className="border-b hover:bg-blue-50/40 cursor-pointer" onClick={()=>viewLead(l)}>
+            <td className="px-3 py-2.5 font-bold text-blue-600">{l.lead_no}</td>
+            <td className="px-3 py-2.5"><div className="font-semibold">{l.client_name}</div></td>
+            <td className="px-3 py-2.5 text-gray-600">{l.company_name||'-'}</td>
+            <td className="px-3 py-2.5"><span className="text-[9px] bg-gray-100 px-2 py-0.5 rounded-full font-medium">{l.category||'-'}</span></td>
+            <td className="px-3 py-2.5 text-gray-500">{l.district||l.address||'-'}</td>
+            <td className="px-3 py-2.5">{l.assigned_sc||'-'}</td>
+            <td className="px-3 py-2.5"><span className="text-[9px] px-2 py-1 rounded-full font-bold text-white" style={{backgroundColor:STAGE_COLORS[l.current_stage]||'#888'}}>{STAGE_LABELS[l.current_stage]||l.current_stage}</span></td>
+            <td className="px-3 py-2.5 text-[10px] text-gray-400">{l.created_at?.split('T')[0]}</td>
+            <td className="px-3 py-2.5" onClick={e=>e.stopPropagation()}>
+              <div className="flex gap-1">
+                <button onClick={()=>viewLead(l)} className="p-1 text-blue-600 hover:bg-blue-50 rounded"><FiEye size={14}/></button>
+                {canEdit('leads')&&<button onClick={()=>{setForm(l);setModal('edit');}} className="p-1 text-amber-600 hover:bg-amber-50 rounded"><FiEdit2 size={14}/></button>}
+                {canDelete('leads')&&<button onClick={async()=>{if(!confirm('Delete?'))return;await api.delete(`/sales-funnel/${l.id}`);toast.success('Deleted');load();}} className="p-1 text-red-600 hover:bg-red-50 rounded"><FiTrash2 size={14}/></button>}
+              </div>
+            </td>
+          </tr>))}{leads.length===0&&<tr><td colSpan="9" className="text-center py-8 text-gray-400">No leads</td></tr>}</tbody>
+        </table></div></div>
       </>)}
 
-      <div className="relative"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input className="input pl-10" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-
-      <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="text-xs">
-        <thead><tr><th className="px-2 py-2">Lead No</th><th className="px-2 py-2">Client</th><th className="px-2 py-2">Company</th><th className="px-2 py-2">Category</th><th className="px-2 py-2">Location</th><th className="px-2 py-2">SC</th><th className="px-2 py-2">Stage</th><th className="px-2 py-2">Actions</th></tr></thead>
-        <tbody>{leads.map(l => (<tr key={l.id} className="border-b hover:bg-blue-50/30">
-          <td className="px-2 py-2 font-bold text-blue-600 cursor-pointer" onClick={() => viewLead(l)}>{l.lead_no}</td>
-          <td className="px-2 py-2 font-medium">{l.client_name}</td><td className="px-2 py-2">{l.company_name || '-'}</td>
-          <td className="px-2 py-2"><span className="text-[9px] bg-gray-100 px-1.5 py-0.5 rounded">{l.category || '-'}</span></td>
-          <td className="px-2 py-2">{l.district || l.address || '-'}</td><td className="px-2 py-2">{l.assigned_sc || '-'}</td>
-          <td className="px-2 py-2"><span className={`text-[9px] px-2 py-1 rounded-full font-bold text-white ${STAGE_COLORS[l.current_stage] || 'bg-gray-400'}`}>{STAGE_LABELS[l.current_stage] || l.current_stage}</span></td>
-          <td className="px-2 py-2"><div className="flex gap-1">
-            <button onClick={() => viewLead(l)} className="p-1 text-blue-600"><FiEye size={14} /></button>
-            {canEdit('leads') && <button onClick={() => { setForm(l); setModal('edit'); }} className="p-1 text-amber-600"><FiEdit2 size={14} /></button>}
-            {canDelete('leads') && <button onClick={async () => { if (!confirm('Delete?')) return; await api.delete(`/sales-funnel/${l.id}`); toast.success('Deleted'); load(); }} className="p-1 text-red-600"><FiTrash2 size={14} /></button>}
-          </div></td>
-        </tr>))}{leads.length === 0 && <tr><td colSpan="8" className="text-center py-8 text-gray-400">No leads</td></tr>}</tbody>
-      </table></div></div>
-
       {/* View + Stage Actions */}
-      <Modal isOpen={modal === 'view'} onClose={() => { setModal(null); setViewData(null); }} title={`${viewData?.lead_no} - ${viewData?.client_name}`} wide>
+      <Modal isOpen={modal==='view'} onClose={()=>{setModal(null);setViewData(null);}} title={`${viewData?.lead_no} - ${viewData?.client_name}`} wide>
         {viewData && (<div className="space-y-4 max-h-[70vh] overflow-y-auto">
-          <div className="flex gap-1 overflow-x-auto pb-2">{Object.entries(STAGE_LABELS).filter(([k]) => k !== 'lost').map(([key, label], idx) => {
-            const keys = Object.keys(STAGE_LABELS).filter(k => k !== 'lost');
-            const stageIdx = keys.indexOf(viewData.current_stage);
-            const thisIdx = keys.indexOf(key);
-            const isDone = thisIdx <= stageIdx;
-            const isCurrent = viewData.current_stage === key;
-            return (<div key={key} className="flex items-center"><div className={`px-2 py-1 rounded text-[9px] font-bold min-w-[55px] text-center ${isCurrent ? STAGE_COLORS[key]+' text-white' : isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400'}`}>{label}</div>{idx < keys.length-1 && <FiChevronRight size={10} className="text-gray-300 mx-0.5" />}</div>);
+          <div className="flex gap-1 overflow-x-auto pb-2">{STAGES.filter(s=>s!=='lost').map((key,idx)=>{
+            const keys=STAGES.filter(s=>s!=='lost'); const si=keys.indexOf(viewData.current_stage); const ti=keys.indexOf(key);
+            const done=ti<=si; const cur=viewData.current_stage===key;
+            return(<div key={key} className="flex items-center"><div className={`px-2 py-1 rounded text-[9px] font-bold min-w-[50px] text-center ${cur?'text-white':''}  ${done?'text-white':''}`} style={{backgroundColor:cur||done?STAGE_COLORS[key]:'#e5e7eb',color:cur||done?'white':'#9ca3af'}}>{STAGE_LABELS[key]}</div>{idx<keys.length-1&&<FiChevronRight size={10} className="text-gray-300 mx-0.5"/>}</div>);
           })}</div>
           <div className="grid grid-cols-3 gap-2 text-sm">
-            <div><span className="text-gray-400 text-[10px]">Client</span><br/><span className="font-medium">{viewData.client_name}</span></div>
-            <div><span className="text-gray-400 text-[10px]">Company</span><br/><span className="font-medium">{viewData.company_name||'-'}</span></div>
-            <div><span className="text-gray-400 text-[10px]">Category</span><br/><span className="font-medium">{viewData.category||'-'}</span></div>
+            <div><span className="text-gray-400 text-[10px]">Client</span><br/><strong>{viewData.client_name}</strong></div>
+            <div><span className="text-gray-400 text-[10px]">Company</span><br/>{viewData.company_name||'-'}</div>
+            <div><span className="text-gray-400 text-[10px]">Category</span><br/>{viewData.category||'-'}</div>
             <div><span className="text-gray-400 text-[10px]">Phone</span><br/>{viewData.phone||'-'}</div>
             <div><span className="text-gray-400 text-[10px]">SC</span><br/>{viewData.assigned_sc||'-'}</div>
             <div><span className="text-gray-400 text-[10px]">ASM</span><br/>{viewData.assigned_asm||'-'}</div>
           </div>
-          {viewData.qualified_remarks && <div className="bg-indigo-50 p-2 rounded text-xs"><strong>Qualified:</strong> {viewData.qualified_remarks}</div>}
-          {viewData.meeting_date && <div className="bg-purple-50 p-2 rounded text-xs"><strong>Meeting:</strong> {viewData.meeting_date} - {viewData.meeting_location}</div>}
-          {viewData.mom_notes && <div className="bg-violet-50 p-2 rounded text-xs"><strong>MOM:</strong> {viewData.mom_notes} {viewData.mom_file_link && <a href={viewData.mom_file_link} className="text-blue-600 underline" target="_blank" rel="noreferrer">File</a>}</div>}
-          {viewData.drawing_file1 && <div className="bg-amber-50 p-2 rounded text-xs"><strong>Drawings:</strong> <a href={viewData.drawing_file1} className="text-blue-600 underline" target="_blank" rel="noreferrer">1</a> {viewData.drawing_file2 && <a href={viewData.drawing_file2} className="text-blue-600 underline ml-2" target="_blank" rel="noreferrer">2</a>} {viewData.drawing_file3 && <a href={viewData.drawing_file3} className="text-blue-600 underline ml-2" target="_blank" rel="noreferrer">3</a>}</div>}
-          {viewData.boq_file_link && <div className="bg-orange-50 p-2 rounded text-xs"><strong>BOQ:</strong> Rs {viewData.boq_amount?.toLocaleString()} <a href={viewData.boq_file_link} className="text-blue-600 underline" target="_blank" rel="noreferrer">View</a></div>}
-          {viewData.quotation_number && <div className="bg-cyan-50 p-2 rounded text-xs"><strong>Quotation:</strong> {viewData.quotation_number} - Rs {viewData.quotation_amount?.toLocaleString()}</div>}
-          {viewData.result && <div className={`p-3 rounded font-bold text-center ${viewData.result==='won'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{viewData.result.toUpperCase()} {viewData.won_amount>0&&`- Rs ${viewData.won_amount.toLocaleString()}`} {viewData.result_remarks&&`(${viewData.result_remarks})`}</div>}
+          {viewData.qualified_remarks&&<div className="bg-indigo-50 p-2 rounded text-xs"><strong>Qualified:</strong> {viewData.qualified_remarks}</div>}
+          {viewData.meeting_date&&<div className="bg-purple-50 p-2 rounded text-xs"><strong>Meeting:</strong> {viewData.meeting_date} - {viewData.meeting_location}</div>}
+          {viewData.mom_notes&&<div className="bg-violet-50 p-2 rounded text-xs"><strong>MOM:</strong> {viewData.mom_notes} {viewData.mom_file_link&&<a href={viewData.mom_file_link} className="text-blue-600 underline" target="_blank" rel="noreferrer">File</a>}</div>}
+          {viewData.drawing_file1&&<div className="bg-amber-50 p-2 rounded text-xs"><strong>Drawings:</strong> <a href={viewData.drawing_file1} className="text-blue-600 underline" target="_blank" rel="noreferrer">1</a> {viewData.drawing_file2&&<a href={viewData.drawing_file2} className="text-blue-600 underline ml-2" target="_blank" rel="noreferrer">2</a>} {viewData.drawing_file3&&<a href={viewData.drawing_file3} className="text-blue-600 underline ml-2" target="_blank" rel="noreferrer">3</a>}</div>}
+          {viewData.boq_file_link&&<div className="bg-orange-50 p-2 rounded text-xs"><strong>BOQ:</strong> Rs {viewData.boq_amount?.toLocaleString()} <a href={viewData.boq_file_link} className="text-blue-600 underline" target="_blank" rel="noreferrer">View</a></div>}
+          {viewData.quotation_number&&<div className="bg-cyan-50 p-2 rounded text-xs"><strong>Quotation:</strong> {viewData.quotation_number} - Rs {viewData.quotation_amount?.toLocaleString()}</div>}
+          {viewData.result&&<div className={`p-3 rounded font-bold text-center text-lg ${viewData.result==='won'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{viewData.result.toUpperCase()} {viewData.won_amount>0&&`- ${fmt(viewData.won_amount)}`}</div>}
 
-          {viewData.current_stage !== 'won' && viewData.current_stage !== 'lost' && (
-            <div className="border-2 border-blue-300 rounded-xl p-4 bg-blue-50 space-y-3">
-              <h5 className="font-bold text-blue-800">Next Action</h5>
-              {viewData.current_stage === 'new_lead' && (<div className="space-y-2">
-                <p className="text-xs text-blue-600 font-medium">SC: Qualify this lead</p>
-                <textarea className="input" rows="2" placeholder="Remarks..." value={stageForm.qualified_remarks||''} onChange={e=>setStageForm({...stageForm,qualified_remarks:e.target.value})} />
+          {viewData.current_stage!=='won'&&viewData.current_stage!=='lost'&&(
+            <div className="border-2 rounded-xl p-4 space-y-3" style={{borderColor:STAGE_COLORS[viewData.current_stage],backgroundColor:STAGE_COLORS[viewData.current_stage]+'10'}}>
+              <h5 className="font-bold" style={{color:STAGE_COLORS[viewData.current_stage]}}>Next Action</h5>
+              {viewData.current_stage==='new_lead'&&(<div className="space-y-2">
+                <textarea className="input" rows="2" placeholder="Remarks..." value={stageForm.qualified_remarks||''} onChange={e=>setStageForm({...stageForm,qualified_remarks:e.target.value})}/>
                 <div className="flex gap-2"><button onClick={()=>advanceStage(viewData.id,'qualified',stageForm)} className="btn btn-success flex-1"><FiCheck className="inline mr-1"/>Qualified</button><button onClick={()=>advanceStage(viewData.id,'not_qualified',stageForm)} className="btn btn-danger flex-1"><FiX className="inline mr-1"/>Not Qualified</button></div>
               </div>)}
-              {viewData.current_stage === 'qualified' && (<div className="space-y-2">
-                <p className="text-xs text-blue-600 font-medium">SC: Assign Meeting</p>
-                <input className="input" type="datetime-local" value={stageForm.meeting_date||''} onChange={e=>setStageForm({...stageForm,meeting_date:e.target.value})} />
-                <input className="input" placeholder="Location" value={stageForm.meeting_location||''} onChange={e=>setStageForm({...stageForm,meeting_location:e.target.value})} />
-                <input className="input" placeholder="Assigned To (ASM)" value={stageForm.meeting_assigned_to||''} onChange={e=>setStageForm({...stageForm,meeting_assigned_to:e.target.value})} />
-                <button onClick={()=>advanceStage(viewData.id,'meeting_assigned',stageForm)} className="btn btn-primary w-full"><FiCalendar className="inline mr-1"/>Assign Meeting</button>
+              {viewData.current_stage==='qualified'&&(<div className="space-y-2">
+                <input className="input" type="datetime-local" value={stageForm.meeting_date||''} onChange={e=>setStageForm({...stageForm,meeting_date:e.target.value})}/>
+                <input className="input" placeholder="Location" value={stageForm.meeting_location||''} onChange={e=>setStageForm({...stageForm,meeting_location:e.target.value})}/>
+                <input className="input" placeholder="Assign To (ASM)" value={stageForm.meeting_assigned_to||''} onChange={e=>setStageForm({...stageForm,meeting_assigned_to:e.target.value})}/>
+                <button onClick={()=>advanceStage(viewData.id,'meeting_assigned',stageForm)} className="btn btn-primary w-full">Assign Meeting</button>
               </div>)}
-              {viewData.current_stage === 'meeting_assigned' && (<div className="space-y-2">
-                <p className="text-xs text-blue-600 font-medium">ASM: Upload MOM</p>
-                <textarea className="input" rows="3" placeholder="Meeting notes..." value={stageForm.mom_notes||''} onChange={e=>setStageForm({...stageForm,mom_notes:e.target.value})} />
-                <input type="file" onChange={async(e)=>{const f=e.target.files[0];if(!f)return;try{stageForm.mom_file_link=await uploadFile(f);toast.success('Uploaded');}catch{toast.error('Failed');}}} className="text-xs" />
-                <button onClick={()=>advanceStage(viewData.id,'mom_uploaded',stageForm)} disabled={!stageForm.mom_notes} className="btn btn-primary w-full disabled:opacity-50"><FiFileText className="inline mr-1"/>Submit MOM</button>
+              {viewData.current_stage==='meeting_assigned'&&(<div className="space-y-2">
+                <textarea className="input" rows="3" placeholder="Meeting notes / MOM..." value={stageForm.mom_notes||''} onChange={e=>setStageForm({...stageForm,mom_notes:e.target.value})}/>
+                <input type="file" onChange={async(e)=>{const f=e.target.files[0];if(!f)return;try{stageForm.mom_file_link=await uploadFile(f);toast.success('Uploaded');}catch{toast.error('Failed');}}} className="text-xs"/>
+                <button onClick={()=>advanceStage(viewData.id,'mom_uploaded',stageForm)} disabled={!stageForm.mom_notes} className="btn btn-primary w-full disabled:opacity-50">Submit MOM</button>
               </div>)}
-              {viewData.current_stage === 'mom_uploaded' && (<div className="space-y-2">
-                <p className="text-xs text-blue-600 font-medium">ASM: Upload Drawings</p>
+              {viewData.current_stage==='mom_uploaded'&&(<div className="space-y-2">
                 {[1,2,3].map(n=>(<div key={n} className="flex items-center gap-2"><span className="text-xs w-16">Drawing {n}:</span><input type="file" onChange={async(e)=>{const f=e.target.files[0];if(!f)return;try{const url=await uploadFile(f);setStageForm(s=>({...s,[`drawing_file${n}`]:url}));toast.success(`Drawing ${n}`);}catch{toast.error('Failed');}}} className="text-xs flex-1"/>{stageForm[`drawing_file${n}`]&&<span className="text-emerald-600 text-xs">OK</span>}</div>))}
-                <button onClick={()=>advanceStage(viewData.id,'drawing_uploaded',stageForm)} disabled={!stageForm.drawing_file1} className="btn btn-primary w-full disabled:opacity-50"><FiUpload className="inline mr-1"/>Submit</button>
+                <button onClick={()=>advanceStage(viewData.id,'drawing_uploaded',stageForm)} disabled={!stageForm.drawing_file1} className="btn btn-primary w-full disabled:opacity-50">Submit Drawings</button>
               </div>)}
-              {viewData.current_stage === 'drawing_uploaded' && (<div className="space-y-2">
-                <p className="text-xs text-blue-600 font-medium">Designer: Create BOQ</p>
-                <input type="file" onChange={async(e)=>{const f=e.target.files[0];if(!f)return;try{stageForm.boq_file_link=await uploadFile(f);toast.success('BOQ uploaded');}catch{toast.error('Failed');}}} className="text-xs" />
-                <input className="input" type="number" placeholder="BOQ Amount" value={stageForm.boq_amount||''} onChange={e=>setStageForm({...stageForm,boq_amount:+e.target.value})} />
+              {viewData.current_stage==='drawing_uploaded'&&(<div className="space-y-2">
+                <input type="file" onChange={async(e)=>{const f=e.target.files[0];if(!f)return;try{stageForm.boq_file_link=await uploadFile(f);toast.success('BOQ uploaded');}catch{toast.error('Failed');}}} className="text-xs"/>
+                <input className="input" type="number" placeholder="BOQ Amount" value={stageForm.boq_amount||''} onChange={e=>setStageForm({...stageForm,boq_amount:+e.target.value})}/>
                 <button onClick={()=>advanceStage(viewData.id,'boq_created',stageForm)} className="btn btn-primary w-full">Submit BOQ</button>
               </div>)}
-              {viewData.current_stage === 'boq_created' && (<div className="space-y-2">
-                <p className="text-xs text-blue-600 font-medium">SC: Send Quotation</p>
-                <input className="input" placeholder="Quotation Number" value={stageForm.quotation_number||''} onChange={e=>setStageForm({...stageForm,quotation_number:e.target.value})} />
-                <input className="input" type="number" placeholder="Amount" value={stageForm.quotation_amount||''} onChange={e=>setStageForm({...stageForm,quotation_amount:+e.target.value})} />
-                <input type="file" onChange={async(e)=>{const f=e.target.files[0];if(!f)return;try{stageForm.quotation_file_link=await uploadFile(f);toast.success('Uploaded');}catch{toast.error('Failed');}}} className="text-xs" />
+              {viewData.current_stage==='boq_created'&&(<div className="space-y-2">
+                <input className="input" placeholder="Quotation Number" value={stageForm.quotation_number||''} onChange={e=>setStageForm({...stageForm,quotation_number:e.target.value})}/>
+                <input className="input" type="number" placeholder="Amount" value={stageForm.quotation_amount||''} onChange={e=>setStageForm({...stageForm,quotation_amount:+e.target.value})}/>
+                <input type="file" onChange={async(e)=>{const f=e.target.files[0];if(!f)return;try{stageForm.quotation_file_link=await uploadFile(f);toast.success('Uploaded');}catch{toast.error('Failed');}}} className="text-xs"/>
                 <button onClick={()=>advanceStage(viewData.id,'quotation_sent',stageForm)} className="btn btn-primary w-full">Send Quotation</button>
               </div>)}
-              {viewData.current_stage === 'quotation_sent' && (<div className="space-y-2">
-                <p className="text-xs text-blue-600 font-medium">SC: Final Result</p>
-                <textarea className="input" rows="2" placeholder="Remarks..." value={stageForm.result_remarks||''} onChange={e=>setStageForm({...stageForm,result_remarks:e.target.value})} />
-                <input className="input" type="number" placeholder="Won Amount" value={stageForm.won_amount||''} onChange={e=>setStageForm({...stageForm,won_amount:+e.target.value})} />
+              {viewData.current_stage==='quotation_sent'&&(<div className="space-y-2">
+                <textarea className="input" rows="2" placeholder="Remarks..." value={stageForm.result_remarks||''} onChange={e=>setStageForm({...stageForm,result_remarks:e.target.value})}/>
+                <input className="input" type="number" placeholder="Won Amount" value={stageForm.won_amount||''} onChange={e=>setStageForm({...stageForm,won_amount:+e.target.value})}/>
                 <div className="flex gap-2"><button onClick={()=>advanceStage(viewData.id,'won',stageForm)} className="btn btn-success flex-1">WON</button><button onClick={()=>advanceStage(viewData.id,'lost',stageForm)} className="btn btn-danger flex-1">LOST</button></div>
               </div>)}
             </div>
