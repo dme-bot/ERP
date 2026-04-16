@@ -29,13 +29,21 @@ router.put('/sites/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
-// Get PO items for a site (with remaining qty after previous DPRs)
+// Get PO items for a site - fetches ALL PO items for that company/site name
 router.get('/sites/:site_id/po-items', (req, res) => {
   const db = getDb();
-  const site = db.prepare('SELECT po_id, business_book_id FROM sites WHERE id=?').get(req.params.site_id);
+  const site = db.prepare('SELECT name, po_id, business_book_id FROM sites WHERE id=?').get(req.params.site_id);
   if (!site) return res.json([]);
-  if (site.business_book_id) {
-    const items = db.prepare('SELECT * FROM po_items WHERE business_book_id=?').all(site.business_book_id);
+  // Get ALL business_book IDs for this company name (all POs for same company)
+  const allBBIds = db.prepare('SELECT DISTINCT s.business_book_id FROM sites s WHERE s.name=? AND s.business_book_id IS NOT NULL').all(site.name);
+  const bbIds = allBBIds.map(r => r.business_book_id);
+  let items = [];
+  if (bbIds.length > 0) {
+    items = db.prepare(`SELECT * FROM po_items WHERE business_book_id IN (${bbIds.join(',')})`).all();
+  } else if (site.business_book_id) {
+    items = db.prepare('SELECT * FROM po_items WHERE business_book_id=?').all(site.business_book_id);
+  }
+  if (items.length > 0) {
     // Calculate already filled qty from previous DPRs
     const result = items.map(item => {
       const filled = db.prepare('SELECT COALESCE(SUM(actual_qty),0) as total FROM dpr_work_items WHERE po_item_id=?').get(item.id);
