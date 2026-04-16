@@ -222,10 +222,20 @@ router.put('/:id', requirePermission('business_book', 'edit'), (req, res) => {
   res.json({ message: 'Updated' });
 });
 
-// DELETE
+// DELETE (also removes linked sites, POs, items, planning)
 router.delete('/:id', requirePermission('business_book', 'delete'), (req, res) => {
-  getDb().prepare('DELETE FROM business_book WHERE id=?').run(req.params.id);
-  res.json({ message: 'Deleted' });
+  try {
+    const db = getDb();
+    const id = req.params.id;
+    db.prepare('DELETE FROM po_items WHERE business_book_id=?').run(id);
+    db.prepare('DELETE FROM order_planning WHERE business_book_id=?').run(id);
+    db.prepare('DELETE FROM sites WHERE business_book_id=?').run(id);
+    db.prepare('DELETE FROM purchase_orders WHERE business_book_id=?').run(id);
+    db.prepare('DELETE FROM business_book WHERE id=?').run(id);
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
