@@ -73,12 +73,18 @@ router.post('/punch-in', (req, res) => {
   const existing = db.prepare('SELECT id FROM attendance WHERE user_id=? AND date=?').get(req.user.id, today);
   if (existing) return res.status(400).json({ error: 'Already punched in today' });
 
-  // Check geofence
+  // Check geofence — MANDATORY, must be inside a site area
   const geofences = db.prepare('SELECT * FROM geofence_settings WHERE active=1').all();
-  let insideGeofence = geofences.length === 0; // If no geofences, allow everywhere
+  if (geofences.length === 0) {
+    return res.status(400).json({ error: 'No site locations configured. Contact admin to add geofence areas.' });
+  }
+  let insideGeofence = false;
   let matchedSite = site_name || '';
+  let nearestDist = 999999;
+  let nearestSite = '';
   for (const gf of geofences) {
     const dist = haversine(latitude, longitude, gf.latitude, gf.longitude);
+    if (dist < nearestDist) { nearestDist = dist; nearestSite = gf.site_name; }
     if (dist <= gf.radius_meters) {
       insideGeofence = true;
       matchedSite = gf.site_name || matchedSite;
@@ -86,8 +92,8 @@ router.post('/punch-in', (req, res) => {
     }
   }
 
-  if (!insideGeofence && geofences.length > 0) {
-    return res.status(400).json({ error: 'You are outside the allowed geofence area. Please go to your assigned site.' });
+  if (!insideGeofence) {
+    return res.status(400).json({ error: `You are ${Math.round(nearestDist)}m away from nearest site (${nearestSite}). Go to your assigned site to punch. Geofence radius: ${geofences[0]?.radius_meters || 200}m` });
   }
 
   // Check if late (after 9:30 AM)
