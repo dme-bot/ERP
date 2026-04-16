@@ -46,7 +46,13 @@ router.get('/dashboard', requirePermission('leads', 'view'), (req, res) => {
   const byCategory = db.prepare("SELECT category, COUNT(*) as count FROM sales_funnel WHERE category IS NOT NULL AND category != '' GROUP BY category").all();
   const bySC = db.prepare("SELECT assigned_sc, COUNT(*) as count FROM sales_funnel WHERE assigned_sc IS NOT NULL AND assigned_sc != '' GROUP BY assigned_sc").all();
   const recent = db.prepare('SELECT * FROM sales_funnel ORDER BY updated_at DESC LIMIT 10').all();
-  res.json({ total: total.c, byStage: bystage, won, lost, thisMonth: thisMonth.c, byCategory, bySC, recent, stages: STAGES });
+  const today = new Date().toISOString().split('T')[0];
+  let todayFollowups = 0, overdueFollowups = 0;
+  try {
+    todayFollowups = db.prepare("SELECT COUNT(*) as c FROM lead_followups WHERE done=0 AND followup_date=?").get(today)?.c || 0;
+    overdueFollowups = db.prepare("SELECT COUNT(*) as c FROM lead_followups WHERE done=0 AND followup_date<?").get(today)?.c || 0;
+  } catch(e) {}
+  res.json({ total: total.c, byStage: bystage, won, lost, thisMonth: thisMonth.c, byCategory, bySC, recent, stages: STAGES, todayFollowups, overdueFollowups });
 });
 
 // GET single
@@ -144,6 +150,60 @@ router.post('/:id/stage', requirePermission('leads', 'edit'), (req, res) => {
 
   db.prepare(sql).run(...params);
   res.json({ message: `Stage updated to ${stage}` });
+});
+
+// ===== FOLLOW-UPS =====
+
+// GET follow-ups for a lead
+router.get('/:id/followups', requirePermission('leads', 'view'), (req, res) => {
+  res.json(getDb().prepare(`SELECT f.*, u.name as created_by_name, u2.name as done_by_name FROM lead_followups f
+    LEFT JOIN users u ON f.created_by=u.id LEFT JOIN users u2 ON f.done_by=u2.id
+    WHERE f.lead_id=? ORDER BY f.followup_date DESC`).all(req.params.id));
+});
+
+// POST add follow-up
+router.post('/:id/followup', requirePermission('leads', 'create'), (req, res) => {
+  const { followup_date, followup_time, type, notes, next_followup_date } = req.body;
+  if (!followup_date) return res.status(400).json({ error: 'Follow-up date required' });
+  const r = getDb().prepare('INSERT INTO lead_followups (lead_id, followup_date, followup_time, type, notes, next_followup_date, created_by) VALUES (?,?,?,?,?,?,?)')
+    .run(req.params.id, followup_date, followup_time, type || 'call', notes, next_followup_date, req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// PUT log follow-up outcome
+router.put('/followup/:fid', requirePermission('leads', 'edit'), (req, res) => {
+  const { outcome, notes, next_followup_date } = req.body;
+  if (!outcome) return res.status(400).json({ error: 'Outcome required' });
+  const db = getDb();
+  db.prepare('UPDATE lead_followups SET outcome=?, notes=?, done=1, done_by=?, next_followup_date=? WHERE id=?')
+    .run(outcome, notes, req.user.id, next_followup_date, req.params.fid);
+  // Auto-create next follow-up if set
+  if (next_followup_date) {
+    const fu = db.prepare('SELECT lead_id FROM lead_followups WHERE id=?').get(req.params.fid);
+    if (fu) {
+      db.prepare('INSERT INTO lead_followups (lead_id, followup_date, type, notes, created_by) VALUES (?,?,?,?,?)')
+        .run(fu.lead_id, next_followup_date, 'call', 'Auto-scheduled from previous follow-up', req.user.id);
+    }
+  }
+  res.json({ message: 'Follow-up logged' });
+});
+
+// GET today's pending follow-ups (for dashboard)
+router.get('/followups/today', requirePermission('leads', 'view'), (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+  const pending = getDb().prepare(`SELECT f.*, sf.lead_no, sf.client_name, sf.company_name, sf.phone, sf.current_stage
+    FROM lead_followups f JOIN sales_funnel sf ON f.lead_id=sf.id
+    WHERE f.done=0 AND f.followup_date <= ? ORDER BY f.followup_date`).all(today);
+  res.json(pending);
+});
+
+// GET overdue follow-ups
+router.get('/followups/overdue', requirePermission('leads', 'view'), (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+  const overdue = getDb().prepare(`SELECT f.*, sf.lead_no, sf.client_name, sf.company_name, sf.phone
+    FROM lead_followups f JOIN sales_funnel sf ON f.lead_id=sf.id
+    WHERE f.done=0 AND f.followup_date < ? ORDER BY f.followup_date`).all(today);
+  res.json(overdue);
 });
 
 // DELETE

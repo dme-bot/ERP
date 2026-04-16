@@ -24,6 +24,8 @@ export default function Leads() {
   const [form, setForm] = useState({});
   const [viewData, setViewData] = useState(null);
   const [stageForm, setStageForm] = useState({});
+  const [followups, setFollowups] = useState([]);
+  const [fuForm, setFuForm] = useState({ followup_date: '', followup_time: '', type: 'call', notes: '' });
 
   const load = useCallback(() => {
     const params = new URLSearchParams();
@@ -52,7 +54,20 @@ export default function Leads() {
   };
 
   const uploadFile = async (file) => { const fd = new FormData(); fd.append('file', file); const r = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); return r.data.url; };
-  const viewLead = (l) => { setViewData(l); setStageForm({}); setModal('view'); };
+  const viewLead = (l) => { setViewData(l); setStageForm({}); setModal('view'); api.get(`/sales-funnel/${l.id}/followups`).then(r=>setFollowups(r.data)).catch(()=>setFollowups([])); };
+
+  const addFollowup = async () => {
+    if (!fuForm.followup_date) return toast.error('Date required');
+    try { await api.post(`/sales-funnel/${viewData.id}/followup`, fuForm); toast.success('Follow-up scheduled'); setFuForm({followup_date:'',followup_time:'',type:'call',notes:''}); api.get(`/sales-funnel/${viewData.id}/followups`).then(r=>setFollowups(r.data)); }
+    catch(err) { toast.error(err.response?.data?.error||'Error'); }
+  };
+
+  const logFollowup = async (fid, outcome) => {
+    const notes = prompt('Notes:');
+    const next = prompt('Next follow-up date (YYYY-MM-DD) or leave empty:');
+    try { await api.put(`/sales-funnel/followup/${fid}`, { outcome, notes, next_followup_date: next||null }); toast.success('Logged'); api.get(`/sales-funnel/${viewData.id}/followups`).then(r=>setFollowups(r.data)); load(); }
+    catch(err) { toast.error('Error'); }
+  };
 
   // Chart data
   const stageChartData = dashboard?.byStage?.map(s => ({ name: STAGE_LABELS[s.current_stage]||s.current_stage, count: s.count, fill: STAGE_COLORS[s.current_stage]||'#888' })) || [];
@@ -100,6 +115,7 @@ export default function Leads() {
             <div className="card p-4 border-l-4 border-emerald-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Won Deals</p><p className="text-3xl font-extrabold text-emerald-600">{dashboard.won?.c||0}</p><p className="text-xs text-emerald-500">{dashboard.won?.amount>0?fmt(dashboard.won.amount):''}</p></div>
             <div className="card p-4 border-l-4 border-red-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Lost</p><p className="text-3xl font-extrabold text-red-600">{dashboard.lost?.c||0}</p></div>
             <div className="card p-4 border-l-4 border-amber-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Win Rate</p><p className="text-3xl font-extrabold text-amber-600">{dashboard.total>0?Math.round(((dashboard.won?.c||0)/dashboard.total)*100):0}%</p></div>
+            {(dashboard.todayFollowups>0||dashboard.overdueFollowups>0)&&<div className="card p-4 border-l-4 border-orange-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Follow-ups</p><p className="text-xl font-bold text-orange-600">{dashboard.todayFollowups} today</p>{dashboard.overdueFollowups>0&&<p className="text-xs text-red-600 font-bold">{dashboard.overdueFollowups} overdue!</p>}</div>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -197,6 +213,31 @@ export default function Leads() {
           {viewData.boq_file_link&&<div className="bg-orange-50 p-2 rounded text-xs"><strong>BOQ:</strong> Rs {viewData.boq_amount?.toLocaleString()} <a href={viewData.boq_file_link} className="text-blue-600 underline" target="_blank" rel="noreferrer">View</a></div>}
           {viewData.quotation_number&&<div className="bg-cyan-50 p-2 rounded text-xs"><strong>Quotation:</strong> {viewData.quotation_number} - Rs {viewData.quotation_amount?.toLocaleString()}</div>}
           {viewData.result&&<div className={`p-3 rounded font-bold text-center text-lg ${viewData.result==='won'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{viewData.result.toUpperCase()} {viewData.won_amount>0&&`- ${fmt(viewData.won_amount)}`}</div>}
+
+          {/* Follow-ups */}
+          <div className="border rounded-xl p-3 space-y-2">
+            <div className="flex justify-between items-center"><h5 className="font-bold text-sm">Follow-ups</h5></div>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1"><input className="input text-xs" type="date" value={fuForm.followup_date} onChange={e=>setFuForm({...fuForm,followup_date:e.target.value})}/></div>
+              <div><input className="input text-xs" type="time" value={fuForm.followup_time||''} onChange={e=>setFuForm({...fuForm,followup_time:e.target.value})}/></div>
+              <select className="select text-xs w-24" value={fuForm.type} onChange={e=>setFuForm({...fuForm,type:e.target.value})}><option value="call">Call</option><option value="email">Email</option><option value="whatsapp">WhatsApp</option><option value="visit">Visit</option></select>
+              <input className="input text-xs flex-1" placeholder="Notes" value={fuForm.notes||''} onChange={e=>setFuForm({...fuForm,notes:e.target.value})}/>
+              <button onClick={addFollowup} className="btn btn-primary text-xs px-3">Add</button>
+            </div>
+            {followups.length>0&&<div className="space-y-1 max-h-32 overflow-y-auto">{followups.map(f=>(
+              <div key={f.id} className={`flex items-center justify-between text-xs p-2 rounded ${f.done?'bg-gray-50':'bg-amber-50 border border-amber-200'}`}>
+                <div><span className="font-medium">{f.followup_date}</span> {f.followup_time&&<span className="text-gray-400">{f.followup_time}</span>} <span className="capitalize bg-gray-100 px-1 rounded text-[9px]">{f.type}</span> {f.notes&&<span className="text-gray-500 ml-1">{f.notes}</span>}</div>
+                <div>{f.done?<span className="text-emerald-600 font-bold text-[9px]">{f.outcome}</span>:(
+                  <div className="flex gap-1">
+                    <button onClick={()=>logFollowup(f.id,'connected')} className="text-[9px] text-emerald-600 font-bold">Connected</button>
+                    <button onClick={()=>logFollowup(f.id,'not_reachable')} className="text-[9px] text-red-600 font-bold">NR</button>
+                    <button onClick={()=>logFollowup(f.id,'callback')} className="text-[9px] text-amber-600 font-bold">Callback</button>
+                    <button onClick={()=>logFollowup(f.id,'interested')} className="text-[9px] text-blue-600 font-bold">Interested</button>
+                  </div>
+                )}</div>
+              </div>
+            ))}</div>}
+          </div>
 
           {viewData.current_stage!=='won'&&viewData.current_stage!=='lost'&&(
             <div className="border-2 rounded-xl p-4 space-y-3" style={{borderColor:STAGE_COLORS[viewData.current_stage],backgroundColor:STAGE_COLORS[viewData.current_stage]+'10'}}>

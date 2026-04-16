@@ -148,6 +148,22 @@ function initializeDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Lead Follow-ups
+    CREATE TABLE IF NOT EXISTS lead_followups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id INTEGER REFERENCES sales_funnel(id) ON DELETE CASCADE,
+      followup_date DATE NOT NULL,
+      followup_time TEXT,
+      type TEXT DEFAULT 'call' CHECK(type IN ('call','email','whatsapp','visit','other')),
+      outcome TEXT CHECK(outcome IN ('connected','not_reachable','callback','interested','not_interested','meeting_fixed','quotation_asked','follow_later')),
+      notes TEXT,
+      next_followup_date DATE,
+      done INTEGER DEFAULT 0,
+      done_by INTEGER REFERENCES users(id),
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Meetings
     CREATE TABLE IF NOT EXISTS meetings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
