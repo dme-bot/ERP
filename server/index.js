@@ -35,6 +35,7 @@ initializeDatabase();
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/leads', require('./routes/leads'));
+app.use('/api/sales-funnel', require('./routes/salesfunnel'));
 app.use('/api/quotations', require('./routes/quotations'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/business-book', require('./routes/businessbook'));

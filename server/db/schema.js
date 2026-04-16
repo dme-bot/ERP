@@ -71,7 +71,7 @@ function initializeDatabase() {
       name TEXT NOT NULL UNIQUE
     );
 
-    -- Leads / CRM
+    -- Leads / CRM (kept for backward compatibility)
     CREATE TABLE IF NOT EXISTS leads (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_name TEXT NOT NULL,
@@ -79,12 +79,71 @@ function initializeDatabase() {
       phone TEXT,
       email TEXT,
       source_id INTEGER REFERENCES lead_sources(id),
-      status TEXT DEFAULT 'new' CHECK(status IN (
-        'new','called','qualified','meeting_scheduled','meeting_done',
-        'boq_drawing','quotation_sent','negotiation','won','lost'
-      )),
+      status TEXT DEFAULT 'new',
       assigned_to INTEGER REFERENCES users(id),
       notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Sales Funnel Pipeline
+    CREATE TABLE IF NOT EXISTS sales_funnel (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_no TEXT UNIQUE,
+      -- Lead Details
+      client_name TEXT NOT NULL,
+      company_name TEXT,
+      phone TEXT,
+      email TEXT,
+      category TEXT,
+      address TEXT,
+      district TEXT,
+      state TEXT,
+      source TEXT,
+      assigned_sc TEXT,
+      assigned_asm TEXT,
+      -- Stage tracking
+      current_stage TEXT DEFAULT 'new_lead',
+      -- Stage 1: Qualified
+      is_qualified INTEGER DEFAULT 0,
+      qualified_by TEXT,
+      qualified_date DATETIME,
+      qualified_remarks TEXT,
+      -- Stage 2: Meeting
+      meeting_date DATETIME,
+      meeting_location TEXT,
+      meeting_assigned_to TEXT,
+      meeting_status TEXT DEFAULT 'pending',
+      -- Stage 3: MOM
+      mom_notes TEXT,
+      mom_file_link TEXT,
+      mom_filled_by TEXT,
+      mom_date DATETIME,
+      -- Stage 4: Drawing
+      drawing_file1 TEXT,
+      drawing_file2 TEXT,
+      drawing_file3 TEXT,
+      drawing_uploaded_by TEXT,
+      drawing_date DATETIME,
+      -- Stage 5: BOQ
+      boq_file_link TEXT,
+      boq_created_by TEXT,
+      boq_amount REAL DEFAULT 0,
+      boq_date DATETIME,
+      -- Stage 6: Quotation
+      quotation_number TEXT,
+      quotation_file_link TEXT,
+      quotation_amount REAL DEFAULT 0,
+      quotation_sent_by TEXT,
+      quotation_sent_date DATETIME,
+      -- Stage 7: Result
+      result TEXT,
+      result_remarks TEXT,
+      result_date DATETIME,
+      won_amount REAL DEFAULT 0,
+      -- Meta
+      remarks TEXT,
+      created_by INTEGER REFERENCES users(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
