@@ -58,19 +58,25 @@ export default function PaymentRequired() {
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
 
-  const handleApprove = async (id, remarks) => {
+  const [approvalRemarks, setApprovalRemarks] = useState('');
+
+  const handleApprove = async (id) => {
+    if (!approvalRemarks || approvalRemarks.trim().length < 5) {
+      return toast.error('Please enter approval reason (minimum 5 characters)');
+    }
     try {
-      const res = await api.put(`/payment-required/${id}/approve`, { remarks: remarks || '' });
-      toast.success(res.data.message); load(); setModal(null); setViewData(null);
+      const res = await api.put(`/payment-required/${id}/approve`, { remarks: approvalRemarks });
+      toast.success(res.data.message); setApprovalRemarks(''); load(); setModal(null); setViewData(null);
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
 
   const handleReject = async (id) => {
-    const remarks = prompt('Rejection reason:');
-    if (!remarks) return;
+    if (!approvalRemarks || approvalRemarks.trim().length < 5) {
+      return toast.error('Please enter rejection reason (minimum 5 characters)');
+    }
     try {
-      const res = await api.put(`/payment-required/${id}/reject`, { remarks });
-      toast.success(res.data.message); load(); setModal(null); setViewData(null);
+      const res = await api.put(`/payment-required/${id}/reject`, { remarks: approvalRemarks });
+      toast.success(res.data.message); setApprovalRemarks(''); load(); setModal(null); setViewData(null);
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
 
@@ -136,8 +142,7 @@ export default function PaymentRequired() {
                     <td><div className="flex gap-1">
                       <button onClick={() => viewRequest(r.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600"><FiEye size={14} /></button>
                       {canApprove('payment_required') && <>
-                        <button onClick={() => handleApprove(r.id)} className="p-1 hover:bg-emerald-50 rounded text-emerald-600"><FiCheck size={14} /></button>
-                        <button onClick={() => handleReject(r.id)} className="p-1 hover:bg-red-50 rounded text-red-600"><FiX size={14} /></button>
+                        <button onClick={() => viewRequest(r.id)} className="p-1 hover:bg-amber-50 rounded text-amber-600 font-bold text-xs">Review</button>
                       </>}
                     </div></td>
                   </tr>
@@ -180,8 +185,7 @@ export default function PaymentRequired() {
                   <td><div className="flex gap-1">
                     <button onClick={() => viewRequest(r.id)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><FiEye size={15} /></button>
                     {canApprove('payment_required') && r.status !== 'final_approved' && r.status !== 'rejected' && <>
-                      <button onClick={() => handleApprove(r.id)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="Approve"><FiCheckCircle size={15} /></button>
-                      <button onClick={() => handleReject(r.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Reject"><FiXCircle size={15} /></button>
+                      <button onClick={() => viewRequest(r.id)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded font-bold text-xs" title="Review & Approve/Reject">Review</button>
                     </>}
                   </div></td>
                 </tr>
@@ -277,11 +281,19 @@ export default function PaymentRequired() {
               </div>
             )}
 
-            {/* Action buttons */}
-            {canApprove('payment_required') && viewData.status !== 'final_approved' && viewData.status !== 'rejected' && (
-              <div className="flex gap-3 pt-2 border-t">
-                <button onClick={() => handleApprove(viewData.id)} className="btn btn-success flex-1">Approve Step {viewData.current_step}</button>
-                <button onClick={() => handleReject(viewData.id)} className="btn btn-danger flex-1">Reject</button>
+            {/* Action buttons - role based */}
+            {viewData.status !== 'final_approved' && viewData.status !== 'rejected' && viewData.can_approve_current && (
+              <div className="border-2 border-amber-300 rounded-lg p-4 bg-amber-50 space-y-3">
+                <h5 className="font-bold text-amber-800">Your Approval Required - Step {viewData.current_step}: {viewData.workflow?.[viewData.current_step - 1]?.name}</h5>
+                <div>
+                  <label className="label text-amber-700">Reason / Remarks (Required) *</label>
+                  <textarea className="input" rows="3" value={approvalRemarks} onChange={e => setApprovalRemarks(e.target.value)}
+                    placeholder="Enter detailed reason for approval or rejection (minimum 5 characters)..." required />
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => handleApprove(viewData.id)} className="btn btn-success flex-1 py-3 text-base font-bold">Approve</button>
+                  <button onClick={() => handleReject(viewData.id)} className="btn btn-danger flex-1 py-3 text-base font-bold">Reject</button>
+                </div>
               </div>
             )}
           </div>

@@ -4,20 +4,45 @@ const { authMiddleware, requirePermission } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
-// Step names for approval workflow
-const STEP_MAP = {
-  'TA/DA': { step: 1, name: 'HR Approval' },
-  'Purchase': { step: 1, name: 'Purchase Head Approval' },
-  'Labour': { step: 1, name: 'Site Engineer Approval' },
-  'Transport': { step: 1, name: 'Purchase Dept Approval' },
+// Approval workflow: who approves at each step based on category
+const WORKFLOW = {
+  'TA/DA': [
+    { step: 1, name: 'HR Approval', approver_role: 'HR Manager' },
+    { step: 2, name: 'Accounts Approval (Budget Check)', approver_role: 'Accountant' },
+    { step: 3, name: 'MD/Director Approval', approver_role: 'Admin' },
+  ],
+  'Purchase': [
+    { step: 1, name: 'Purchase Head Approval', approver_role: 'Purchase Manager' },
+    { step: 2, name: 'Accounts Approval (Budget Check)', approver_role: 'Accountant' },
+    { step: 3, name: 'MD/Director Approval', approver_role: 'Admin' },
+  ],
+  'Labour': [
+    { step: 1, name: 'Site Engineer Approval', approver_role: 'Site Engineer' },
+    { step: 2, name: 'Accounts Approval (Budget Check)', approver_role: 'Accountant' },
+    { step: 3, name: 'MD/Director Approval', approver_role: 'Admin' },
+  ],
+  'Transport': [
+    { step: 1, name: 'Purchase Dept Approval', approver_role: 'Purchase Manager' },
+    { step: 2, name: 'Accounts Approval (Budget Check)', approver_role: 'Accountant' },
+    { step: 3, name: 'MD/Director Approval', approver_role: 'Admin' },
+  ],
 };
-const STEPS = [
-  { step: 1, name: 'Category Approval' },
-  { step: 2, name: 'Accounts Approval (Budget Check)' },
-  { step: 3, name: 'Dues Days Validation' },
-  { step: 4, name: 'Velocity Check (Auto)' },
-  { step: 5, name: 'Billing Engineer Final Approval' },
-];
+
+// Check if current user can approve this step
+function canUserApproveStep(db, userId, category, step) {
+  const workflow = WORKFLOW[category];
+  if (!workflow) return false;
+  const stepInfo = workflow.find(w => w.step === step);
+  if (!stepInfo) return false;
+
+  // Admin can approve any step
+  const user = db.prepare('SELECT role FROM users WHERE id=?').get(userId);
+  if (user?.role === 'admin') return true;
+
+  // Check if user has the required role
+  const userRoles = db.prepare(`SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id=r.id WHERE ur.user_id=?`).all(userId);
+  return userRoles.some(r => r.name === stepInfo.approver_role);
+}
 
 // GET all with filters
 router.get('/', requirePermission('payment_required', 'view'), (req, res) => {
@@ -38,9 +63,40 @@ router.get('/', requirePermission('payment_required', 'view'), (req, res) => {
   res.json(getDb().prepare(sql).all(...params));
 });
 
+// GET my pending approvals (for current user's role)
+router.get('/my-approvals', requirePermission('payment_required', 'view'), (req, res) => {
+  const db = getDb();
+  const userId = req.user.id;
+
+  // Get user's roles
+  const user = db.prepare('SELECT role FROM users WHERE id=?').get(userId);
+  const userRoles = db.prepare(`SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id=r.id WHERE ur.user_id=?`).all(userId);
+  const roleNames = userRoles.map(r => r.name);
+  if (user?.role === 'admin') roleNames.push('Admin');
+
+  // Find which categories and steps this user can approve
+  const pendingRequests = [];
+  const allPending = db.prepare(`SELECT pr.*, u.name as created_by_name FROM payment_requests pr
+    LEFT JOIN users u ON pr.created_by=u.id WHERE pr.status NOT IN ('final_approved','rejected') ORDER BY pr.created_at DESC`).all();
+
+  for (const req of allPending) {
+    const workflow = WORKFLOW[req.category];
+    if (!workflow) continue;
+    const stepInfo = workflow.find(w => w.step === req.current_step);
+    if (!stepInfo) continue;
+
+    // Check if this user's role matches the required approver
+    if (user?.role === 'admin' || roleNames.includes(stepInfo.approver_role)) {
+      pendingRequests.push({ ...req, step_name: stepInfo.name, approver_role: stepInfo.approver_role });
+    }
+  }
+  res.json(pendingRequests);
+});
+
 // GET dashboard stats
 router.get('/stats', requirePermission('payment_required', 'view'), (req, res) => {
   const db = getDb();
+  const userId = req.user.id;
   const total = db.prepare('SELECT COUNT(*) as c FROM payment_requests').get();
   const totalAmount = db.prepare('SELECT COALESCE(SUM(amount),0) as t FROM payment_requests').get();
   const pending = db.prepare("SELECT COUNT(*) as c FROM payment_requests WHERE status NOT IN ('final_approved','rejected')").get();
@@ -48,8 +104,7 @@ router.get('/stats', requirePermission('payment_required', 'view'), (req, res) =
   const rejected = db.prepare("SELECT COUNT(*) as c FROM payment_requests WHERE status='rejected'").get();
   const byCategory = db.prepare("SELECT category, COUNT(*) as count, COALESCE(SUM(amount),0) as amount FROM payment_requests GROUP BY category").all();
   const byStatus = db.prepare("SELECT status, COUNT(*) as count FROM payment_requests GROUP BY status").all();
-  const pendingApprovals = db.prepare("SELECT pr.*, u.name as created_by_name FROM payment_requests pr LEFT JOIN users u ON pr.created_by=u.id WHERE pr.status NOT IN ('final_approved','rejected') ORDER BY pr.created_at DESC LIMIT 10").all();
-  res.json({ total: total.c, totalAmount: totalAmount.t, pending: pending.c, approved: approved.c, rejected: rejected.c, byCategory, byStatus, pendingApprovals });
+  res.json({ total: total.c, totalAmount: totalAmount.t, pending: pending.c, approved: approved.c, rejected: rejected.c, byCategory, byStatus });
 });
 
 // GET single request with approval trail
@@ -60,6 +115,10 @@ router.get('/:id', requirePermission('payment_required', 'view'), (req, res) => 
   if (!request) return res.status(404).json({ error: 'Not found' });
   request.approvals = db.prepare(`SELECT pa.*, u.name as approved_by_name FROM payment_approvals pa
     LEFT JOIN users u ON pa.approved_by=u.id WHERE pa.request_id=? ORDER BY pa.step`).all(req.params.id);
+  // Add workflow info
+  request.workflow = WORKFLOW[request.category] || [];
+  // Check if current user can approve current step
+  request.can_approve_current = canUserApproveStep(db, req.user.id, request.category, request.current_step);
   res.json(request);
 });
 
@@ -69,9 +128,8 @@ router.post('/', requirePermission('payment_required', 'create'), (req, res) => 
   if (!b.employee_name || !b.category || !b.amount || !b.purpose) {
     return res.status(400).json({ error: 'Employee name, category, amount, and purpose are required' });
   }
+  if (!WORKFLOW[b.category]) return res.status(400).json({ error: 'Invalid category' });
   const db = getDb();
-
-  // Auto-generate request number
   const count = db.prepare('SELECT COUNT(*) as c FROM payment_requests').get().c;
   const requestNo = `PR-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
 
@@ -92,19 +150,15 @@ router.post('/', requirePermission('payment_required', 'create'), (req, res) => 
     b.vehicle_type, b.from_to_location, b.material_description, b.driver_vendor_name,
     req.user.id
   );
-
-  // Log to activity
-  try {
-    db.prepare('INSERT INTO activity_log (user_id, module, action, record_id, details) VALUES (?,?,?,?,?)')
-      .run(req.user.id, 'payment_required', 'created', r.lastInsertRowid, JSON.stringify({ request_no: requestNo, category: b.category, amount: b.amount }));
-  } catch (e) {}
-
   res.status(201).json({ id: r.lastInsertRowid, request_no: requestNo });
 });
 
-// PUT approve a step
+// PUT approve current step (only if user has correct role)
 router.put('/:id/approve', requirePermission('payment_required', 'approve'), (req, res) => {
   const { remarks } = req.body;
+  if (!remarks || remarks.trim().length < 5) {
+    return res.status(400).json({ error: 'Approval reason is required (minimum 5 characters)' });
+  }
   const db = getDb();
   const request = db.prepare('SELECT * FROM payment_requests WHERE id=?').get(req.params.id);
   if (!request) return res.status(404).json({ error: 'Not found' });
@@ -112,40 +166,35 @@ router.put('/:id/approve', requirePermission('payment_required', 'approve'), (re
     return res.status(400).json({ error: 'Request already ' + request.status });
   }
 
-  const currentStep = request.current_step;
-  const stepInfo = STEPS.find(s => s.step === currentStep) || { name: `Step ${currentStep}` };
-
-  // For step 1, use category-specific name
-  let stepName = stepInfo.name;
-  if (currentStep === 1 && STEP_MAP[request.category]) {
-    stepName = STEP_MAP[request.category].name;
+  // Check if this user can approve this step
+  if (!canUserApproveStep(db, req.user.id, request.category, request.current_step)) {
+    return res.status(403).json({ error: 'You are not authorized to approve this step. This step requires: ' + (WORKFLOW[request.category]?.find(w => w.step === request.current_step)?.approver_role || 'unknown') });
   }
+
+  const workflow = WORKFLOW[request.category];
+  const currentStep = request.current_step;
+  const stepInfo = workflow.find(w => w.step === currentStep);
 
   // Record approval
   db.prepare('INSERT INTO payment_approvals (request_id, step, step_name, action, remarks, approved_by) VALUES (?,?,?,?,?,?)')
-    .run(request.id, currentStep, stepName, 'approved', remarks, req.user.id);
+    .run(request.id, currentStep, stepInfo.name, 'approved', remarks, req.user.id);
 
-  // Move to next step
-  let nextStep = currentStep + 1;
+  // Move to next step or final approve
+  const nextStep = currentStep + 1;
+  const hasNextStep = workflow.find(w => w.step === nextStep);
   let newStatus = '';
 
-  // Step 4 (Velocity Check) is auto-approved
-  if (nextStep === 4) {
-    db.prepare('INSERT INTO payment_approvals (request_id, step, step_name, action, remarks, approved_by) VALUES (?,?,?,?,?,?)')
-      .run(request.id, 4, 'Velocity Check (Auto)', 'approved', 'Auto-approved by system', req.user.id);
-    nextStep = 5;
-  }
+  if (hasNextStep) {
+    newStatus = `step${currentStep}_approved`;
+    db.prepare('UPDATE payment_requests SET current_step=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(nextStep, newStatus, request.id);
+  } else {
+    // Final step approved
+    newStatus = 'final_approved';
+    db.prepare('UPDATE payment_requests SET current_step=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(currentStep, newStatus, request.id);
 
-  if (currentStep === 1) newStatus = 'step1_approved';
-  else if (currentStep === 2) newStatus = 'accounts_approved';
-  else if (currentStep === 3) { newStatus = 'velocity_checked'; nextStep = 5; } // skip 4 (auto)
-  else if (currentStep === 5) newStatus = 'final_approved';
-
-  db.prepare('UPDATE payment_requests SET current_step=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-    .run(nextStep > 5 ? 5 : nextStep, newStatus, request.id);
-
-  // If final approved, add to cash flow as outflow
-  if (newStatus === 'final_approved') {
+    // Add to cash flow as outflow
     try {
       const today = new Date().toISOString().split('T')[0];
       let daily = db.prepare('SELECT id FROM cash_flow_daily WHERE date=?').get(today);
@@ -156,7 +205,6 @@ router.put('/:id/approve', requirePermission('payment_required', 'approve'), (re
       }
       db.prepare('INSERT INTO cash_flow_entries (daily_id, date, type, category, description, amount, party_name, created_by) VALUES (?,?,?,?,?,?,?,?)')
         .run(daily.id, today, 'outflow', request.category, `Payment: ${request.request_no} - ${request.purpose}`, request.amount, request.employee_name, req.user.id);
-      // Recalculate
       const inflows = db.prepare("SELECT COALESCE(SUM(amount),0) as t FROM cash_flow_entries WHERE daily_id=? AND type='inflow'").get(daily.id);
       const outflows = db.prepare("SELECT COALESCE(SUM(amount),0) as t FROM cash_flow_entries WHERE daily_id=? AND type='outflow'").get(daily.id);
       const opening = db.prepare('SELECT opening_balance FROM cash_flow_daily WHERE id=?').get(daily.id);
@@ -165,42 +213,36 @@ router.put('/:id/approve', requirePermission('payment_required', 'approve'), (re
     } catch (e) {}
   }
 
-  // Log
-  try {
-    db.prepare('INSERT INTO activity_log (user_id, module, action, record_id, details) VALUES (?,?,?,?,?)')
-      .run(req.user.id, 'payment_required', 'approved', request.id, JSON.stringify({ step: currentStep, stepName }));
-  } catch (e) {}
-
-  res.json({ message: `Step ${currentStep} (${stepName}) approved`, nextStep, status: newStatus });
+  res.json({ message: `${stepInfo.name} - Approved`, nextStep: hasNextStep ? nextStep : null, status: newStatus });
 });
 
-// PUT reject
+// PUT reject (only if user has correct role for current step)
 router.put('/:id/reject', requirePermission('payment_required', 'approve'), (req, res) => {
   const { remarks } = req.body;
+  if (!remarks || remarks.trim().length < 5) {
+    return res.status(400).json({ error: 'Rejection reason is required (minimum 5 characters)' });
+  }
   const db = getDb();
   const request = db.prepare('SELECT * FROM payment_requests WHERE id=?').get(req.params.id);
   if (!request) return res.status(404).json({ error: 'Not found' });
 
-  const currentStep = request.current_step;
-  let stepName = STEPS.find(s => s.step === currentStep)?.name || `Step ${currentStep}`;
-  if (currentStep === 1 && STEP_MAP[request.category]) stepName = STEP_MAP[request.category].name;
+  if (!canUserApproveStep(db, req.user.id, request.category, request.current_step)) {
+    return res.status(403).json({ error: 'You are not authorized to reject at this step' });
+  }
 
+  const stepInfo = WORKFLOW[request.category]?.find(w => w.step === request.current_step);
   db.prepare('INSERT INTO payment_approvals (request_id, step, step_name, action, remarks, approved_by) VALUES (?,?,?,?,?,?)')
-    .run(request.id, currentStep, stepName, 'rejected', remarks, req.user.id);
+    .run(request.id, request.current_step, stepInfo?.name || 'Unknown', 'rejected', remarks, req.user.id);
   db.prepare('UPDATE payment_requests SET status=?, rejection_remarks=?, rejected_by=?, rejected_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=?')
     .run('rejected', remarks, req.user.id, request.id);
-
-  try {
-    db.prepare('INSERT INTO activity_log (user_id, module, action, record_id, details) VALUES (?,?,?,?,?)')
-      .run(req.user.id, 'payment_required', 'rejected', request.id, JSON.stringify({ step: currentStep, stepName, remarks }));
-  } catch (e) {}
-
-  res.json({ message: `Rejected at ${stepName}` });
+  res.json({ message: `Rejected at ${stepInfo?.name}` });
 });
 
 // DELETE
 router.delete('/:id', requirePermission('payment_required', 'delete'), (req, res) => {
-  getDb().prepare('DELETE FROM payment_requests WHERE id=?').run(req.params.id);
+  const db = getDb();
+  db.prepare('DELETE FROM payment_approvals WHERE request_id=?').run(req.params.id);
+  db.prepare('DELETE FROM payment_requests WHERE id=?').run(req.params.id);
   res.json({ message: 'Deleted' });
 });
 
