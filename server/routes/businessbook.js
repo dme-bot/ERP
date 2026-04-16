@@ -227,13 +227,30 @@ router.delete('/:id', requirePermission('business_book', 'delete'), (req, res) =
   try {
     const db = getDb();
     const id = req.params.id;
+    // Disable foreign keys temporarily for clean delete
+    db.pragma('foreign_keys = OFF');
+    db.prepare('DELETE FROM project_finance WHERE business_book_id=?').run(id);
     db.prepare('DELETE FROM po_items WHERE business_book_id=?').run(id);
     db.prepare('DELETE FROM order_planning WHERE business_book_id=?').run(id);
+    // Delete DPR data linked to sites of this business_book
+    const siteIds = db.prepare('SELECT id FROM sites WHERE business_book_id=?').all(id).map(s => s.id);
+    if (siteIds.length > 0) {
+      const ids = siteIds.join(',');
+      db.prepare(`DELETE FROM dpr_work_items WHERE dpr_id IN (SELECT id FROM dpr WHERE site_id IN (${ids}))`).run();
+      db.prepare(`DELETE FROM dpr_manpower WHERE dpr_id IN (SELECT id FROM dpr WHERE site_id IN (${ids}))`).run();
+      db.prepare(`DELETE FROM dpr_machinery WHERE dpr_id IN (SELECT id FROM dpr WHERE site_id IN (${ids}))`).run();
+      db.prepare(`DELETE FROM dpr WHERE site_id IN (${ids})`).run();
+      db.prepare(`DELETE FROM attendance WHERE site_id IN (${ids})`).run();
+      db.prepare(`DELETE FROM geofence_settings WHERE site_id IN (${ids})`).run();
+    }
     db.prepare('DELETE FROM sites WHERE business_book_id=?').run(id);
     db.prepare('DELETE FROM purchase_orders WHERE business_book_id=?').run(id);
+    db.prepare('DELETE FROM receivables WHERE po_id IN (SELECT id FROM purchase_orders WHERE business_book_id=?)').run(id);
     db.prepare('DELETE FROM business_book WHERE id=?').run(id);
+    db.pragma('foreign_keys = ON');
     res.json({ message: 'Deleted' });
   } catch (err) {
+    try { getDb().pragma('foreign_keys = ON'); } catch(e) {}
     res.status(500).json({ error: err.message });
   }
 });

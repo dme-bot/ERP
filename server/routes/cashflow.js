@@ -78,9 +78,12 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
 
 // POST update project manual fields (milestone, aanchal value, payment days)
 router.post('/projects/:id/update', requirePermission('cashflow', 'edit'), (req, res) => {
-  const { amount_received, milestone_name, aanchal_value, payment_investment_days } = req.body;
-  // Store in a separate table or update business_book
+  const { crm_person, amount_received, milestone_name, aanchal_value, payment_investment_days } = req.body;
   const db = getDb();
+  // Update CRM person in business_book
+  if (crm_person !== undefined) {
+    db.prepare('UPDATE business_book SET employee_assigned=? WHERE id=?').run(crm_person, req.params.id);
+  }
   db.prepare('INSERT OR REPLACE INTO project_finance (business_book_id, amount_received, milestone_name, aanchal_value, payment_investment_days, updated_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)')
     .run(req.params.id, amount_received || 0, milestone_name, aanchal_value || 0, payment_investment_days || 0);
   res.json({ message: 'Updated' });

@@ -96,7 +96,11 @@ export default function CashFlow() {
                 <tr key={p.id} className="border-b hover:bg-blue-50/30">
                   <td className="px-2 py-2 font-bold text-gray-500">{p.sr_no}</td>
                   <td className="px-2 py-2 font-semibold text-blue-700">{p.project_name}</td>
-                  <td className="px-2 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(p.crm_person||'').toLowerCase().includes('sushila') ? 'bg-gray-800 text-white' : (p.crm_person||'').toLowerCase().includes('lovely') ? 'bg-amber-500 text-white' : 'bg-gray-100'}`}>{p.crm_person || '-'}</span></td>
+                  {editRow === p.id ? (
+                    <td className="px-1 py-1"><input className="input text-xs w-24" value={editForm.crm_person||''} onChange={e=>setEditForm({...editForm,crm_person:e.target.value})} /></td>
+                  ) : (
+                    <td className="px-2 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(p.crm_person||'').toLowerCase().includes('sushila') ? 'bg-gray-800 text-white' : (p.crm_person||'').toLowerCase().includes('lovely') ? 'bg-amber-500 text-white' : 'bg-gray-100'}`}>{p.crm_person || '-'}</span></td>
+                  )}
                   <td className="px-2 py-2 text-right font-semibold text-blue-600">{p.sale_amount > 0 ? fmtL(p.sale_amount) : '-'}</td>
                   {editRow === p.id ? (<>
                     <td className="px-1 py-1"><input className="input text-xs w-20" type="number" value={editForm.amount_received||''} onChange={e=>setEditForm({...editForm,amount_received:+e.target.value})} /></td>
@@ -121,7 +125,7 @@ export default function CashFlow() {
                   <td className="px-1 py-1">{editRow === p.id ? (
                     <div className="flex gap-1"><button onClick={()=>saveManualFields(p.id)} className="text-[10px] text-emerald-600 font-bold">Save</button><button onClick={()=>setEditRow(null)} className="text-[10px] text-gray-400">X</button></div>
                   ) : (
-                    <button onClick={()=>{setEditRow(p.id);setEditForm({amount_received:p.amount_received,milestone_name:p.milestone_name,aanchal_value:p.aanchal_value,payment_investment_days:p.payment_investment_days});}} className="text-[10px] text-blue-600 font-bold">Edit</button>
+                    <button onClick={()=>{setEditRow(p.id);setEditForm({crm_person:p.crm_person,amount_received:p.amount_received,milestone_name:p.milestone_name,aanchal_value:p.aanchal_value,payment_investment_days:p.payment_investment_days});}} className="text-[10px] text-blue-600 font-bold">Edit</button>
                   )}</td>
                 </tr>
               ))}</tbody>
