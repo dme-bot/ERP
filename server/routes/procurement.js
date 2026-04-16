@@ -10,16 +10,24 @@ router.get('/vendors', (req, res) => {
 });
 
 router.post('/vendors', (req, res) => {
-  const { name, contact_person, phone, email, address, gst_number } = req.body;
-  const r = getDb().prepare('INSERT INTO vendors (name,contact_person,phone,email,address,gst_number) VALUES (?,?,?,?,?,?)')
-    .run(name, contact_person, phone, email, address, gst_number);
-  res.status(201).json({ id: r.lastInsertRowid });
+  const b = req.body;
+  if (!b.name) return res.status(400).json({ error: 'Vendor name required' });
+  const db = getDb();
+  // Auto-generate vendor code if empty
+  let code = b.vendor_code;
+  if (!code) {
+    const count = db.prepare('SELECT COUNT(*) as c FROM vendors').get().c;
+    code = `SEVC${String(count + 2000).padStart(4, '0')}`;
+  }
+  const r = db.prepare('INSERT OR IGNORE INTO vendors (vendor_code,name,firm_name,contact_person,phone,email,district,state,address,category,deals_in,authorized_dealer,type,turnover,team_size,payment_terms,credit_days,gst_number,source,category_wise,sub_category,existing_vendor) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(code, b.name, b.firm_name, b.contact_person, b.phone, b.email, b.district, b.state, b.address, b.category, b.deals_in, b.authorized_dealer, b.type, b.turnover, b.team_size, b.payment_terms, b.credit_days, b.gst_number, b.source, b.category_wise, b.sub_category, b.existing_vendor);
+  res.status(201).json({ id: r.lastInsertRowid, vendor_code: code });
 });
 
 router.put('/vendors/:id', (req, res) => {
-  const { name, contact_person, phone, email, address, gst_number, active } = req.body;
-  getDb().prepare('UPDATE vendors SET name=?,contact_person=?,phone=?,email=?,address=?,gst_number=?,active=? WHERE id=?')
-    .run(name, contact_person, phone, email, address, gst_number, active, req.params.id);
+  const b = req.body;
+  getDb().prepare('UPDATE vendors SET vendor_code=?,name=?,firm_name=?,contact_person=?,phone=?,email=?,district=?,state=?,address=?,category=?,deals_in=?,authorized_dealer=?,type=?,turnover=?,team_size=?,payment_terms=?,credit_days=?,gst_number=?,source=?,sub_category=?,active=? WHERE id=?')
+    .run(b.vendor_code, b.name, b.firm_name, b.contact_person, b.phone, b.email, b.district, b.state, b.address, b.category, b.deals_in, b.authorized_dealer, b.type, b.turnover, b.team_size, b.payment_terms, b.credit_days, b.gst_number, b.source, b.sub_category, b.active !== undefined ? (b.active ? 1 : 0) : 1, req.params.id);
   res.json({ message: 'Updated' });
 });
 

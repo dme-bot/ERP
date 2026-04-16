@@ -296,12 +296,28 @@ function initializeDatabase() {
     -- Vendors
     CREATE TABLE IF NOT EXISTS vendors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_code TEXT UNIQUE,
       name TEXT NOT NULL,
+      firm_name TEXT,
       contact_person TEXT,
       phone TEXT,
       email TEXT,
+      district TEXT,
+      state TEXT,
       address TEXT,
+      category TEXT,
+      deals_in TEXT,
+      authorized_dealer TEXT,
+      type TEXT,
+      turnover TEXT,
+      team_size TEXT,
+      payment_terms TEXT,
+      credit_days TEXT,
       gst_number TEXT,
+      source TEXT,
+      category_wise TEXT,
+      sub_category TEXT,
+      existing_vendor TEXT,
       active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
