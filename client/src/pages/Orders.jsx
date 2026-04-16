@@ -162,14 +162,14 @@ export default function Orders() {
           {/* 1. Business Book Entry */}
           <div className="border rounded-lg p-3 bg-gray-50">
             <h4 className="font-semibold text-sm text-gray-700 mb-3">Select Business Book Entry</h4>
-            <select className="select" value={form.business_book_id || ''} onChange={e => handleBBSelect(e.target.value)}>
-              <option value="">-- Select Business Book Entry --</option>
-              {bbEntries.map(bb => (
-                <option key={bb.id} value={bb.id}>
-                  {bb.lead_no} | {bb.client_name} | {bb.project_name || bb.company_name} | {bb.category || '-'} | Rs {(bb.sale_amount_without_gst || 0).toLocaleString()}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              options={bbEntries.map(bb => ({ ...bb, label: `${bb.lead_no} | ${bb.client_name} | ${bb.project_name || bb.company_name} | ${bb.category || '-'} | Rs ${(bb.sale_amount_without_gst || 0).toLocaleString()}` }))}
+              value={form.business_book_id || null}
+              valueKey="id"
+              displayKey="label"
+              placeholder="Type company name to search..."
+              onChange={(bb) => { if (bb) handleBBSelect(bb.id); else setForm(f => ({ ...f, business_book_id: '' })); }}
+            />
             {form.business_book_id && (() => {
               const bb = bbEntries.find(b => b.id === +form.business_book_id);
               return bb ? (
