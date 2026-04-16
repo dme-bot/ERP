@@ -907,14 +907,29 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Location tracking (live tracking throughout the day)
+    CREATE TABLE IF NOT EXISTS location_tracking (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      date DATE NOT NULL,
+      time DATETIME NOT NULL,
+      latitude REAL,
+      longitude REAL,
+      address TEXT,
+      site_name TEXT
+    );
+
     -- Leave requests
     CREATE TABLE IF NOT EXISTS leave_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER REFERENCES users(id),
-      leave_type TEXT DEFAULT 'casual' CHECK(leave_type IN ('casual','sick','earned','half_day','comp_off')),
+      leave_type TEXT DEFAULT 'casual' CHECK(leave_type IN ('casual','sick','earned','half_day','short_leave','comp_off')),
       from_date DATE NOT NULL,
       to_date DATE NOT NULL,
+      from_time TEXT,
+      to_time TEXT,
       days INTEGER DEFAULT 1,
+      hours REAL DEFAULT 0,
       reason TEXT,
       status TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
       approved_by INTEGER REFERENCES users(id),

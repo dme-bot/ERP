@@ -41,6 +41,21 @@ export default function Attendance() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Auto track location every 15 min if punched in
+  useEffect(() => {
+    if (!myToday || myToday.punch_out_time) return;
+    const trackLocation = () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          api.post('/attendance/track-location', { latitude: pos.coords.latitude, longitude: pos.coords.longitude, address: '' }).catch(() => {});
+        }, () => {}, { enableHighAccuracy: true });
+      }
+    };
+    trackLocation(); // Track immediately
+    const interval = setInterval(trackLocation, 15 * 60 * 1000); // Every 15 min
+    return () => clearInterval(interval);
+  }, [myToday]);
+
   // Get current location
   const getLocation = () => {
     return new Promise((resolve, reject) => {
@@ -285,10 +300,16 @@ export default function Attendance() {
           </div>
           <p className="text-xs text-gray-500">Employees can only punch in/out when inside these areas. If no geofence set, punch from anywhere.</p>
           <div className="card p-0 overflow-hidden"><table className="text-sm">
-            <thead><tr><th>Site</th><th>Latitude</th><th>Longitude</th><th>Radius (m)</th><th>Active</th></tr></thead>
+            <thead><tr><th>Site</th><th>Latitude</th><th>Longitude</th><th>Radius</th><th>Active</th><th>Actions</th></tr></thead>
             <tbody>{geofences.map(g => (
-              <tr key={g.id}><td className="font-medium">{g.site_name}</td><td>{g.latitude}</td><td>{g.longitude}</td><td>{g.radius_meters}m</td><td>{g.active ? 'Yes' : 'No'}</td></tr>
-            ))}{geofences.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-gray-400">No geofence set. Employees can punch from anywhere.</td></tr>}</tbody>
+              <tr key={g.id}>
+                <td className="font-medium">{g.site_name}</td><td className="text-xs">{g.latitude}</td><td className="text-xs">{g.longitude}</td><td>{g.radius_meters}m</td><td>{g.active ? 'Yes' : 'No'}</td>
+                <td className="flex gap-1">
+                  <button onClick={() => { setForm({ ...g }); setModal('edit-geofence'); }} className="text-xs text-blue-600 font-bold">Edit</button>
+                  <button onClick={async () => { if (!confirm('Delete this geofence?')) return; await api.delete(`/attendance/geofence/${g.id}`); toast.success('Deleted'); load(); }} className="text-xs text-red-600 font-bold">Delete</button>
+                </td>
+              </tr>
+            ))}{geofences.length === 0 && <tr><td colSpan="6" className="text-center py-6 text-gray-400">No geofence set. Add site locations for attendance.</td></tr>}</tbody>
           </table></div>
         </>
       )}
@@ -313,14 +334,37 @@ export default function Attendance() {
 
       {/* Leave Modal */}
       <Modal isOpen={modal === 'leave'} onClose={() => setModal(null)} title="Apply for Leave">
-        <form onSubmit={async (e) => { e.preventDefault(); try { await api.post('/attendance/leave', form); toast.success('Leave applied'); setModal(null); } catch (err) { toast.error(err.response?.data?.error || 'Failed'); } }} className="space-y-4">
-          <div><label className="label">Leave Type</label><select className="select" value={form.leave_type} onChange={e => setForm({ ...form, leave_type: e.target.value })}><option value="casual">Casual</option><option value="sick">Sick</option><option value="earned">Earned</option><option value="half_day">Half Day</option><option value="comp_off">Comp Off</option></select></div>
+        <form onSubmit={async (e) => { e.preventDefault(); try { await api.post('/attendance/leave', form); toast.success('Leave applied'); setModal(null); load(); } catch (err) { toast.error(err.response?.data?.error || 'Failed'); } }} className="space-y-4">
+          <div><label className="label">Leave Type</label><select className="select" value={form.leave_type} onChange={e => setForm({ ...form, leave_type: e.target.value })}><option value="casual">Casual Leave</option><option value="sick">Sick Leave</option><option value="earned">Earned Leave</option><option value="half_day">Half Day</option><option value="short_leave">Short Leave (max 4hrs/month)</option><option value="comp_off">Comp Off</option></select></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">From *</label><input className="input" type="date" value={form.from_date} onChange={e => setForm({ ...form, from_date: e.target.value })} required /></div>
-            <div><label className="label">To *</label><input className="input" type="date" value={form.to_date} onChange={e => setForm({ ...form, to_date: e.target.value })} required /></div>
+            <div><label className="label">From Date *</label><input className="input" type="date" value={form.from_date} onChange={e => setForm({ ...form, from_date: e.target.value })} required /></div>
+            {form.leave_type !== 'short_leave' && <div><label className="label">To Date *</label><input className="input" type="date" value={form.to_date} onChange={e => setForm({ ...form, to_date: e.target.value })} required /></div>}
           </div>
+          {form.leave_type === 'short_leave' && (
+            <div className="grid grid-cols-2 gap-3 bg-amber-50 p-3 rounded">
+              <div><label className="label">From Time *</label><input className="input" type="time" value={form.from_time || ''} onChange={e => setForm({ ...form, from_time: e.target.value })} required /></div>
+              <div><label className="label">To Time *</label><input className="input" type="time" value={form.to_time || ''} onChange={e => setForm({ ...form, to_time: e.target.value })} required /></div>
+              <p className="col-span-2 text-xs text-amber-600">Monthly limit: 4 hours. Exceeding will be rejected.</p>
+            </div>
+          )}
           <div><label className="label">Reason</label><textarea className="input" rows="2" value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} /></div>
           <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(null)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Apply</button></div>
+        </form>
+      </Modal>
+
+      {/* Edit Geofence Modal */}
+      <Modal isOpen={modal === 'edit-geofence'} onClose={() => setModal(null)} title="Edit Geofence">
+        <form onSubmit={async (e) => { e.preventDefault(); try { await api.put(`/attendance/geofence/${form.id}`, form); toast.success('Updated'); setModal(null); load(); } catch (err) { toast.error('Failed'); } }} className="space-y-4">
+          <div><label className="label">Site Name *</label><input className="input" value={form.site_name || ''} onChange={e => setForm({ ...form, site_name: e.target.value })} required /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Latitude</label><input className="input" type="number" step="any" value={form.latitude || ''} onChange={e => setForm({ ...form, latitude: e.target.value })} /></div>
+            <div><label className="label">Longitude</label><input className="input" type="number" step="any" value={form.longitude || ''} onChange={e => setForm({ ...form, longitude: e.target.value })} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Radius (m)</label><input className="input" type="number" value={form.radius_meters || 200} onChange={e => setForm({ ...form, radius_meters: +e.target.value })} /></div>
+            <div><label className="label">Active</label><select className="select" value={form.active ? '1' : '0'} onChange={e => setForm({ ...form, active: e.target.value === '1' })}><option value="1">Yes</option><option value="0">No</option></select></div>
+          </div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(null)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Update</button></div>
         </form>
       </Modal>
 

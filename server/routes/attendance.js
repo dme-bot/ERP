@@ -96,10 +96,10 @@ router.post('/punch-in', (req, res) => {
     return res.status(400).json({ error: `You are ${Math.round(nearestDist)}m away from nearest site (${nearestSite}). Go to your assigned site to punch. Geofence radius: ${geofences[0]?.radius_meters || 200}m` });
   }
 
-  // Check if late (after 9:30 AM)
+  // Check if late (after 9:45 AM)
   const hours = new Date().getHours();
   const mins = new Date().getMinutes();
-  const isLate = hours > 9 || (hours === 9 && mins > 30);
+  const isLate = hours > 9 || (hours === 9 && mins > 45);
 
   const r = db.prepare(`INSERT INTO attendance (user_id, date, punch_in_time, punch_in_lat, punch_in_lng, punch_in_address, punch_in_photo, site_name, status)
     VALUES (?,?,?,?,?,?,?,?,?)`).run(req.user.id, today, now, latitude, longitude, address, photo, matchedSite, isLate ? 'late' : 'present');
@@ -122,12 +122,37 @@ router.post('/punch-out', (req, res) => {
   const punchIn = new Date(record.punch_in_time);
   const punchOut = new Date(now);
   const totalHours = Math.round((punchOut - punchIn) / (1000 * 60 * 60) * 100) / 100;
-  const status = totalHours < 4 ? 'half_day' : record.status;
+  const status = totalHours < 4 ? 'half_day' : (totalHours < 8 ? 'short_day' : record.status);
 
   db.prepare(`UPDATE attendance SET punch_out_time=?, punch_out_lat=?, punch_out_lng=?, punch_out_address=?, punch_out_photo=?, total_hours=?, status=? WHERE id=?`)
     .run(now, latitude, longitude, address, photo, totalHours, status, record.id);
 
   res.json({ message: `Punched Out. Total: ${totalHours} hours`, totalHours });
+});
+
+// Live location tracking — site engineer sends location periodically
+router.post('/track-location', (req, res) => {
+  const { latitude, longitude, address } = req.body;
+  if (!latitude || !longitude) return res.status(400).json({ error: 'Location required' });
+  const db = getDb();
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+  // Check which site they're at
+  const geofences = db.prepare('SELECT * FROM geofence_settings WHERE active=1').all();
+  let siteName = 'Outside';
+  for (const gf of geofences) {
+    if (haversine(latitude, longitude, gf.latitude, gf.longitude) <= gf.radius_meters) {
+      siteName = gf.site_name; break;
+    }
+  }
+  db.prepare('INSERT INTO location_tracking (user_id, date, time, latitude, longitude, address, site_name) VALUES (?,?,?,?,?,?,?)')
+    .run(req.user.id, today, now, latitude, longitude, address, siteName);
+  res.json({ site: siteName });
+});
+
+// GET location history for a user (admin)
+router.get('/track/:userId/:date', requirePermission('attendance', 'view'), (req, res) => {
+  res.json(getDb().prepare('SELECT * FROM location_tracking WHERE user_id=? AND date=? ORDER BY time').all(req.params.userId, req.params.date));
 });
 
 // GET geofence settings
@@ -142,6 +167,14 @@ router.post('/geofence', requirePermission('attendance', 'create'), (req, res) =
   const r = getDb().prepare('INSERT INTO geofence_settings (site_name, latitude, longitude, radius_meters) VALUES (?,?,?,?)')
     .run(site_name, latitude, longitude, radius_meters || 200);
   res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// PUT edit geofence
+router.put('/geofence/:id', requirePermission('attendance', 'edit'), (req, res) => {
+  const { site_name, latitude, longitude, radius_meters, active } = req.body;
+  getDb().prepare('UPDATE geofence_settings SET site_name=?, latitude=?, longitude=?, radius_meters=?, active=? WHERE id=?')
+    .run(site_name, latitude, longitude, radius_meters || 200, active !== undefined ? (active ? 1 : 0) : 1, req.params.id);
+  res.json({ message: 'Updated' });
 });
 
 // DELETE geofence
@@ -170,13 +203,38 @@ router.get('/report', requirePermission('attendance', 'view'), (req, res) => {
   res.json(report);
 });
 
-// Leave requests
+// Leave requests (with short leave timing + monthly 4hr limit)
 router.post('/leave', (req, res) => {
-  const { leave_type, from_date, to_date, reason } = req.body;
-  if (!from_date || !to_date) return res.status(400).json({ error: 'Dates required' });
-  const days = Math.ceil((new Date(to_date) - new Date(from_date)) / (1000 * 60 * 60 * 24)) + 1;
-  const r = getDb().prepare('INSERT INTO leave_requests (user_id, leave_type, from_date, to_date, days, reason) VALUES (?,?,?,?,?,?)')
-    .run(req.user.id, leave_type || 'casual', from_date, to_date, days, reason);
+  const { leave_type, from_date, to_date, from_time, to_time, reason } = req.body;
+  if (!from_date) return res.status(400).json({ error: 'Date required' });
+  const db = getDb();
+
+  let days = 1;
+  let hours = 0;
+  if (leave_type === 'short_leave') {
+    if (!from_time || !to_time) return res.status(400).json({ error: 'Time required for short leave' });
+    // Calculate hours
+    const [fh, fm] = from_time.split(':').map(Number);
+    const [th, tm] = to_time.split(':').map(Number);
+    hours = (th + tm / 60) - (fh + fm / 60);
+    if (hours <= 0) return res.status(400).json({ error: 'Invalid time range' });
+
+    // Check monthly limit (4 hours)
+    const monthStart = from_date.substring(0, 7) + '-01';
+    const monthEnd = from_date.substring(0, 7) + '-31';
+    const used = db.prepare("SELECT COALESCE(SUM(hours),0) as total FROM leave_requests WHERE user_id=? AND leave_type='short_leave' AND status != 'rejected' AND from_date BETWEEN ? AND ?")
+      .get(req.user.id, monthStart, monthEnd);
+    if ((used.total + hours) > 4) {
+      return res.status(400).json({ error: `Monthly short leave limit is 4 hours. You have used ${used.total}h. Remaining: ${Math.max(0, 4 - used.total)}h` });
+    }
+    days = 0;
+  } else {
+    if (!to_date) return res.status(400).json({ error: 'To date required' });
+    days = Math.ceil((new Date(to_date) - new Date(from_date)) / (1000 * 60 * 60 * 24)) + 1;
+  }
+
+  const r = db.prepare('INSERT INTO leave_requests (user_id, leave_type, from_date, to_date, days, hours, from_time, to_time, reason) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(req.user.id, leave_type || 'casual', from_date, to_date || from_date, days, hours, from_time, to_time, reason);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
