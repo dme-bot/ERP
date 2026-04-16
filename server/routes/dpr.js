@@ -6,9 +6,13 @@ router.use(authMiddleware);
 
 // ===== SITES =====
 router.get('/sites', (req, res) => {
-  res.json(getDb().prepare(`SELECT s.*, u.name as engineer_name, bb.lead_no FROM sites s
+  res.json(getDb().prepare(`SELECT MIN(s.id) as id, s.name, s.address, s.client_name, s.po_id, s.business_book_id,
+    s.site_engineer_id, s.supervisor, s.status, u.name as engineer_name, bb.lead_no,
+    COUNT(*) as entry_count
+    FROM sites s
     LEFT JOIN users u ON s.site_engineer_id=u.id
-    LEFT JOIN business_book bb ON s.business_book_id=bb.id ORDER BY s.name`).all());
+    LEFT JOIN business_book bb ON s.business_book_id=bb.id
+    GROUP BY s.name ORDER BY s.name`).all());
 });
 
 router.post('/sites', (req, res) => {
@@ -61,12 +65,12 @@ router.get('/', (req, res) => {
 router.get('/summary', (req, res) => {
   const db = getDb();
   const today = new Date().toISOString().split('T')[0];
-  const activeSites = db.prepare("SELECT COUNT(*) as c FROM sites WHERE status='active'").get();
+  const activeSites = db.prepare("SELECT COUNT(DISTINCT name) as c FROM sites WHERE status='active'").get();
   const todayDprs = db.prepare('SELECT COUNT(*) as c FROM dpr WHERE report_date=?').get(today);
   const pendingApproval = db.prepare("SELECT COUNT(*) as c FROM dpr WHERE approval_status='pending'").get();
   const billingReady = db.prepare('SELECT COUNT(*) as c FROM dpr WHERE billing_ready=1').get();
-  const missingSites = db.prepare(`SELECT s.id, s.name, s.supervisor FROM sites s WHERE s.status='active'
-    AND s.id NOT IN (SELECT site_id FROM dpr WHERE report_date=?)`).all(today);
+  const missingSites = db.prepare(`SELECT MIN(s.id) as id, s.name, s.supervisor FROM sites s WHERE s.status='active'
+    AND s.id NOT IN (SELECT site_id FROM dpr WHERE report_date=?) GROUP BY s.name`).all(today);
   const variance = db.prepare(`SELECT d.report_date, s.name as site_name,
     COALESCE(AVG(w.variance_pct),0) as avg_variance
     FROM dpr d JOIN sites s ON d.site_id=s.id LEFT JOIN dpr_work_items w ON w.dpr_id=d.id
