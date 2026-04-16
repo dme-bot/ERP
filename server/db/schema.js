@@ -907,6 +907,17 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Project Finance (manual fields for cash flow tracker)
+    CREATE TABLE IF NOT EXISTS project_finance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_book_id INTEGER UNIQUE REFERENCES business_book(id),
+      amount_received REAL DEFAULT 0,
+      milestone_name TEXT,
+      aanchal_value REAL DEFAULT 0,
+      payment_investment_days INTEGER DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Location tracking (live tracking throughout the day)
     CREATE TABLE IF NOT EXISTS location_tracking (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

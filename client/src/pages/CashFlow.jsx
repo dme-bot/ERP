@@ -2,223 +2,147 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
-import { FiPlus, FiTrendingUp, FiTrendingDown, FiDollarSign, FiCalendar, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiTrendingUp, FiTrendingDown, FiDollarSign, FiCalendar, FiTrash2, FiSearch } from 'react-icons/fi';
 
 export default function CashFlow() {
+  const [tab, setTab] = useState('projects');
+  const [projects, setProjects] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [dailySummary, setDailySummary] = useState(null);
   const [entries, setEntries] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [modal, setModal] = useState(false);
-  const [openingModal, setOpeningModal] = useState(false);
   const [form, setForm] = useState({ date: '', type: 'inflow', category: '', description: '', amount: 0, payment_mode: '', party_name: '' });
-  const [openingBalance, setOpeningBalance] = useState(0);
+  const [search, setSearch] = useState('');
 
   const load = () => {
-    api.get('/cashflow/summary').then(r => setSummary(r.data));
-    api.get(`/cashflow/entries/${selectedDate}`).then(r => setEntries(r.data));
+    api.get('/cashflow/projects').then(r => { setProjects(r.data.projects); setSummary(r.data.summary); }).catch(() => {});
+    api.get('/cashflow/summary').then(r => setDailySummary(r.data)).catch(() => {});
+    api.get(`/cashflow/entries/${selectedDate}`).then(r => setEntries(r.data)).catch(() => {});
   };
   useEffect(() => { load(); }, [selectedDate]);
 
   const saveEntry = async (e) => {
     e.preventDefault();
     await api.post('/cashflow/entry', { ...form, date: form.date || selectedDate });
-    toast.success('Entry added');
-    setModal(false); load();
+    toast.success('Entry added'); setModal(false); load();
   };
 
   const deleteEntry = async (id) => {
-    if (!confirm('Delete this entry?')) return;
-    await api.delete(`/cashflow/entry/${id}`);
-    toast.success('Deleted'); load();
+    if (!confirm('Delete?')) return;
+    await api.delete(`/cashflow/entry/${id}`); toast.success('Deleted'); load();
   };
 
-  const saveOpening = async (e) => {
-    e.preventDefault();
-    await api.post('/cashflow/opening-balance', { date: selectedDate, opening_balance: openingBalance });
-    toast.success('Opening balance set');
-    setOpeningModal(false); load();
-  };
+  const inflowCategories = ['Collection', 'Advance Received', 'Milestone Payment', 'Handover Payment', 'Delivery Payment', 'Refund', 'Other Income'];
+  const outflowCategories = ['Indent Payment', 'Vendor Payment', 'Salary', 'Rent', 'Transport', 'TA/DA', 'Labour', 'Office Expense', 'Tax', 'EMI', 'Other'];
+  const fmt = (n) => `Rs ${(n || 0).toLocaleString('en-IN')}`;
+  const fmtL = (n) => `${(Math.round((n || 0) / 1000) / 100).toFixed(2)}L`;
 
-  const inflowCategories = ['Collection', 'Advance Received', 'Refund', 'Investment', 'Loan', 'Other Income'];
-  const outflowCategories = ['Indent Payment', 'Vendor Payment', 'Salary', 'Rent', 'Utility', 'Transport', 'Office Expense', 'Tax', 'EMI', 'Other Expense'];
-
-  if (!summary) return <div className="text-center py-10">Loading...</div>;
+  const filtered = projects.filter(p => !search || (p.project_name || '').toLowerCase().includes(search.toLowerCase()) || (p.crm_person || '').toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card flex items-center gap-4">
-          <div className="bg-blue-100 p-3 rounded-xl"><FiDollarSign size={24} className="text-blue-600" /></div>
-          <div>
-            <div className="text-2xl font-bold text-gray-800">Rs {summary.today.opening_balance?.toLocaleString()}</div>
-            <div className="text-xs text-gray-500">Opening Balance</div>
-          </div>
-        </div>
-        <div className="card flex items-center gap-4">
-          <div className="bg-emerald-100 p-3 rounded-xl"><FiTrendingUp size={24} className="text-emerald-600" /></div>
-          <div>
-            <div className="text-2xl font-bold text-emerald-600">+ Rs {summary.today.total_inflows?.toLocaleString()}</div>
-            <div className="text-xs text-gray-500">Today's Inflows</div>
-          </div>
-        </div>
-        <div className="card flex items-center gap-4">
-          <div className="bg-red-100 p-3 rounded-xl"><FiTrendingDown size={24} className="text-red-600" /></div>
-          <div>
-            <div className="text-2xl font-bold text-red-600">- Rs {summary.today.total_outflows?.toLocaleString()}</div>
-            <div className="text-xs text-gray-500">Today's Outflows</div>
-          </div>
-        </div>
-        <div className="card flex items-center gap-4">
-          <div className="bg-purple-100 p-3 rounded-xl"><FiDollarSign size={24} className="text-purple-600" /></div>
-          <div>
-            <div className="text-2xl font-bold text-purple-600">Rs {summary.today.closing_balance?.toLocaleString()}</div>
-            <div className="text-xs text-gray-500">Closing Balance</div>
-          </div>
-        </div>
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={() => setTab('projects')} className={`btn ${tab === 'projects' ? 'btn-primary' : 'btn-secondary'} text-sm`}>Project Finance</button>
+        <button onClick={() => setTab('daily')} className={`btn ${tab === 'daily' ? 'btn-primary' : 'btn-secondary'} text-sm`}>Daily Cash Flow</button>
       </div>
 
-      {/* Monthly Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="card">
-          <h4 className="font-semibold text-gray-700 mb-2">Monthly Inflows</h4>
-          <div className="text-3xl font-bold text-emerald-600">Rs {summary.monthlyInflow?.toLocaleString()}</div>
-        </div>
-        <div className="card">
-          <h4 className="font-semibold text-gray-700 mb-2">Monthly Outflows</h4>
-          <div className="text-3xl font-bold text-red-600">Rs {summary.monthlyOutflow?.toLocaleString()}</div>
-        </div>
-      </div>
-
-      {/* Site-wise Cash Flow */}
-      {summary.siteWise?.length > 0 && (
-        <div className="card p-0 overflow-hidden">
-          <div className="p-4 border-b"><h4 className="font-semibold">Site-wise Project Value & Cash Flow</h4></div>
-          <table>
-            <thead><tr><th>Lead No</th><th>Site / Project Name</th><th className="text-right">Project Value</th><th className="text-right text-emerald-600">Total Inflow</th><th className="text-right text-red-600">Total Outflow</th><th className="text-right">Net</th></tr></thead>
-            <tbody>
-              {summary.siteWise.map((s, i) => (
-                <tr key={i}>
-                  <td className="text-blue-600 font-bold">{s.lead_no}</td>
-                  <td className="font-medium">{s.site_name}</td>
-                  <td className="text-right font-semibold">Rs {(s.project_value || 0).toLocaleString()}</td>
-                  <td className="text-right text-emerald-600 font-medium">Rs {(s.total_inflow || 0).toLocaleString()}</td>
-                  <td className="text-right text-red-600 font-medium">Rs {(s.total_outflow || 0).toLocaleString()}</td>
-                  <td className={`text-right font-bold ${(s.total_inflow - s.total_outflow) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    Rs {((s.total_inflow || 0) - (s.total_outflow || 0)).toLocaleString()}
-                  </td>
+      {tab === 'projects' && (
+        <>
+          {summary && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="card p-3 border-l-4 border-blue-500"><p className="text-xs text-gray-500">Total Projects</p><p className="text-2xl font-bold">{summary.projectCount}</p></div>
+              <div className="card p-3 border-l-4 border-emerald-500"><p className="text-xs text-gray-500">Total Sale Value</p><p className="text-xl font-bold text-emerald-600">{fmtL(summary.totalSale)}</p></div>
+              <div className="card p-3 border-l-4 border-amber-500"><p className="text-xs text-gray-500">Total Received</p><p className="text-xl font-bold text-amber-600">{fmtL(summary.totalReceived)}</p></div>
+              <div className="card p-3 border-l-4 border-red-500"><p className="text-xs text-gray-500">Total Purchase</p><p className="text-xl font-bold text-red-600">{fmtL(summary.totalPurchase)}</p></div>
+            </div>
+          )}
+          <div className="relative"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input className="input pl-10" placeholder="Search project or CRM person..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+          <div className="card p-0 overflow-hidden">
+            <div className="p-3 border-b bg-blue-50"><h4 className="font-bold text-blue-800">ALL NEW PROJECTS - Financial Tracker</h4></div>
+            <div className="overflow-x-auto"><table className="min-w-[1200px] text-xs">
+              <thead><tr className="bg-gray-100">
+                <th className="px-2 py-2">Sr</th><th className="px-2 py-2 text-left">Project</th><th className="px-2 py-2 text-left">CRM</th>
+                <th className="px-2 py-2 text-right">Amt Received</th><th className="px-2 py-2">Milestone</th><th className="px-2 py-2 text-right">Value (L)</th>
+                <th className="px-2 py-2 text-right">Purchase (FMS)</th><th className="px-2 py-2 text-right">Velocity</th><th className="px-2 py-2">Date</th>
+                <th className="px-2 py-2 text-right">Invest Days</th><th className="px-2 py-2 text-right">Completion</th><th className="px-2 py-2 text-right">Payment</th><th className="px-2 py-2 text-right">Total</th>
+              </tr></thead>
+              <tbody>{filtered.map(p => (
+                <tr key={p.id} className="border-b hover:bg-blue-50/30">
+                  <td className="px-2 py-2 font-bold text-gray-500">{p.sr_no}</td>
+                  <td className="px-2 py-2 font-semibold text-blue-700">{p.project_name}</td>
+                  <td className="px-2 py-2">{p.crm_person || '-'}</td>
+                  <td className="px-2 py-2 text-right font-medium">{p.amount_received > 0 ? fmt(p.amount_received) : '-'}</td>
+                  <td className="px-2 py-2 text-center"><span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">{p.milestone_name || '-'}</span></td>
+                  <td className="px-2 py-2 text-right font-semibold">{p.aanchal_value > 0 ? `${p.aanchal_value}L` : '-'}</td>
+                  <td className="px-2 py-2 text-right font-semibold text-red-600">{p.purchase_value > 0 ? fmt(p.purchase_value) : '-'}</td>
+                  <td className={`px-2 py-2 text-right font-bold ${p.cash_velocity >= 1 ? 'text-emerald-600' : p.cash_velocity > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{p.cash_velocity > 0 ? p.cash_velocity.toFixed(2) : '-'}</td>
+                  <td className="px-2 py-2 text-[10px]">{p.live_date}</td>
+                  <td className="px-2 py-2 text-right">{p.payment_investment_days || '-'}</td>
+                  <td className="px-2 py-2 text-right">{p.completion_days || '-'}</td>
+                  <td className="px-2 py-2 text-right">{p.payment_days || '-'}</td>
+                  <td className="px-2 py-2 text-right font-bold">{p.total_days || '-'}</td>
                 </tr>
-              ))}
-              <tr className="bg-gray-50 font-bold">
-                <td></td><td>TOTAL</td>
-                <td className="text-right">Rs {summary.siteWise.reduce((s, r) => s + (r.project_value || 0), 0).toLocaleString()}</td>
-                <td className="text-right text-emerald-600">Rs {summary.siteWise.reduce((s, r) => s + (r.total_inflow || 0), 0).toLocaleString()}</td>
-                <td className="text-right text-red-600">Rs {summary.siteWise.reduce((s, r) => s + (r.total_outflow || 0), 0).toLocaleString()}</td>
-                <td className="text-right">Rs {summary.siteWise.reduce((s, r) => s + (r.total_inflow || 0) - (r.total_outflow || 0), 0).toLocaleString()}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+              ))}</tbody>
+              <tfoot><tr className="bg-gray-100 font-bold text-xs">
+                <td className="px-2 py-2" colSpan="3">TOTAL ({filtered.length})</td>
+                <td className="px-2 py-2 text-right text-emerald-700">{fmt(filtered.reduce((s, p) => s + p.amount_received, 0))}</td>
+                <td></td><td className="px-2 py-2 text-right">{filtered.reduce((s, p) => s + p.aanchal_value, 0).toFixed(2)}L</td>
+                <td className="px-2 py-2 text-right text-red-700">{fmt(filtered.reduce((s, p) => s + p.purchase_value, 0))}</td>
+                <td colSpan="6"></td>
+              </tr></tfoot>
+            </table></div>
+          </div>
+        </>
       )}
 
-      {/* Date selector + Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <FiCalendar className="text-gray-400" />
-          <input type="date" className="input w-48" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
-          <button onClick={() => setOpeningModal(true)} className="btn btn-secondary text-xs">Set Opening Balance</button>
-        </div>
-        <button onClick={() => { setForm({ date: selectedDate, type: 'inflow', category: '', description: '', amount: 0, payment_mode: '', party_name: '' }); setModal(true); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Entry</button>
-      </div>
-
-      {/* Last 7 Days */}
-      <div className="card p-0 overflow-hidden">
-        <div className="p-4 border-b"><h4 className="font-semibold">Last 7 Days Cash Position</h4></div>
-        <table>
-          <thead><tr><th>Date</th><th>Opening</th><th className="text-emerald-600">Inflows</th><th className="text-red-600">Outflows</th><th className="text-purple-600">Closing</th></tr></thead>
-          <tbody>
-            {summary.last7Days.map(d => (
-              <tr key={d.id} className={d.date === selectedDate ? 'bg-blue-50' : ''} onClick={() => setSelectedDate(d.date)} style={{cursor:'pointer'}}>
-                <td className="font-medium">{d.date}</td>
-                <td>Rs {d.opening_balance?.toLocaleString()}</td>
-                <td className="text-emerald-600 font-semibold">+ Rs {d.total_inflows?.toLocaleString()}</td>
-                <td className="text-red-600 font-semibold">- Rs {d.total_outflows?.toLocaleString()}</td>
-                <td className="font-bold text-purple-600">Rs {d.closing_balance?.toLocaleString()}</td>
+      {tab === 'daily' && dailySummary && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="card p-3"><FiDollarSign className="text-blue-600 inline mr-1" /><span className="text-xs text-gray-500">Opening</span><p className="text-lg font-bold">{fmt(dailySummary.today.opening_balance)}</p></div>
+            <div className="card p-3"><FiTrendingUp className="text-emerald-600 inline mr-1" /><span className="text-xs text-gray-500">Inflows</span><p className="text-lg font-bold text-emerald-600">+{fmt(dailySummary.today.total_inflows)}</p></div>
+            <div className="card p-3"><FiTrendingDown className="text-red-600 inline mr-1" /><span className="text-xs text-gray-500">Outflows</span><p className="text-lg font-bold text-red-600">-{fmt(dailySummary.today.total_outflows)}</p></div>
+            <div className="card p-3"><FiDollarSign className="text-purple-600 inline mr-1" /><span className="text-xs text-gray-500">Closing</span><p className="text-lg font-bold text-purple-600">{fmt(dailySummary.today.closing_balance)}</p></div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2"><FiCalendar className="text-gray-400" /><input type="date" className="input w-48" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} /></div>
+            <button onClick={() => { setForm({ date: selectedDate, type: 'inflow', category: '', description: '', amount: 0, payment_mode: '', party_name: '' }); setModal(true); }} className="btn btn-primary flex items-center gap-2 text-sm"><FiPlus /> Add Entry</button>
+          </div>
+          <div className="card p-0 overflow-hidden"><table className="text-sm"><thead><tr><th>Date</th><th>Opening</th><th className="text-emerald-600">Inflows</th><th className="text-red-600">Outflows</th><th className="text-purple-600">Closing</th></tr></thead>
+            <tbody>{dailySummary.last7Days.map(d => (
+              <tr key={d.id} className={d.date === selectedDate ? 'bg-blue-50' : ''} onClick={() => setSelectedDate(d.date)} style={{ cursor: 'pointer' }}>
+                <td className="font-medium">{d.date}</td><td>{fmt(d.opening_balance)}</td>
+                <td className="text-emerald-600 font-semibold">+{fmt(d.total_inflows)}</td><td className="text-red-600 font-semibold">-{fmt(d.total_outflows)}</td>
+                <td className="font-bold text-purple-600">{fmt(d.closing_balance)}</td>
               </tr>
-            ))}
-            {summary.last7Days.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-gray-400">No data yet</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Entries for selected date */}
-      <div className="card p-0 overflow-hidden">
-        <div className="p-4 border-b"><h4 className="font-semibold">Entries for {selectedDate}</h4></div>
-        <table>
-          <thead><tr><th>Type</th><th>Category</th><th>Description</th><th>Party</th><th>Mode</th><th>Amount</th><th>By</th><th></th></tr></thead>
-          <tbody>
-            {entries.map(e => (
-              <tr key={e.id}>
-                <td><span className={`badge ${e.type === 'inflow' ? 'badge-green' : 'badge-red'}`}>{e.type}</span></td>
-                <td>{e.category}</td>
-                <td>{e.description}</td>
-                <td>{e.party_name}</td>
-                <td>{e.payment_mode}</td>
-                <td className={`font-semibold ${e.type === 'inflow' ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {e.type === 'inflow' ? '+' : '-'} Rs {e.amount?.toLocaleString()}
-                </td>
-                <td className="text-xs text-gray-500">{e.created_by_name}</td>
+            ))}</tbody>
+          </table></div>
+          <div className="card p-0 overflow-hidden"><div className="p-3 border-b"><h4 className="font-semibold text-sm">Entries - {selectedDate}</h4></div><table className="text-sm"><thead><tr><th>Type</th><th>Category</th><th>Description</th><th>Party</th><th>Amount</th><th></th></tr></thead>
+            <tbody>{entries.map(e => (
+              <tr key={e.id}><td><span className={`badge ${e.type === 'inflow' ? 'badge-green' : 'badge-red'}`}>{e.type}</span></td>
+                <td>{e.category}</td><td>{e.description}</td><td>{e.party_name}</td>
+                <td className={`font-semibold ${e.type === 'inflow' ? 'text-emerald-600' : 'text-red-600'}`}>{e.type === 'inflow' ? '+' : '-'}{fmt(e.amount)}</td>
                 <td><button onClick={() => deleteEntry(e.id)} className="p-1 hover:bg-red-50 rounded text-red-500"><FiTrash2 size={14} /></button></td>
               </tr>
-            ))}
-            {entries.length === 0 && <tr><td colSpan="8" className="text-center py-6 text-gray-400">No entries for this date</td></tr>}
-          </tbody>
-        </table>
-      </div>
+            ))}{entries.length === 0 && <tr><td colSpan="6" className="text-center py-4 text-gray-400">No entries</td></tr>}</tbody>
+          </table></div>
+        </>
+      )}
 
-      {/* Add Entry Modal */}
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Add Cash Flow Entry">
         <form onSubmit={saveEntry} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="label">Date</label><input className="input" type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} /></div>
-            <div>
-              <label className="label">Type</label>
-              <select className="select" value={form.type} onChange={e => setForm({...form, type: e.target.value, category: ''})}>
-                <option value="inflow">Inflow (Money In)</option>
-                <option value="outflow">Outflow (Money Out)</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Category *</label>
-              <select className="select" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required>
-                <option value="">Select</option>
-                {(form.type === 'inflow' ? inflowCategories : outflowCategories).map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div><label className="label">Amount (Rs) *</label><input className="input" type="number" value={form.amount} onChange={e => setForm({...form, amount: +e.target.value})} required /></div>
+            <div><label className="label">Date</label><input className="input" type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
+            <div><label className="label">Type</label><select className="select" value={form.type} onChange={e => setForm({ ...form, type: e.target.value, category: '' })}><option value="inflow">Inflow</option><option value="outflow">Outflow</option></select></div>
+            <div><label className="label">Category *</label><select className="select" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required><option value="">Select</option>{(form.type === 'inflow' ? inflowCategories : outflowCategories).map(c => <option key={c}>{c}</option>)}</select></div>
+            <div><label className="label">Amount *</label><input className="input" type="number" value={form.amount} onChange={e => setForm({ ...form, amount: +e.target.value })} required /></div>
           </div>
-          <div><label className="label">Description *</label><input className="input" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required /></div>
+          <div><label className="label">Description *</label><input className="input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="label">Party Name</label><input className="input" value={form.party_name} onChange={e => setForm({...form, party_name: e.target.value})} /></div>
-            <div>
-              <label className="label">Payment Mode</label>
-              <select className="select" value={form.payment_mode} onChange={e => setForm({...form, payment_mode: e.target.value})}>
-                <option value="">Select</option>
-                <option value="Cash">Cash</option><option value="Bank Transfer">Bank Transfer</option>
-                <option value="UPI">UPI</option><option value="Cheque">Cheque</option><option value="NEFT">NEFT</option><option value="RTGS">RTGS</option>
-              </select>
-            </div>
+            <div><label className="label">Party Name</label><input className="input" value={form.party_name} onChange={e => setForm({ ...form, party_name: e.target.value })} /></div>
+            <div><label className="label">Payment Mode</label><select className="select" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}><option value="">Select</option><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option><option>NEFT</option></select></div>
           </div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Add Entry</button></div>
-        </form>
-      </Modal>
-
-      {/* Opening Balance Modal */}
-      <Modal isOpen={openingModal} onClose={() => setOpeningModal(false)} title="Set Opening Balance">
-        <form onSubmit={saveOpening} className="space-y-4">
-          <div><label className="label">Date</label><input className="input" type="date" value={selectedDate} readOnly /></div>
-          <div><label className="label">Opening Balance (Rs)</label><input className="input" type="number" value={openingBalance} onChange={e => setOpeningBalance(+e.target.value)} /></div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setOpeningModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Save</button></div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Add</button></div>
         </form>
       </Modal>
     </div>
