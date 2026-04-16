@@ -73,7 +73,15 @@ export default function Layout() {
       <aside className={`fixed md:relative z-40 h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-transform duration-300 flex-shrink-0 ${isMobile ? 'w-56' : 'w-64'} ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-4 border-b border-white/10 flex justify-between items-center">
           <div>
-            <h1 className="text-lg font-bold">SEPL ERP</h1>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <span className="text-white font-extrabold text-xs">SE</span>
+              </div>
+              <div>
+                <h1 className="text-sm font-extrabold tracking-tight">SEPL ERP</h1>
+                <p className="text-[9px] text-slate-400 -mt-0.5">Secured Engineers</p>
+              </div>
+            </div>
           </div>
           {isMobile && <button className="p-1.5 hover:bg-white/10 rounded" onClick={() => setSidebarOpen(false)}><FiX size={18} /></button>}
         </div>
