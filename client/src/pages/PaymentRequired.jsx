@@ -11,10 +11,7 @@ const STATUSES = ['pending', 'step1_approved', 'accounts_approved', 'dues_checke
 const STATUS_LABELS = { pending: 'Pending', step1_approved: 'Step 1 Approved', accounts_approved: 'Accounts Approved', dues_checked: 'Dues Checked', velocity_checked: 'Velocity Checked', final_approved: 'Final Approved', rejected: 'Rejected' };
 const STEPS = [
   { step: 1, name: 'Category Approval' },
-  { step: 2, name: 'Accounts (Budget)' },
-  { step: 3, name: 'Dues Validation' },
-  { step: 4, name: 'Velocity Check' },
-  { step: 5, name: 'Final Approval' },
+  { step: 2, name: 'Accounts Approval & Payment' },
 ];
 
 const emptyForm = {
@@ -138,7 +135,7 @@ export default function PaymentRequired() {
                     <td className="font-bold text-blue-600 cursor-pointer" onClick={() => viewRequest(r.id)}>{r.request_no}</td>
                     <td>{r.employee_name}</td><td><span className="badge badge-blue">{r.category}</span></td>
                     <td className="font-semibold">{fmt(r.amount)}</td>
-                    <td><span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Step {r.current_step}/5</span></td>
+                    <td><span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Step {r.current_step}/2</span></td>
                     <td><div className="flex gap-1">
                       <button onClick={() => viewRequest(r.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600"><FiEye size={14} /></button>
                       {canApprove('payment_required') && <>

@@ -8,23 +8,19 @@ router.use(authMiddleware);
 const WORKFLOW = {
   'TA/DA': [
     { step: 1, name: 'HR Approval', approver_role: 'HR Manager' },
-    { step: 2, name: 'Accounts Approval (Budget Check)', approver_role: 'Accountant' },
-    { step: 3, name: 'MD/Director Approval', approver_role: 'Admin' },
+    { step: 2, name: 'Accounts Approval & Payment', approver_role: 'Accountant' },
   ],
   'Purchase': [
     { step: 1, name: 'Purchase Head Approval', approver_role: 'Purchase Manager' },
-    { step: 2, name: 'Accounts Approval (Budget Check)', approver_role: 'Accountant' },
-    { step: 3, name: 'MD/Director Approval', approver_role: 'Admin' },
+    { step: 2, name: 'Accounts Approval & Payment', approver_role: 'Accountant' },
   ],
   'Labour': [
     { step: 1, name: 'Site Engineer Approval', approver_role: 'Site Engineer' },
-    { step: 2, name: 'Accounts Approval (Budget Check)', approver_role: 'Accountant' },
-    { step: 3, name: 'MD/Director Approval', approver_role: 'Admin' },
+    { step: 2, name: 'Accounts Approval & Payment', approver_role: 'Accountant' },
   ],
   'Transport': [
     { step: 1, name: 'Purchase Dept Approval', approver_role: 'Purchase Manager' },
-    { step: 2, name: 'Accounts Approval (Budget Check)', approver_role: 'Accountant' },
-    { step: 3, name: 'MD/Director Approval', approver_role: 'Admin' },
+    { step: 2, name: 'Accounts Approval & Payment', approver_role: 'Accountant' },
   ],
 };
 
