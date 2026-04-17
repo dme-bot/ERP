@@ -388,6 +388,22 @@ function initializeDatabase() {
     );
 
     -- Vendors
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_code TEXT UNIQUE,
+      category TEXT,
+      company_name TEXT NOT NULL,
+      sub_company_name TEXT,
+      company_registration_address TEXT,
+      contact_no TEXT,
+      email TEXT,
+      concern_person_name TEXT,
+      concern_person_email TEXT,
+      concern_person_address TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS vendors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       vendor_code TEXT UNIQUE,
@@ -1104,7 +1120,7 @@ function initializeDatabase() {
   ];
 
   const ALL_MODULES = [
-    'dashboard','leads','quotations','orders','business_book','item_master','vendors','procurement','cashflow','collections','payment_required','attendance','indent_fms','dpr',
+    'dashboard','leads','quotations','orders','business_book','item_master','vendors','customers','procurement','cashflow','collections','payment_required','attendance','indent_fms','dpr',
     'installation','billing','complaints','hr','employees','expenses','checklists','users'
   ];
 

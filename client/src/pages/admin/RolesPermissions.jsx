@@ -10,6 +10,7 @@ const ALL_MODULES = [
   { key: 'quotations', label: 'BOQ & Quotations' },
   { key: 'orders', label: 'Orders & Planning' },
   { key: 'vendors', label: 'Vendors' },
+  { key: 'customers', label: 'Customers' },
   { key: 'procurement', label: 'Procurement' },
   { key: 'installation', label: 'Installation' },
   { key: 'billing', label: 'Billing' },

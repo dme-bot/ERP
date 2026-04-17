@@ -44,6 +44,7 @@ app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/support', require('./routes/support'));
 app.use('/api/item-master', require('./routes/itemmaster'));
 app.use('/api/procurement', require('./routes/procurement'));
+app.use('/api/customers', require('./routes/customers'));
 app.use('/api/installation', require('./routes/installation'));
 app.use('/api/complaints', require('./routes/complaints'));
 app.use('/api/hr', require('./routes/hr'));

@@ -11,6 +11,7 @@ import ItemMaster from './pages/ItemMaster';
 import PaymentRequired from './pages/PaymentRequired';
 import Attendance from './pages/Attendance';
 import Vendors from './pages/Vendors';
+import Customers from './pages/Customers';
 import Procurement from './pages/Procurement';
 import Installation from './pages/Installation';
 import Billing from './pages/Billing';
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="item-master" element={<ModuleRoute module="item_master"><ItemMaster /></ModuleRoute>} />
         <Route path="orders" element={<ModuleRoute module="orders"><Orders /></ModuleRoute>} />
         <Route path="vendors" element={<ModuleRoute module="vendors"><Vendors /></ModuleRoute>} />
+        <Route path="customers" element={<ModuleRoute module="customers"><Customers /></ModuleRoute>} />
         <Route path="procurement" element={<ModuleRoute module="procurement"><Procurement /></ModuleRoute>} />
         <Route path="installation" element={<ModuleRoute module="installation"><Installation /></ModuleRoute>} />
         <Route path="billing" element={<ModuleRoute module="billing"><Billing /></ModuleRoute>} />
