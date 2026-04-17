@@ -128,20 +128,21 @@ router.post('/', requirePermission('payment_required', 'create'), (req, res) => 
   try { db.exec('ALTER TABLE payment_requests ADD COLUMN start_km REAL DEFAULT 0'); } catch(e) {}
   try { db.exec('ALTER TABLE payment_requests ADD COLUMN end_km REAL DEFAULT 0'); } catch(e) {}
   try { db.exec('ALTER TABLE payment_requests ADD COLUMN km_photo TEXT'); } catch(e) {}
+  try { db.exec('ALTER TABLE payment_requests ADD COLUMN end_km_photo TEXT'); } catch(e) {}
 
   const r = db.prepare(`INSERT INTO payment_requests (
     request_no, employee_name, site_id, site_name, department, contact_number, category, amount, purpose,
     payment_mode, required_by_date,
-    travel_from_to, travel_dates, mode_of_travel, stay_details, ticket_upload, start_km, end_km, km_photo,
+    travel_from_to, travel_dates, mode_of_travel, stay_details, ticket_upload, start_km, end_km, km_photo, end_km_photo,
     indent_number, item_description, vendor_name, quotation_link,
     labour_type, number_of_workers, work_duration, site_engineer_name,
     vehicle_type, from_to_location, material_description, driver_vendor_name,
     created_by
-  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
     requestNo, b.employee_name, b.site_id || null, b.site_name, b.department, b.contact_number,
     b.category, b.amount, b.purpose, b.payment_mode || 'Bank', b.required_by_date || null,
     b.travel_from_to, b.travel_dates, b.mode_of_travel, b.stay_details,
-    b.ticket_upload, b.start_km || 0, b.end_km || 0, b.km_photo,
+    b.ticket_upload, b.start_km || 0, b.end_km || 0, b.km_photo, b.end_km_photo,
     b.indent_number, b.item_description, b.vendor_name, b.quotation_link,
     b.labour_type, b.number_of_workers || 0, b.work_duration, b.site_engineer_name,
     b.vehicle_type, b.from_to_location, b.material_description, b.driver_vendor_name,

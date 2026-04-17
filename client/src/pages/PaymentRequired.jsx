@@ -375,26 +375,40 @@ export default function PaymentRequired() {
                 </div>
               )}
 
-              {/* Car/Bike → KM + Photo */}
+              {/* Car/Bike → KM + 2 Separate Photos */}
               {['Car','Bike'].includes(form.mode_of_travel) && (
-                <div className="mt-3 p-3 bg-white rounded border border-purple-200 space-y-2">
+                <div className="mt-3 p-3 bg-white rounded border border-purple-200 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
-                    <div><label className="label">Start KM *</label><input className="input" type="number" value={form.start_km || ''} onChange={e => F('start_km', +e.target.value)} required /></div>
-                    <div><label className="label">End KM *</label><input className="input" type="number" value={form.end_km || ''} onChange={e => F('end_km', +e.target.value)} required /></div>
+                    <div className="space-y-2 p-2 bg-blue-50 rounded">
+                      <label className="label">Start KM *</label>
+                      <input className="input" type="number" value={form.start_km || ''} onChange={e => F('start_km', +e.target.value)} required />
+                      <label className="label text-[10px]">Start KM Meter Photo *</label>
+                      {form.km_photo ? (
+                        <div className="flex items-center gap-2"><a href={form.km_photo} className="text-blue-600 text-xs underline truncate" target="_blank" rel="noreferrer">Photo uploaded</a><button type="button" onClick={() => F('km_photo', '')} className="text-red-500 text-[10px]">Remove</button></div>
+                      ) : (
+                        <input type="file" accept="image/*" capture="environment" onChange={async (e) => {
+                          const file = e.target.files[0]; if (!file) return;
+                          try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('km_photo', res.data.url); toast.success('Start photo uploaded'); } catch { toast.error('Failed'); }
+                          e.target.value = '';
+                        }} className="text-[10px] w-full" />
+                      )}
+                    </div>
+                    <div className="space-y-2 p-2 bg-emerald-50 rounded">
+                      <label className="label">End KM *</label>
+                      <input className="input" type="number" value={form.end_km || ''} onChange={e => F('end_km', +e.target.value)} required />
+                      <label className="label text-[10px]">End KM Meter Photo *</label>
+                      {form.end_km_photo ? (
+                        <div className="flex items-center gap-2"><a href={form.end_km_photo} className="text-blue-600 text-xs underline truncate" target="_blank" rel="noreferrer">Photo uploaded</a><button type="button" onClick={() => F('end_km_photo', '')} className="text-red-500 text-[10px]">Remove</button></div>
+                      ) : (
+                        <input type="file" accept="image/*" capture="environment" onChange={async (e) => {
+                          const file = e.target.files[0]; if (!file) return;
+                          try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('end_km_photo', res.data.url); toast.success('End photo uploaded'); } catch { toast.error('Failed'); }
+                          e.target.value = '';
+                        }} className="text-[10px] w-full" />
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-purple-600">Total KM: {Math.max(0, (form.end_km || 0) - (form.start_km || 0))} km</p>
-                  <div>
-                    <label className="label">Meter Photo *</label>
-                    {form.km_photo ? (
-                      <div className="flex items-center gap-2"><a href={form.km_photo} className="text-blue-600 text-sm underline" target="_blank" rel="noreferrer">Photo uploaded</a><button type="button" onClick={() => F('km_photo', '')} className="text-red-500 text-xs">Remove</button></div>
-                    ) : (
-                      <input type="file" accept="image/*" capture="environment" onChange={async (e) => {
-                        const file = e.target.files[0]; if (!file) return;
-                        try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('km_photo', res.data.url); toast.success('Photo uploaded'); } catch { toast.error('Failed'); }
-                        e.target.value = '';
-                      }} className="text-xs" />
-                    )}
-                  </div>
+                  <p className="text-xs text-purple-700 font-bold text-center">Total Distance: {Math.max(0, (form.end_km || 0) - (form.start_km || 0))} km</p>
                 </div>
               )}
 
