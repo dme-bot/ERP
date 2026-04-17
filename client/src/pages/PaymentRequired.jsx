@@ -16,8 +16,9 @@ const STEPS = [
 
 const emptyForm = {
   employee_name: '', site_id: '', site_name: '', department: '', contact_number: '',
-  category: '', amount: 0, purpose: '', payment_mode: 'Bank', required_by_date: '', attachment_link: '',
+  category: '', amount: 0, purpose: '', payment_mode: 'Bank', required_by_date: '',
   travel_from_to: '', travel_dates: '', mode_of_travel: '', stay_details: '',
+  ticket_upload: '', start_km: 0, end_km: 0, km_photo: '',
   indent_number: '', item_description: '', vendor_name: '', quotation_link: '',
   labour_type: '', number_of_workers: 0, work_duration: '', site_engineer_name: '',
   vehicle_type: '', from_to_location: '', material_description: '', driver_vendor_name: '',
@@ -29,6 +30,7 @@ export default function PaymentRequired() {
   const [requests, setRequests] = useState([]);
   const [stats, setStats] = useState(null);
   const [sites, setSites] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [modal, setModal] = useState(null);
   const [viewData, setViewData] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
@@ -44,7 +46,7 @@ export default function PaymentRequired() {
     api.get('/payment-required/stats').then(r => setStats(r.data)).catch(() => {});
   }, [search, filters]);
 
-  useEffect(() => { load(); api.get('/dpr/sites').then(r => setSites(r.data)).catch(() => {}); }, [load]);
+  useEffect(() => { load(); api.get('/dpr/sites').then(r => setSites(r.data)).catch(() => {}); api.get('/hr/employees').then(r => setEmployees(r.data)).catch(() => {}); }, [load]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -305,7 +307,12 @@ export default function PaymentRequired() {
           <div className="border rounded-lg p-3 bg-gray-50">
             <h4 className="font-semibold text-sm text-gray-700 mb-3">Request Details</h4>
             <div className="grid grid-cols-3 gap-3">
-              <div><label className="label">Employee Name *</label><input className="input" value={form.employee_name} onChange={e => F('employee_name', e.target.value)} required /></div>
+              <div><label className="label">Employee Name *</label>
+                <select className="select" value={form.employee_name} onChange={e => { const emp = employees.find(x => x.name === e.target.value); F('employee_name', e.target.value); if (emp) { F('department', emp.department); F('contact_number', emp.phone); } }} required>
+                  <option value="">Select Employee</option>
+                  {employees.map(e => <option key={e.id} value={e.name}>{e.name} {e.department ? `(${e.department})` : ''}</option>)}
+                </select>
+              </div>
               <div><label className="label">Site Name *</label>
                 <select className="select" value={form.site_id} onChange={e => { const site = sites.find(s => s.id === +e.target.value); F('site_id', e.target.value); F('site_name', site?.name || ''); }}>
                   <option value="">Select Site</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -326,17 +333,6 @@ export default function PaymentRequired() {
                 </select>
               </div>
               <div><label className="label">Required By Date</label><input className="input" type="date" value={form.required_by_date} onChange={e => F('required_by_date', e.target.value)} /></div>
-              <div><label className="label">Attachment</label>
-                {form.attachment_link ? (
-                  <div className="flex items-center gap-2"><a href={form.attachment_link} className="text-blue-600 text-sm underline">File uploaded</a><button type="button" onClick={() => F('attachment_link', '')} className="text-red-500 text-xs">Remove</button></div>
-                ) : (
-                  <input type="file" disabled={uploading} onChange={async (e) => {
-                    const file = e.target.files[0]; if (!file) return; setUploading(true);
-                    try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('attachment_link', res.data.url); toast.success('Uploaded'); } catch { toast.error('Upload failed'); }
-                    setUploading(false); e.target.value = '';
-                  }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700" />
-                )}
-              </div>
             </div>
           </div>
 
@@ -347,9 +343,57 @@ export default function PaymentRequired() {
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label">Travel From-To *</label><input className="input" value={form.travel_from_to} onChange={e => F('travel_from_to', e.target.value)} required /></div>
                 <div><label className="label">Travel Dates *</label><input className="input" value={form.travel_dates} onChange={e => F('travel_dates', e.target.value)} required /></div>
-                <div><label className="label">Mode of Travel</label><select className="select" value={form.mode_of_travel} onChange={e => F('mode_of_travel', e.target.value)}><option value="">Select</option><option>Bus</option><option>Train</option><option>Flight</option><option>Car</option><option>Bike</option><option>Auto</option></select></div>
+                <div><label className="label">Mode of Travel *</label>
+                  <select className="select" value={form.mode_of_travel} onChange={e => F('mode_of_travel', e.target.value)} required>
+                    <option value="">Select</option><option>Bus</option><option>Train</option><option>Flight</option><option>Car</option><option>Bike</option><option>Auto</option>
+                  </select>
+                </div>
                 <div><label className="label">Stay Details</label><input className="input" value={form.stay_details} onChange={e => F('stay_details', e.target.value)} placeholder="Hotel name, duration..." /></div>
               </div>
+
+              {/* Bus/Train/Flight → Ticket upload */}
+              {['Bus','Train','Flight'].includes(form.mode_of_travel) && (
+                <div className="mt-3 p-3 bg-white rounded border border-purple-200">
+                  <label className="label">Upload Ticket *</label>
+                  {form.ticket_upload ? (
+                    <div className="flex items-center gap-2"><a href={form.ticket_upload} className="text-blue-600 text-sm underline" target="_blank" rel="noreferrer">Ticket uploaded</a><button type="button" onClick={() => F('ticket_upload', '')} className="text-red-500 text-xs">Remove</button></div>
+                  ) : (
+                    <input type="file" onChange={async (e) => {
+                      const file = e.target.files[0]; if (!file) return;
+                      try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('ticket_upload', res.data.url); toast.success('Ticket uploaded'); } catch { toast.error('Failed'); }
+                      e.target.value = '';
+                    }} className="text-xs" />
+                  )}
+                </div>
+              )}
+
+              {/* Car/Bike → KM + Photo */}
+              {['Car','Bike'].includes(form.mode_of_travel) && (
+                <div className="mt-3 p-3 bg-white rounded border border-purple-200 space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="label">Start KM *</label><input className="input" type="number" value={form.start_km || ''} onChange={e => F('start_km', +e.target.value)} required /></div>
+                    <div><label className="label">End KM *</label><input className="input" type="number" value={form.end_km || ''} onChange={e => F('end_km', +e.target.value)} required /></div>
+                  </div>
+                  <p className="text-xs text-purple-600">Total KM: {Math.max(0, (form.end_km || 0) - (form.start_km || 0))} km</p>
+                  <div>
+                    <label className="label">Meter Photo *</label>
+                    {form.km_photo ? (
+                      <div className="flex items-center gap-2"><a href={form.km_photo} className="text-blue-600 text-sm underline" target="_blank" rel="noreferrer">Photo uploaded</a><button type="button" onClick={() => F('km_photo', '')} className="text-red-500 text-xs">Remove</button></div>
+                    ) : (
+                      <input type="file" accept="image/*" capture="environment" onChange={async (e) => {
+                        const file = e.target.files[0]; if (!file) return;
+                        try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('km_photo', res.data.url); toast.success('Photo uploaded'); } catch { toast.error('Failed'); }
+                        e.target.value = '';
+                      }} className="text-xs" />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Auto → no proof needed */}
+              {form.mode_of_travel === 'Auto' && (
+                <div className="mt-3 p-2 bg-emerald-50 rounded text-xs text-emerald-700">No proof required for Auto</div>
+              )}
             </div>
           )}
 
@@ -361,7 +405,7 @@ export default function PaymentRequired() {
                 <div><label className="label">Indent Number *</label><input className="input" value={form.indent_number} onChange={e => F('indent_number', e.target.value)} required /></div>
                 <div><label className="label">Vendor Name</label><input className="input" value={form.vendor_name} onChange={e => F('vendor_name', e.target.value)} /></div>
                 <div className="col-span-2"><label className="label">Item Description</label><textarea className="input" rows="2" value={form.item_description} onChange={e => F('item_description', e.target.value)} /></div>
-                <div><label className="label">Quotation Upload *</label>
+                <div><label className="label">Purchase Order Upload *</label>
                   {form.quotation_link ? (
                     <div className="flex items-center gap-2"><a href={form.quotation_link} className="text-blue-600 text-sm underline">Quotation uploaded</a><button type="button" onClick={() => F('quotation_link', '')} className="text-red-500 text-xs">Remove</button></div>
                   ) : (
@@ -405,7 +449,11 @@ export default function PaymentRequired() {
           {/* Approval workflow info */}
           {form.category && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-              <strong>Approval Flow:</strong> {form.category === 'TA/DA' ? 'HR' : form.category === 'Purchase' ? 'Purchase Head' : form.category === 'Labour' ? 'Site Engineer' : 'Purchase Dept'} → Accounts (Budget) → Dues Check → Velocity (Auto) → Billing Engineer Final
+              <strong>Approval Flow:</strong> {form.category === 'TA/DA' ? (
+                <span>HR → Accountant → Payment Release</span>
+              ) : (
+                <span>{form.category === 'Purchase' ? 'Purchase Head' : form.category === 'Labour' ? 'Site Engineer' : 'Purchase Dept'} → Accountant → Velocity (Auto) → Billing Engineer → Payment Release</span>
+              )}
             </div>
           )}
 

@@ -923,6 +923,10 @@ function initializeDatabase() {
       travel_dates TEXT,
       mode_of_travel TEXT,
       stay_details TEXT,
+      ticket_upload TEXT,
+      start_km REAL DEFAULT 0,
+      end_km REAL DEFAULT 0,
+      km_photo TEXT,
       -- Purchase fields
       indent_number TEXT,
       item_description TEXT,
@@ -1055,6 +1059,7 @@ function initializeDatabase() {
     { name: 'HR Manager', desc: 'HR, hiring, employees', is_system: 0 },
     { name: 'Accountant', desc: 'Billing, expenses, payments', is_system: 0 },
     { name: 'Data Entry', desc: 'Data entry for Business Book and orders', is_system: 0 },
+    { name: 'Billing Engineer', desc: 'Approves billing and payment requests', is_system: 0 },
     { name: 'Viewer', desc: 'View-only access to all modules', is_system: 0 },
   ];
 
