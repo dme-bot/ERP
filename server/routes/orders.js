@@ -26,19 +26,24 @@ router.get('/business-book-entries', (req, res) => {
 router.get('/po', (req, res) => {
   res.json(getDb().prepare(`SELECT po.*, bb.lead_no, bb.client_name as bb_client, bb.company_name as bb_company,
     COALESCE(s.name, bb.project_name) as bb_project, bb.category as bb_category,
-    l.company_name, q.quotation_number FROM purchase_orders po
+    l.company_name, q.quotation_number, se.name as site_engineer_name FROM purchase_orders po
     LEFT JOIN business_book bb ON po.business_book_id=bb.id
     LEFT JOIN sites s ON s.business_book_id=bb.id
-    LEFT JOIN leads l ON po.lead_id=l.id LEFT JOIN quotations q ON po.quotation_id=q.id ORDER BY po.created_at DESC`).all());
+    LEFT JOIN leads l ON po.lead_id=l.id LEFT JOIN quotations q ON po.quotation_id=q.id
+    LEFT JOIN users se ON po.site_engineer_id=se.id
+    ORDER BY po.created_at DESC`).all());
 });
 
 router.post('/po', (req, res) => {
-  const { business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, items } = req.body;
+  const { business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, crm_name, items } = req.body;
   const db = getDb();
 
+  if (!site_engineer_id) return res.status(400).json({ error: 'Site Engineer is required' });
+  if (!crm_name) return res.status(400).json({ error: 'CRM is required' });
+
   const r = db.prepare(
-    'INSERT INTO purchase_orders (business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(business_book_id || null, lead_id || null, quotation_id || null, po_number, po_date, total_amount, advance_amount || 0, po_copy_link || null, pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0, req.user.id);
+    'INSERT INTO purchase_orders (business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, crm_name, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(business_book_id || null, lead_id || null, quotation_id || null, po_number, po_date, total_amount, advance_amount || 0, po_copy_link || null, pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0, site_engineer_id, crm_name, req.user.id);
   const poId = r.lastInsertRowid;
 
   // Insert PO items
@@ -68,15 +73,43 @@ router.post('/po', (req, res) => {
 });
 
 router.put('/po/:id', (req, res) => {
-  const { po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, status } = req.body;
+  const { po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, status, site_engineer_id, crm_name } = req.body;
+  if (!site_engineer_id) return res.status(400).json({ error: 'Site Engineer is required' });
+  if (!crm_name) return res.status(400).json({ error: 'CRM is required' });
   getDb().prepare(`UPDATE purchase_orders SET po_number=COALESCE(?,po_number), po_date=COALESCE(?,po_date),
     total_amount=COALESCE(?,total_amount), advance_amount=COALESCE(?,advance_amount),
     po_copy_link=?, pt_advance=?, pt_delivery=?, pt_installation=?, pt_commissioning=?, pt_retention=?,
+    site_engineer_id=?, crm_name=?,
     status=COALESCE(?,status) WHERE id=?`)
     .run(po_number, po_date, total_amount, advance_amount, po_copy_link || null,
       pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0,
+      site_engineer_id, crm_name,
       status, req.params.id);
   res.json({ message: 'Updated' });
+});
+
+router.delete('/po/:id', (req, res) => {
+  const db = getDb();
+  const id = req.params.id;
+  const po = db.prepare('SELECT business_book_id FROM purchase_orders WHERE id=?').get(id);
+  if (!po) return res.status(404).json({ error: 'PO not found' });
+  const vendorPoCount = db.prepare('SELECT COUNT(*) as c FROM vendor_pos WHERE indent_id IN (SELECT id FROM indents WHERE business_book_id=?)').get(po.business_book_id || 0).c;
+  const billCount = db.prepare('SELECT COUNT(*) as c FROM purchase_bills WHERE vendor_po_id IN (SELECT id FROM vendor_pos WHERE indent_id IN (SELECT id FROM indents WHERE business_book_id=?))').get(po.business_book_id || 0).c;
+  if (vendorPoCount > 0 || billCount > 0) return res.status(409).json({ error: 'Cannot delete: Vendor POs or Purchase Bills reference this PO' });
+  // Unlink children; keep business_book row intact
+  if (po.business_book_id) {
+    db.prepare('UPDATE business_book SET po_number=NULL, po_date=NULL, po_amount=0 WHERE id=?').run(po.business_book_id);
+    db.prepare('UPDATE sites SET po_id=NULL WHERE po_id=?').run(id);
+    db.prepare('UPDATE order_planning SET po_id=NULL WHERE po_id=?').run(id);
+    db.prepare('DELETE FROM po_items WHERE business_book_id=?').run(po.business_book_id);
+  }
+  db.prepare('DELETE FROM purchase_orders WHERE id=?').run(id);
+  res.json({ message: 'Deleted' });
+});
+
+router.delete('/planning/:id', (req, res) => {
+  getDb().prepare('DELETE FROM order_planning WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 // PO Items CRUD

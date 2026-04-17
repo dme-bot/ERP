@@ -176,6 +176,27 @@ router.put('/:id/approve', (req, res) => {
   res.json({ message: `DPR ${approval_status}` });
 });
 
+// Delete DPR (cascade child tables)
+router.delete('/:id', (req, res) => {
+  const db = getDb();
+  const id = req.params.id;
+  db.prepare('DELETE FROM dpr_work_items WHERE dpr_id=?').run(id);
+  db.prepare('DELETE FROM dpr_manpower WHERE dpr_id=?').run(id);
+  db.prepare('DELETE FROM dpr_material WHERE dpr_id=?').run(id);
+  db.prepare('DELETE FROM dpr_machinery WHERE dpr_id=?').run(id);
+  db.prepare('DELETE FROM dpr WHERE id=?').run(id);
+  res.json({ message: 'Deleted' });
+});
+
+router.delete('/sites/:id', (req, res) => {
+  const db = getDb();
+  const id = req.params.id;
+  const dprCount = db.prepare('SELECT COUNT(*) as c FROM dpr WHERE site_id=?').get(id).c;
+  if (dprCount > 0) return res.status(409).json({ error: 'Cannot delete: DPRs reference this site' });
+  db.prepare('DELETE FROM sites WHERE id=?').run(id);
+  res.json({ message: 'Deleted' });
+});
+
 // No DPR = no payment check
 router.get('/payment-check/:site_id', (req, res) => {
   const db = getDb();

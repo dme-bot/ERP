@@ -114,6 +114,13 @@ router.get('/grn/:id', (req, res) => {
   res.json(grn);
 });
 
+router.delete('/grn/:id', (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM grn_items WHERE grn_id=?').run(req.params.id);
+  db.prepare('DELETE FROM grn WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 // Full pipeline view
 router.get('/pipeline', (req, res) => {
   const db = getDb();

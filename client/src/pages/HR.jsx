@@ -3,12 +3,14 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiEdit2 } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 
 const candidateStatuses = ['lead','called','qualified','interview_scheduled','interview_done','offer_sent','accepted','onboarded','rejected'];
 const sources = ['facebook','naukri','linkedin','reference','other'];
 
 export default function HR() {
+  const { canDelete } = useAuth();
   const [tab, setTab] = useState('candidates');
   const [candidates, setCandidates] = useState([]);
   const [contractors, setContractors] = useState([]);
@@ -58,7 +60,14 @@ export default function HR() {
                 <tr key={c.id}>
                   <td className="font-medium">{c.name}</td><td>{c.phone}</td><td>{c.position}</td>
                   <td className="capitalize">{c.source}</td><td><StatusBadge status={c.status} /></td>
-                  <td><button onClick={() => { setEditing(c); setForm(c); setModal('candidate'); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button></td>
+                  <td><div className="flex gap-1">
+                    <button onClick={() => { setEditing(c); setForm(c); setModal('candidate'); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                    {canDelete('hr') && <button onClick={async () => {
+                      if (!confirm(`Delete candidate "${c.name}"?`)) return;
+                      try { await api.delete(`/hr/candidates/${c.id}`); toast.success('Deleted'); load(); }
+                      catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                    }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+                  </div></td>
                 </tr>
               ))}
               {candidates.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No candidates yet</td></tr>}
@@ -80,7 +89,14 @@ export default function HR() {
                 <tr key={c.id}>
                   <td className="font-medium">{c.name}</td><td>{c.phone}</td><td>{c.specialization}</td>
                   <td>Rs {c.rate}/{c.rate_unit?.replace(/_/g,' ')}</td><td><StatusBadge status={c.status} /></td>
-                  <td><button onClick={() => { setEditing(c); setForm(c); setModal('contractor'); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button></td>
+                  <td><div className="flex gap-1">
+                    <button onClick={() => { setEditing(c); setForm(c); setModal('contractor'); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                    {canDelete('hr') && <button onClick={async () => {
+                      if (!confirm(`Delete contractor "${c.name}"?`)) return;
+                      try { await api.delete(`/hr/sub-contractors/${c.id}`); toast.success('Deleted'); load(); }
+                      catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                    }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+                  </div></td>
                 </tr>
               ))}
               {contractors.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No contractors yet</td></tr>}

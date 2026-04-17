@@ -5,8 +5,12 @@ import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { FiPlus, FiTrash2, FiUpload, FiEdit2, FiExternalLink, FiEye } from 'react-icons/fi';
 import SearchableSelect from '../components/SearchableSelect';
+import { useAuth } from '../context/AuthContext';
+
+const CRM_OPTIONS = ['Sushila', 'Lovely'];
 
 export default function Orders() {
+  const { canDelete } = useAuth();
   const [tab, setTab] = useState('po');
   const [pos, setPos] = useState([]);
   const [planning, setPlanning] = useState([]);
@@ -15,6 +19,7 @@ export default function Orders() {
   const [form, setForm] = useState({});
   const [poItems, setPoItems] = useState([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
   const [masterItems, setMasterItems] = useState([]);
+  const [siteEngineers, setSiteEngineers] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [editingPO, setEditingPO] = useState(null);
 
@@ -27,6 +32,9 @@ export default function Orders() {
     load();
     api.get('/orders/business-book-entries').then(r => setBbEntries(r.data));
     api.get('/item-master/dropdown?type=PO').then(r => setMasterItems(r.data)).catch(() => {});
+    api.get('/auth/users').then(r => {
+      setSiteEngineers((r.data || []).filter(u => (u.role_names || '').split(',').includes('Site Engineer') && u.active !== 0));
+    }).catch(() => {});
   }, []);
 
   const addItem = () => setPoItems([...poItems, { item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
@@ -55,7 +63,8 @@ export default function Orders() {
       advance_amount: po.advance_amount || 0, po_copy_link: po.po_copy_link || '',
       pt_advance: po.pt_advance || '', pt_delivery: po.pt_delivery || '',
       pt_installation: po.pt_installation || '', pt_commissioning: po.pt_commissioning || '',
-      pt_retention: po.pt_retention || '', status: po.status || 'received'
+      pt_retention: po.pt_retention || '', status: po.status || 'received',
+      site_engineer_id: po.site_engineer_id || '', crm_name: po.crm_name || ''
     });
     // Load existing PO items
     api.get(`/orders/po/${po.id}/items`).then(r => {
@@ -66,6 +75,8 @@ export default function Orders() {
 
   const savePo = async (e) => {
     e.preventDefault();
+    if (!form.site_engineer_id) { toast.error('Site Engineer is required'); return; }
+    if (!form.crm_name) { toast.error('CRM is required'); return; }
     try {
       if (editingPO) {
         await api.put(`/orders/po/${editingPO.id}`, { ...form });
@@ -107,13 +118,13 @@ export default function Orders() {
             <h3 className="font-semibold">Client Purchase Orders</h3>
             <button onClick={() => {
               setEditingPO(null);
-              setForm({ business_book_id: '', po_number: '', po_date: '', total_amount: 0, advance_amount: 0, po_copy_link: '', pt_advance: '', pt_delivery: '', pt_installation: '', pt_commissioning: '', pt_retention: '' });
+              setForm({ business_book_id: '', po_number: '', po_date: '', total_amount: 0, advance_amount: 0, po_copy_link: '', pt_advance: '', pt_delivery: '', pt_installation: '', pt_commissioning: '', pt_retention: '', site_engineer_id: '', crm_name: '' });
               setPoItems([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
               setModal('po');
             }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add PO</button>
           </div>
           <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table>
-            <thead><tr><th>PO Number</th><th>Lead No</th><th>Client</th><th>Project</th><th>Category</th><th>Date</th><th>Amount</th><th>PO Copy</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>PO Number</th><th>Lead No</th><th>Client</th><th>Project</th><th>Category</th><th>Date</th><th>Amount</th><th>Site Engineer</th><th>CRM</th><th>PO Copy</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {pos.map(p => (
                 <tr key={p.id}>
@@ -124,14 +135,23 @@ export default function Orders() {
                   <td>{p.bb_category || '-'}</td>
                   <td>{p.po_date}</td>
                   <td className="font-semibold">Rs {p.total_amount?.toLocaleString()}</td>
+                  <td className="text-xs">{p.site_engineer_name || <span className="text-gray-400">-</span>}</td>
+                  <td className="text-xs">{p.crm_name || <span className="text-gray-400">-</span>}</td>
                   <td>{p.po_copy_link ? <a href={p.po_copy_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
                   <td><StatusBadge status={p.status} /></td>
                   <td>
-                    <button onClick={() => handleEditPO(p)} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded" title="Edit"><FiEdit2 size={15} /></button>
+                    <div className="flex gap-1">
+                      <button onClick={() => handleEditPO(p)} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded" title="Edit"><FiEdit2 size={15} /></button>
+                      {canDelete('orders') && <button onClick={async () => {
+                        if (!confirm(`Delete PO "${p.po_number}"?`)) return;
+                        try { await api.delete(`/orders/po/${p.id}`); toast.success('Deleted'); load(); }
+                        catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                      }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete"><FiTrash2 size={15} /></button>}
+                    </div>
                   </td>
                 </tr>
               ))}
-              {pos.length === 0 && <tr><td colSpan="10" className="text-center py-8 text-gray-400">No orders yet</td></tr>}
+              {pos.length === 0 && <tr><td colSpan="12" className="text-center py-8 text-gray-400">No orders yet</td></tr>}
             </tbody>
           </table></div></div>
         </>
@@ -190,6 +210,21 @@ export default function Orders() {
               <div><label className="label">PO Number *</label><input className="input" value={form.po_number || ''} onChange={e => setForm({ ...form, po_number: e.target.value })} required /></div>
               <div><label className="label">PO Date *</label><input className="input" type="date" value={form.po_date || ''} onChange={e => setForm({ ...form, po_date: e.target.value })} required /></div>
               <div><label className="label">Total Amount (Rs)</label><input className="input" type="number" value={form.total_amount || 0} onChange={e => setForm({ ...form, total_amount: +e.target.value })} /></div>
+              <div>
+                <label className="label">Site Engineer *</label>
+                <select className="select" required value={form.site_engineer_id || ''} onChange={e => setForm({ ...form, site_engineer_id: e.target.value ? +e.target.value : '' })}>
+                  <option value="">Select Site Engineer</option>
+                  {siteEngineers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+                {siteEngineers.length === 0 && <p className="text-[10px] text-amber-600 mt-0.5">No users with role "Site Engineer" yet</p>}
+              </div>
+              <div>
+                <label className="label">CRM *</label>
+                <select className="select" required value={form.crm_name || ''} onChange={e => setForm({ ...form, crm_name: e.target.value })}>
+                  <option value="">Select CRM</option>
+                  {CRM_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
               {editingPO && <div><label className="label">Status</label><select className="select" value={form.status || 'received'} onChange={e => setForm({ ...form, status: e.target.value })}><option value="received">Received</option><option value="booked">Booked</option><option value="planning">Planning</option><option value="in_progress">In Progress</option><option value="completed">Completed</option></select></div>}
               <div>
                 <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload PO Copy</label>

@@ -54,4 +54,21 @@ router.put('/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/:id', (req, res) => {
+  const db = getDb();
+  const poCount = db.prepare('SELECT COUNT(*) as c FROM purchase_orders WHERE quotation_id=?').get(req.params.id).c;
+  if (poCount > 0) return res.status(409).json({ error: 'Cannot delete: Purchase Orders reference this quotation' });
+  db.prepare('DELETE FROM quotations WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
+router.delete('/boq/:id', (req, res) => {
+  const db = getDb();
+  const qCount = db.prepare('SELECT COUNT(*) as c FROM quotations WHERE boq_id=?').get(req.params.id).c;
+  if (qCount > 0) return res.status(409).json({ error: 'Cannot delete: Quotations reference this BOQ' });
+  db.prepare('DELETE FROM boq_items WHERE boq_id=?').run(req.params.id);
+  db.prepare('DELETE FROM boq WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 module.exports = router;

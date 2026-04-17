@@ -1100,6 +1100,15 @@ function initializeDatabase() {
     );
   `);
 
+  // Safe schema migrations for columns added after initial release
+  const migrations = [
+    ['purchase_orders', 'site_engineer_id INTEGER REFERENCES users(id)'],
+    ['purchase_orders', 'crm_name TEXT'],
+  ];
+  for (const [table, col] of migrations) {
+    try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col}`); } catch (e) {}
+  }
+
   // Seed lead sources
   const sources = ['Indiamart', 'WhatsApp', 'LinkedIn', 'Client Reference', 'YouTube', 'Instagram', 'Twitter'];
   const insertSource = db.prepare('INSERT OR IGNORE INTO lead_sources (name) VALUES (?)');

@@ -4,10 +4,10 @@ import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiClock, FiMapPin, FiCamera, FiUsers, FiCalendar, FiCheckCircle, FiXCircle, FiPlus, FiAlertTriangle } from 'react-icons/fi';
+import { FiClock, FiMapPin, FiCamera, FiUsers, FiCalendar, FiCheckCircle, FiXCircle, FiPlus, FiAlertTriangle, FiTrash2 } from 'react-icons/fi';
 
 export default function Attendance() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, canDelete } = useAuth();
   const [tab, setTab] = useState('punch');
   const [myToday, setMyToday] = useState(null);
   const [dashboard, setDashboard] = useState(null);
@@ -257,7 +257,7 @@ export default function Attendance() {
         <>
           <input type="date" className="input w-48" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
           <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="text-sm">
-            <thead><tr><th>Name</th><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Site</th><th>Status</th><th>In Photo</th><th>Out Photo</th></tr></thead>
+            <thead><tr><th>Name</th><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Site</th><th>Status</th><th>In Photo</th><th>Out Photo</th><th>Actions</th></tr></thead>
             <tbody>{records.map(r => (
               <tr key={r.id}>
                 <td className="font-medium">{r.user_name}</td><td>{r.date}</td>
@@ -268,6 +268,11 @@ export default function Attendance() {
                 <td><StatusBadge status={r.status} /></td>
                 <td>{r.punch_in_photo && <img src={r.punch_in_photo} alt="" className="w-10 h-8 rounded object-cover" />}</td>
                 <td>{r.punch_out_photo && <img src={r.punch_out_photo} alt="" className="w-10 h-8 rounded object-cover" />}</td>
+                <td>{canDelete('attendance') && <button onClick={async () => {
+                  if (!confirm(`Delete attendance record for "${r.user_name}" on ${r.date}?`)) return;
+                  try { await api.delete(`/attendance/${r.id}`); toast.success('Deleted'); load(); }
+                  catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}</td>
               </tr>
             ))}</tbody>
           </table></div></div>

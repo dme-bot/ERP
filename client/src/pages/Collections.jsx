@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
-import { FiPlus, FiEdit2, FiPhoneCall, FiDollarSign, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import { FiPlus, FiEdit2, FiPhoneCall, FiDollarSign, FiAlertTriangle, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 
 export default function Collections() {
+  const { canDelete } = useAuth();
   const [receivables, setReceivables] = useState([]);
   const [summary, setSummary] = useState(null);
   const [users, setUsers] = useState([]);
@@ -133,6 +135,11 @@ export default function Collections() {
                     <div className="flex gap-1">
                       <button onClick={() => openFollowUps(r.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600" title="Follow-up"><FiPhoneCall size={14} /></button>
                       <button onClick={() => { setSelectedId(r.id); setForm({ amount: 0, collection_date: new Date().toISOString().split('T')[0], payment_mode: '', transaction_ref: '', notes: '' }); setCollectModal(true); }} className="p-1 hover:bg-emerald-50 rounded text-emerald-600" title="Record Collection"><FiDollarSign size={14} /></button>
+                      {canDelete('collections') && <button onClick={async () => {
+                        if (!confirm(`Delete receivable "${r.invoice_number || r.client_name}"?`)) return;
+                        try { await api.delete(`/collections/${r.id}`); toast.success('Deleted'); load(); }
+                        catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                      }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>

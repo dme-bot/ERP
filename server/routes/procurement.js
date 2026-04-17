@@ -31,6 +31,20 @@ router.put('/vendors/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/vendors/:id', (req, res) => {
+  const db = getDb();
+  const id = req.params.id;
+  const uses = db.prepare(`SELECT
+    (SELECT COUNT(*) FROM vendor_pos WHERE vendor_id=?) +
+    (SELECT COUNT(*) FROM purchase_bills WHERE vendor_id=?) +
+    (SELECT COUNT(*) FROM indent_items WHERE vendor_id=?) +
+    (SELECT COUNT(*) FROM vendor_rates WHERE vendor1_id=? OR vendor2_id=? OR vendor3_id=? OR selected_vendor_id=?) as c`
+  ).get(id, id, id, id, id, id, id).c;
+  if (uses > 0) return res.status(409).json({ error: 'Cannot delete: vendor is referenced by POs, bills, indents or rate comparisons' });
+  db.prepare('DELETE FROM vendors WHERE id=?').run(id);
+  res.json({ message: 'Deleted' });
+});
+
 // Vendor Rate Comparison
 router.get('/vendor-rates', (req, res) => {
   const { planning_id } = req.query;
@@ -48,6 +62,11 @@ router.post('/vendor-rates', (req, res) => {
     'INSERT INTO vendor_rates (planning_id,item_description,vendor1_id,vendor1_rate,vendor2_id,vendor2_rate,vendor3_id,vendor3_rate,final_rate,selected_vendor_id) VALUES (?,?,?,?,?,?,?,?,?,?)'
   ).run(planning_id, item_description, vendor1_id, vendor1_rate, vendor2_id, vendor2_rate, vendor3_id, vendor3_rate, final_rate, selected_vendor_id);
   res.status(201).json({ id: r.lastInsertRowid });
+});
+
+router.delete('/vendor-rates/:id', (req, res) => {
+  getDb().prepare('DELETE FROM vendor_rates WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 router.put('/vendor-rates/:id/approve', (req, res) => {
@@ -85,6 +104,16 @@ router.put('/indents/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/indents/:id', (req, res) => {
+  const db = getDb();
+  const id = req.params.id;
+  const vpoCount = db.prepare('SELECT COUNT(*) as c FROM vendor_pos WHERE indent_id=?').get(id).c;
+  if (vpoCount > 0) return res.status(409).json({ error: 'Cannot delete: Vendor POs reference this indent' });
+  db.prepare('DELETE FROM indent_items WHERE indent_id=?').run(id);
+  db.prepare('DELETE FROM indents WHERE id=?').run(id);
+  res.json({ message: 'Deleted' });
+});
+
 router.get('/indents/:id', (req, res) => {
   const indent = getDb().prepare('SELECT * FROM indents WHERE id=?').get(req.params.id);
   if (!indent) return res.status(404).json({ error: 'Not found' });
@@ -116,6 +145,16 @@ router.put('/vendor-po/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/vendor-po/:id', (req, res) => {
+  const db = getDb();
+  const id = req.params.id;
+  const billCount = db.prepare('SELECT COUNT(*) as c FROM purchase_bills WHERE vendor_po_id=?').get(id).c;
+  const dnCount = db.prepare('SELECT COUNT(*) as c FROM delivery_notes WHERE vendor_po_id=?').get(id).c;
+  if (billCount > 0 || dnCount > 0) return res.status(409).json({ error: 'Cannot delete: Purchase Bills or Delivery Notes reference this Vendor PO' });
+  db.prepare('DELETE FROM vendor_pos WHERE id=?').run(id);
+  res.json({ message: 'Deleted' });
+});
+
 // Purchase Bills
 router.get('/purchase-bills', (req, res) => {
   res.json(getDb().prepare(`SELECT pb.*, v.name as vendor_name FROM purchase_bills pb
@@ -127,6 +166,11 @@ router.post('/purchase-bills', (req, res) => {
   const r = getDb().prepare('INSERT INTO purchase_bills (vendor_po_id,vendor_id,bill_number,bill_date,amount,gst_amount,total_amount) VALUES (?,?,?,?,?,?,?)')
     .run(vendor_po_id, vendor_id, bill_number, bill_date, amount, gst_amount, total_amount);
   res.status(201).json({ id: r.lastInsertRowid });
+});
+
+router.delete('/purchase-bills/:id', (req, res) => {
+  getDb().prepare('DELETE FROM purchase_bills WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 // Delivery Notes
@@ -148,6 +192,11 @@ router.put('/delivery-notes/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/delivery-notes/:id', (req, res) => {
+  getDb().prepare('DELETE FROM delivery_notes WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 // Sales Bills
 router.get('/sales-bills', (req, res) => {
   res.json(getDb().prepare(`SELECT sb.*, po.po_number FROM sales_bills sb
@@ -162,6 +211,11 @@ router.post('/sales-bills', (req, res) => {
   const r = db.prepare('INSERT INTO sales_bills (po_id,bill_number,bill_date,amount,gst_amount,total_amount) VALUES (?,?,?,?,?,?)')
     .run(po_id, billNum, bill_date, amount, gst_amount, total_amount);
   res.status(201).json({ id: r.lastInsertRowid, bill_number: billNum });
+});
+
+router.delete('/sales-bills/:id', (req, res) => {
+  getDb().prepare('DELETE FROM sales_bills WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 module.exports = router;

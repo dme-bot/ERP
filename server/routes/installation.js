@@ -24,6 +24,17 @@ router.put('/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/:id', (req, res) => {
+  const db = getDb();
+  const id = req.params.id;
+  const ra = db.prepare('SELECT COUNT(*) as c FROM ra_bills WHERE installation_id=?').get(id).c;
+  const mb = db.prepare('SELECT COUNT(*) as c FROM mb_bills WHERE installation_id=?').get(id).c;
+  const hc = db.prepare('SELECT COUNT(*) as c FROM handover_certificates WHERE installation_id=?').get(id).c;
+  if (ra > 0 || mb > 0 || hc > 0) return res.status(409).json({ error: 'Cannot delete: RA/MB bills or handover certificates reference this installation' });
+  db.prepare('DELETE FROM installations WHERE id=?').run(id);
+  res.json({ message: 'Deleted' });
+});
+
 // RA Bills
 router.get('/ra-bills', (req, res) => {
   res.json(getDb().prepare('SELECT * FROM ra_bills ORDER BY created_at DESC').all());
@@ -39,6 +50,13 @@ router.post('/ra-bills', (req, res) => {
 router.put('/ra-bills/:id', (req, res) => {
   getDb().prepare('UPDATE ra_bills SET status=? WHERE id=?').run(req.body.status, req.params.id);
   res.json({ message: 'Updated' });
+});
+
+router.delete('/ra-bills/:id', (req, res) => {
+  const mb = getDb().prepare('SELECT COUNT(*) as c FROM mb_bills WHERE ra_bill_id=?').get(req.params.id).c;
+  if (mb > 0) return res.status(409).json({ error: 'Cannot delete: MB bills reference this RA bill' });
+  getDb().prepare('DELETE FROM ra_bills WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 // MB Bills
@@ -58,6 +76,13 @@ router.put('/mb-bills/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/mb-bills/:id', (req, res) => {
+  const ib = getDb().prepare('SELECT COUNT(*) as c FROM installation_bills WHERE mb_bill_id=?').get(req.params.id).c;
+  if (ib > 0) return res.status(409).json({ error: 'Cannot delete: Installation bills reference this MB bill' });
+  getDb().prepare('DELETE FROM mb_bills WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 // Installation Bills
 router.get('/inst-bills', (req, res) => {
   res.json(getDb().prepare('SELECT * FROM installation_bills ORDER BY created_at DESC').all());
@@ -68,6 +93,11 @@ router.post('/inst-bills', (req, res) => {
   const r = getDb().prepare('INSERT INTO installation_bills (installation_id,mb_bill_id,bill_number,amount) VALUES (?,?,?,?)')
     .run(installation_id, mb_bill_id, bill_number, amount);
   res.status(201).json({ id: r.lastInsertRowid });
+});
+
+router.delete('/inst-bills/:id', (req, res) => {
+  getDb().prepare('DELETE FROM installation_bills WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 // Testing & Commissioning
@@ -107,6 +137,11 @@ router.put('/complaints/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/testing/:id', (req, res) => {
+  getDb().prepare('DELETE FROM testing_commissioning WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 // Handover Certificates
 router.get('/handover', (req, res) => {
   res.json(getDb().prepare('SELECT * FROM handover_certificates ORDER BY created_at DESC').all());
@@ -125,6 +160,11 @@ router.post('/handover', (req, res) => {
 router.put('/handover/:id', (req, res) => {
   getDb().prepare('UPDATE handover_certificates SET status=? WHERE id=?').run(req.body.status, req.params.id);
   res.json({ message: 'Updated' });
+});
+
+router.delete('/handover/:id', (req, res) => {
+  getDb().prepare('DELETE FROM handover_certificates WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 // Payments

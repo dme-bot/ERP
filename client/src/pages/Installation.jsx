@@ -3,9 +3,11 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiEdit2 } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 
 export default function Installation() {
+  const { canDelete } = useAuth();
   const [installations, setInstallations] = useState([]);
   const [pos, setPos] = useState([]);
   const [users, setUsers] = useState([]);
@@ -41,7 +43,14 @@ export default function Installation() {
             <tr key={i.id}>
               <td>{i.po_number}</td><td>{i.site_address}</td><td>{i.start_date}</td><td>{i.end_date}</td>
               <td>{i.assigned_to_name}</td><td><StatusBadge status={i.status} /></td>
-              <td><button onClick={() => { setEditing(i); setForm(i); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button></td>
+              <td><div className="flex gap-1">
+                <button onClick={() => { setEditing(i); setForm(i); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                {canDelete('installation') && <button onClick={async () => {
+                  if (!confirm(`Delete installation "${i.site_address}"?`)) return;
+                  try { await api.delete(`/installation/${i.id}`); toast.success('Deleted'); load(); }
+                  catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+              </div></td>
             </tr>
           ))}
           {installations.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No installations yet</td></tr>}

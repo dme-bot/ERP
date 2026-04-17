@@ -3,9 +3,11 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import { FiPlus, FiTrash2 } from 'react-icons/fi';
 
 export default function Expenses() {
+  const { canDelete } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({});
@@ -57,13 +59,20 @@ export default function Expenses() {
               <td className="font-semibold">Rs {e.amount?.toLocaleString()}</td><td>{e.expense_date}</td>
               <td>{e.submitted_by_name}</td><td><StatusBadge status={e.status} /></td>
               <td>
-                {e.status === 'pending' && (
-                  <div className="flex gap-1">
-                    <button onClick={() => updateStatus(e.id, 'approved')} className="btn btn-success text-xs py-1 px-2">Approve</button>
-                    <button onClick={() => updateStatus(e.id, 'rejected')} className="btn btn-danger text-xs py-1 px-2">Reject</button>
-                  </div>
-                )}
-                {e.status === 'approved' && <button onClick={() => updateStatus(e.id, 'paid')} className="btn btn-primary text-xs py-1 px-2">Mark Paid</button>}
+                <div className="flex gap-1 items-center">
+                  {e.status === 'pending' && (
+                    <>
+                      <button onClick={() => updateStatus(e.id, 'approved')} className="btn btn-success text-xs py-1 px-2">Approve</button>
+                      <button onClick={() => updateStatus(e.id, 'rejected')} className="btn btn-danger text-xs py-1 px-2">Reject</button>
+                    </>
+                  )}
+                  {e.status === 'approved' && <button onClick={() => updateStatus(e.id, 'paid')} className="btn btn-primary text-xs py-1 px-2">Mark Paid</button>}
+                  {canDelete('expenses') && <button onClick={async () => {
+                    if (!confirm(`Delete expense "${e.title}"?`)) return;
+                    try { await api.delete(`/hr/expenses/${e.id}`); toast.success('Deleted'); load(); }
+                    catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                  }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+                </div>
               </td>
             </tr>
           ))}

@@ -3,9 +3,11 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiEdit2 } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
 
 export default function Quotations() {
+  const { canDelete } = useAuth();
   const [tab, setTab] = useState('boq');
   const [boqs, setBoqs] = useState([]);
   const [quotations, setQuotations] = useState([]);
@@ -65,7 +67,7 @@ export default function Quotations() {
           </div>
           <div className="card p-0 overflow-hidden">
             <table>
-              <thead><tr><th>Title</th><th>Client</th><th>Drawing</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
+              <thead><tr><th>Title</th><th>Client</th><th>Drawing</th><th>Total</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
               <tbody>
                 {boqs.map(b => (
                   <tr key={b.id}>
@@ -75,9 +77,16 @@ export default function Quotations() {
                     <td>Rs {b.total_amount?.toLocaleString()}</td>
                     <td><StatusBadge status={b.status} /></td>
                     <td className="text-gray-500">{new Date(b.created_at).toLocaleDateString()}</td>
+                    <td>
+                      {canDelete('quotations') && <button onClick={async () => {
+                        if (!confirm(`Delete BOQ "${b.title}"?`)) return;
+                        try { await api.delete(`/quotations/boq/${b.id}`); toast.success('Deleted'); reload(); }
+                        catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                      }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+                    </td>
                   </tr>
                 ))}
-                {boqs.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No BOQs yet</td></tr>}
+                {boqs.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No BOQs yet</td></tr>}
               </tbody>
             </table>
           </div>
@@ -103,9 +112,16 @@ export default function Quotations() {
                     <td className="font-semibold">Rs {q.final_amount?.toLocaleString()}</td>
                     <td><StatusBadge status={q.status} /></td>
                     <td>
-                      <select className="select w-32" value={q.status} onChange={e => updateQuotation(q.id, e.target.value)}>
-                        {['draft','sent','negotiation','accepted','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                      <div className="flex gap-2 items-center">
+                        <select className="select w-32" value={q.status} onChange={e => updateQuotation(q.id, e.target.value)}>
+                          {['draft','sent','negotiation','accepted','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        {canDelete('quotations') && <button onClick={async () => {
+                          if (!confirm(`Delete quotation "${q.quotation_number}"?`)) return;
+                          try { await api.delete(`/quotations/${q.id}`); toast.success('Deleted'); reload(); }
+                          catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                        }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+                      </div>
                     </td>
                   </tr>
                 ))}

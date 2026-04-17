@@ -73,6 +73,17 @@ router.put('/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+// Delete receivable (blocks if any collection received)
+router.delete('/:id', (req, res) => {
+  const db = getDb();
+  const id = req.params.id;
+  const received = db.prepare('SELECT COUNT(*) as c FROM collections WHERE receivable_id=?').get(id).c;
+  if (received > 0) return res.status(409).json({ error: 'Cannot delete: collections have been recorded against this receivable' });
+  db.prepare('DELETE FROM collection_follow_ups WHERE receivable_id=?').run(id);
+  db.prepare('DELETE FROM receivables WHERE id=?').run(id);
+  res.json({ message: 'Deleted' });
+});
+
 // Add follow-up
 router.post('/:id/follow-up', (req, res) => {
   const { follow_up_date, contact_method, response, promised_date, promised_amount } = req.body;

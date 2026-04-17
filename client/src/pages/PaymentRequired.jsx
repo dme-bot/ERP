@@ -4,7 +4,7 @@ import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiPlus, FiSearch, FiFilter, FiEye, FiCheck, FiX, FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiUpload } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiFilter, FiEye, FiCheck, FiX, FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiUpload, FiTrash2 } from 'react-icons/fi';
 
 const CATEGORIES = ['TA/DA', 'Purchase', 'Labour', 'Transport'];
 const STATUSES = ['pending', 'step1_approved', 'accounts_approved', 'dues_checked', 'velocity_checked', 'final_approved', 'rejected'];
@@ -33,7 +33,7 @@ const emptyForm = {
 };
 
 export default function PaymentRequired() {
-  const { canCreate, canApprove, user } = useAuth();
+  const { canCreate, canApprove, canDelete, user } = useAuth();
   const [tab, setTab] = useState('dashboard');
   const [requests, setRequests] = useState([]);
   const [stats, setStats] = useState(null);
@@ -194,6 +194,11 @@ export default function PaymentRequired() {
                     {canApprove('payment_required') && r.status !== 'final_approved' && r.status !== 'rejected' && <>
                       <button onClick={() => viewRequest(r.id)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded font-bold text-xs" title="Review & Approve/Reject">Review</button>
                     </>}
+                    {canDelete('payment_required') && <button onClick={async () => {
+                      if (!confirm(`Delete request "${r.request_no}"?`)) return;
+                      try { await api.delete(`/payment-required/${r.id}`); toast.success('Deleted'); load(); }
+                      catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                    }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}
                   </div></td>
                 </tr>
               ))}

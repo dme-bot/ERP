@@ -3,9 +3,11 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiEdit2, FiDownload, FiUpload, FiSearch, FiUsers } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import { FiPlus, FiEdit2, FiTrash2, FiDownload, FiUpload, FiSearch, FiUsers } from 'react-icons/fi';
 
 export default function Employees() {
+  const { canDelete } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [modal, setModal] = useState(false);
   const [bulkModal, setBulkModal] = useState(false);
@@ -148,7 +150,14 @@ export default function Employees() {
               <td>{e.designation}</td><td>{e.department}</td><td>{e.join_date}</td>
               <td className="font-medium">Rs {(e.salary || 0).toLocaleString('en-IN')}</td>
               <td><StatusBadge status={e.status} /></td>
-              <td><button onClick={() => { setEditing(e); setForm(e); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button></td>
+              <td><div className="flex gap-1">
+                <button onClick={() => { setEditing(e); setForm(e); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                {canDelete('employees') && <button onClick={async () => {
+                  if (!confirm(`Delete employee "${e.name}"?`)) return;
+                  try { await api.delete(`/hr/employees/${e.id}`); toast.success('Deleted'); load(); }
+                  catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+              </div></td>
             </tr>
           ))}
           {filtered.length === 0 && <tr><td colSpan="9" className="text-center py-8 text-gray-400">No employees found</td></tr>}

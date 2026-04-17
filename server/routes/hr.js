@@ -29,6 +29,11 @@ router.put('/candidates/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/candidates/:id', (req, res) => {
+  getDb().prepare('DELETE FROM candidates WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 router.get('/candidates/stats', (req, res) => {
   const db = getDb();
   const total = db.prepare('SELECT COUNT(*) as count FROM candidates').get();
@@ -76,6 +81,11 @@ router.put('/employees/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/employees/:id', (req, res) => {
+  getDb().prepare('DELETE FROM employees WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 // Sub-Contractors
 router.get('/sub-contractors', (req, res) => {
   res.json(getDb().prepare('SELECT * FROM sub_contractors ORDER BY name').all());
@@ -93,6 +103,11 @@ router.put('/sub-contractors/:id', (req, res) => {
   getDb().prepare('UPDATE sub_contractors SET name=?,phone=?,email=?,specialization=?,rate=?,rate_unit=?,status=?,notes=? WHERE id=?')
     .run(name, phone, email, specialization, rate, rate_unit, status, notes, req.params.id);
   res.json({ message: 'Updated' });
+});
+
+router.delete('/sub-contractors/:id', (req, res) => {
+  getDb().prepare('DELETE FROM sub_contractors WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 // Expenses
@@ -119,6 +134,11 @@ router.put('/expenses/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+router.delete('/expenses/:id', (req, res) => {
+  getDb().prepare('DELETE FROM expenses WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 // Checklists
 router.get('/checklists', (req, res) => {
   res.json(getDb().prepare(`SELECT c.*, u1.name as assigned_to_name, u2.name as created_by_name FROM checklists c
@@ -137,6 +157,11 @@ router.put('/checklists/:id', (req, res) => {
   getDb().prepare('UPDATE checklists SET status=?,title=?,description=?,frequency=?,due_date=?,assigned_to=? WHERE id=?')
     .run(status, title, description, frequency, due_date, assigned_to, req.params.id);
   res.json({ message: 'Updated' });
+});
+
+router.delete('/checklists/:id', (req, res) => {
+  getDb().prepare('DELETE FROM checklists WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
 });
 
 module.exports = router;

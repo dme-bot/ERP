@@ -10,7 +10,7 @@ const SYSTEMS = ['Electrical', 'Fire Fighting', 'Fire Alarm', 'CCTV', 'Access Co
 const EQUIPMENT_LIST = ['Welding Machine', 'Pipe Threading Machine', 'Drill Machine', 'Grinder', 'Ladder', 'Scaffolding', 'Pipe Bending Machine', 'Cable Pulling Machine', 'Multimeter', 'Megger', 'Earth Tester', 'Hydro Test Pump', 'Generator', 'Compressor'];
 
 export default function DPR() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, canDelete } = useAuth();
   const [tab, setTab] = useState('dashboard');
   const [summary, setSummary] = useState(null);
   const [dprs, setDprs] = useState([]);
@@ -162,6 +162,11 @@ export default function DPR() {
                       <button onClick={() => approveDpr(d.id, 'approved', true)} className="btn btn-success text-[10px] py-0.5 px-1.5">Approve+Bill</button>
                       <button onClick={() => approveDpr(d.id, 'rejected', false)} className="btn btn-danger text-[10px] py-0.5 px-1.5">Reject</button>
                     </>}
+                    {canDelete('dpr') && <button onClick={async () => {
+                      if (!confirm(`Delete DPR for "${d.site_name}" on ${d.report_date}?`)) return;
+                      try { await api.delete(`/dpr/${d.id}`); toast.success('Deleted'); load(); }
+                      catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                    }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}
                   </div></td>
                 </tr>
               ))}

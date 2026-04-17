@@ -3,9 +3,11 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiCheck, FiX } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import { FiPlus, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
 
 export default function Procurement() {
+  const { canDelete } = useAuth();
   const [tab, setTab] = useState('indents');
   const [indents, setIndents] = useState([]);
   const [vendorPos, setVendorPos] = useState([]);
@@ -86,13 +88,20 @@ export default function Procurement() {
                   <td className="font-medium">{i.indent_number}</td><td>{i.indent_date}</td><td>{i.created_by_name}</td>
                   <td><StatusBadge status={i.status} /></td>
                   <td>
-                    {i.status === 'submitted' && (
-                      <div className="flex gap-1">
-                        <button onClick={() => approveIndent(i.id, 'approved')} className="btn btn-success text-xs py-1 px-2">Approve</button>
-                        <button onClick={() => approveIndent(i.id, 'rejected')} className="btn btn-danger text-xs py-1 px-2">Reject</button>
-                      </div>
-                    )}
-                    {i.status === 'draft' && <button onClick={() => approveIndent(i.id, 'submitted')} className="btn btn-primary text-xs py-1 px-2">Submit</button>}
+                    <div className="flex gap-1 items-center">
+                      {i.status === 'submitted' && (
+                        <>
+                          <button onClick={() => approveIndent(i.id, 'approved')} className="btn btn-success text-xs py-1 px-2">Approve</button>
+                          <button onClick={() => approveIndent(i.id, 'rejected')} className="btn btn-danger text-xs py-1 px-2">Reject</button>
+                        </>
+                      )}
+                      {i.status === 'draft' && <button onClick={() => approveIndent(i.id, 'submitted')} className="btn btn-primary text-xs py-1 px-2">Submit</button>}
+                      {canDelete('procurement') && <button onClick={async () => {
+                        if (!confirm(`Delete indent "${i.indent_number}"?`)) return;
+                        try { await api.delete(`/procurement/indents/${i.id}`); toast.success('Deleted'); load(); }
+                        catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                      }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -109,16 +118,21 @@ export default function Procurement() {
             <button onClick={() => { setForm({ indent_id: '', vendor_id: '', total_amount: 0, advance_required: false }); setModal('vendorpo'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Vendor PO</button>
           </div>
           <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>PO Number</th><th>Vendor</th><th>Amount</th><th>Advance</th><th>Status</th></tr></thead>
+            <thead><tr><th>PO Number</th><th>Vendor</th><th>Amount</th><th>Advance</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {vendorPos.map(v => (
                 <tr key={v.id}>
                   <td className="font-medium">{v.po_number}</td><td>{v.vendor_name}</td><td>Rs {v.total_amount?.toLocaleString()}</td>
                   <td>{v.advance_required ? (v.advance_paid ? 'Paid' : 'Required') : 'N/A'}</td>
                   <td><StatusBadge status={v.status} /></td>
+                  <td>{canDelete('procurement') && <button onClick={async () => {
+                    if (!confirm(`Delete vendor PO "${v.po_number}"?`)) return;
+                    try { await api.delete(`/procurement/vendor-po/${v.id}`); toast.success('Deleted'); load(); }
+                    catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                  }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}</td>
                 </tr>
               ))}
-              {vendorPos.length === 0 && <tr><td colSpan="5" className="text-center py-8 text-gray-400">No vendor POs yet</td></tr>}
+              {vendorPos.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No vendor POs yet</td></tr>}
             </tbody>
           </table></div>
         </>
@@ -131,7 +145,7 @@ export default function Procurement() {
             <button onClick={() => { setForm({ vendor_id: '', bill_number: '', bill_date: '', amount: 0, gst_amount: 0, total_amount: 0 }); setModal('bill'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Bill</button>
           </div>
           <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>Bill No</th><th>Vendor</th><th>Date</th><th>Amount</th><th>GST</th><th>Total</th><th>Payment</th></tr></thead>
+            <thead><tr><th>Bill No</th><th>Vendor</th><th>Date</th><th>Amount</th><th>GST</th><th>Total</th><th>Payment</th><th>Actions</th></tr></thead>
             <tbody>
               {purchaseBills.map(b => (
                 <tr key={b.id}>
@@ -139,9 +153,14 @@ export default function Procurement() {
                   <td>Rs {b.amount?.toLocaleString()}</td><td>Rs {b.gst_amount?.toLocaleString()}</td>
                   <td className="font-semibold">Rs {b.total_amount?.toLocaleString()}</td>
                   <td><StatusBadge status={b.payment_status} /></td>
+                  <td>{canDelete('procurement') && <button onClick={async () => {
+                    if (!confirm(`Delete purchase bill "${b.bill_number}"?`)) return;
+                    try { await api.delete(`/procurement/purchase-bills/${b.id}`); toast.success('Deleted'); load(); }
+                    catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                  }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}</td>
                 </tr>
               ))}
-              {purchaseBills.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No bills yet</td></tr>}
+              {purchaseBills.length === 0 && <tr><td colSpan="8" className="text-center py-8 text-gray-400">No bills yet</td></tr>}
             </tbody>
           </table></div>
         </>
@@ -154,15 +173,20 @@ export default function Procurement() {
             <button onClick={() => { setForm({ vendor_po_id: '', delivery_date: '', notes: '' }); setModal('delivery'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Note</button>
           </div>
           <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>ID</th><th>Date</th><th>Received By</th><th>Status</th></tr></thead>
+            <thead><tr><th>ID</th><th>Date</th><th>Received By</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {deliveryNotes.map(d => (
                 <tr key={d.id}>
                   <td>#{d.id}</td><td>{d.delivery_date}</td><td>{d.received_by_name}</td>
                   <td><StatusBadge status={d.status} /></td>
+                  <td>{canDelete('procurement') && <button onClick={async () => {
+                    if (!confirm(`Delete delivery note #${d.id}?`)) return;
+                    try { await api.delete(`/procurement/delivery-notes/${d.id}`); toast.success('Deleted'); load(); }
+                    catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                  }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}</td>
                 </tr>
               ))}
-              {deliveryNotes.length === 0 && <tr><td colSpan="4" className="text-center py-8 text-gray-400">No delivery notes yet</td></tr>}
+              {deliveryNotes.length === 0 && <tr><td colSpan="5" className="text-center py-8 text-gray-400">No delivery notes yet</td></tr>}
             </tbody>
           </table></div>
         </>

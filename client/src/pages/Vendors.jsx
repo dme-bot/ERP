@@ -104,6 +104,11 @@ export default function Vendors() {
                   <div className="flex gap-1">
                     <button onClick={() => { setViewData(v); setModal('view'); }} className="p-1 text-gray-400 hover:text-blue-600"><FiEye size={14} /></button>
                     {canEdit('vendors') && <button onClick={() => { setEditing(v); setForm(v); setModal('vendor'); }} className="p-1 text-gray-400 hover:text-amber-600"><FiEdit2 size={14} /></button>}
+                    {canDelete('vendors') && <button onClick={async () => {
+                      if (!confirm(`Delete vendor "${v.name}"?`)) return;
+                      try { await api.delete(`/procurement/vendors/${v.id}`); toast.success('Deleted'); load(); }
+                      catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                    }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
                   </div>
                 </td>
               </tr>
@@ -129,12 +134,19 @@ export default function Vendors() {
                 <td className="font-bold text-emerald-600">Rs {r.final_rate}</td>
                 <td className="font-medium text-blue-600">{r.selected_vendor_name}</td>
                 <td><span className={`badge ${r.approval_status === 'approved' ? 'badge-green' : r.approval_status === 'rejected' ? 'badge-red' : 'badge-yellow'}`}>{r.approval_status}</span></td>
-                <td>{r.approval_status === 'pending' && (
-                  <div className="flex gap-1">
-                    <button onClick={() => approveRate(r.id, 'approved')} className="text-[10px] text-emerald-600 font-bold">Approve</button>
-                    <button onClick={() => approveRate(r.id, 'rejected')} className="text-[10px] text-red-600 font-bold">Reject</button>
-                  </div>
-                )}</td>
+                <td><div className="flex gap-1 items-center">
+                  {r.approval_status === 'pending' && (
+                    <>
+                      <button onClick={() => approveRate(r.id, 'approved')} className="text-[10px] text-emerald-600 font-bold">Approve</button>
+                      <button onClick={() => approveRate(r.id, 'rejected')} className="text-[10px] text-red-600 font-bold">Reject</button>
+                    </>
+                  )}
+                  {canDelete('procurement') && <button onClick={async () => {
+                    if (!confirm(`Delete rate comparison for "${r.item_description}"?`)) return;
+                    try { await api.delete(`/procurement/vendor-rates/${r.id}`); toast.success('Deleted'); load(); }
+                    catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                  }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}
+                </div></td>
               </tr>
             ))}{rates.length === 0 && <tr><td colSpan="11" className="text-center py-8 text-gray-400">No comparisons yet</td></tr>}</tbody>
           </table></div></div>

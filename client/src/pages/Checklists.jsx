@@ -3,9 +3,11 @@ import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiPlus, FiEdit2 } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 
 export default function Checklists() {
+  const { canDelete } = useAuth();
   const [checklists, setChecklists] = useState([]);
   const [users, setUsers] = useState([]);
   const [modal, setModal] = useState(false);
@@ -37,7 +39,14 @@ export default function Checklists() {
               <td className="font-medium">{c.title}</td><td className="max-w-xs truncate">{c.description}</td>
               <td className="capitalize">{c.frequency}</td><td>{c.due_date}</td><td>{c.assigned_to_name}</td>
               <td><StatusBadge status={c.status} /></td>
-              <td><button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button></td>
+              <td><div className="flex gap-1">
+                <button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                {canDelete('checklists') && <button onClick={async () => {
+                  if (!confirm(`Delete checklist "${c.title}"?`)) return;
+                  try { await api.delete(`/hr/checklists/${c.id}`); toast.success('Deleted'); load(); }
+                  catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+              </div></td>
             </tr>
           ))}
           {checklists.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No checklists yet</td></tr>}

@@ -249,4 +249,14 @@ router.put('/leave/:id/approve', requirePermission('attendance', 'approve'), (re
   res.json({ message: `Leave ${status}` });
 });
 
+router.delete('/leave/:id', requirePermission('attendance', 'delete'), (req, res) => {
+  getDb().prepare('DELETE FROM leave_requests WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
+router.delete('/:id', requirePermission('attendance', 'delete'), (req, res) => {
+  getDb().prepare('DELETE FROM attendance WHERE id=?').run(req.params.id);
+  res.json({ message: 'Deleted' });
+});
+
 module.exports = router;
