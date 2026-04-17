@@ -49,7 +49,7 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
     const totalDays = completionDays + paymentDays; // R: Total = P + Q
 
     // Cash Velocity = (J - K) / R = (Aanchal Value - Purchase Value) / Total Days
-    const effPurchase = pf?.manual_purchase_value ?? purchaseAmt;
+    const effPurchase = pf?.manual_purchase_value != null ? pf.manual_purchase_value * 100000 : purchaseAmt;
     const effCompletion = pf?.manual_completion_days ?? completionDays;
     const effTotal = effCompletion + paymentDays;
     const cashVelocity = effTotal > 0 ? Math.round(((aanchalValue - effPurchase) / effTotal) * 100) / 100 : 0;
@@ -65,7 +65,7 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
       amount_received: pf?.amount_received || amountReceived, // H: Tally (manual)
       milestone_name: pf?.milestone_name || '',  // I: Milestone (manual)
       aanchal_value: pf?.aanchal_value || 0,  // J: Aanchal Value (in lakhs, manual)
-      purchase_value: pf?.manual_purchase_value ?? purchaseAmt, // K: Purchase Value (auto from FMS)
+      purchase_value: pf?.manual_purchase_value != null ? pf.manual_purchase_value * 100000 : purchaseAmt, // K: Purchase Value (auto from FMS)
       cash_velocity: cashVelocity,  // M: (J-K)/R
       live_date: today,  // N: Today
       payment_investment_days: paymentInvestDays,  // O: Manual by Nitin ji
