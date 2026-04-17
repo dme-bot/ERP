@@ -31,19 +31,25 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
     // Total PO value for this company
     const totalPO = db.prepare("SELECT COALESCE(SUM(po.total_amount),0) as total FROM purchase_orders po JOIN business_book bb ON po.business_book_id=bb.id WHERE bb.company_name=?").get(p.project_name);
 
-    // Cash velocity = received / purchase value (if purchase > 0)
     const amountReceived = received?.total || 0;
     const purchaseAmt = purchaseValue?.total || 0;
-    const cashVelocity = purchaseAmt > 0 ? Math.round((amountReceived / purchaseAmt) * 100) / 100 : 0;
+
+    // Get manual fields from project_finance
+    const pf = db.prepare('SELECT * FROM project_finance WHERE business_book_id=?').get(p.id);
+    const aanchalValue = (pf?.aanchal_value || 0) * 100000; // in Rs (aanchal stored in lakhs)
+    const paymentInvestDays = pf?.payment_investment_days || 0;
+    const manualPaymentDays = pf?.payment_days || 0;
 
     // Days calculation
     const startDate = p.committed_start_date ? new Date(p.committed_start_date) : new Date(p.created_at);
     const completionDate = p.committed_completion_date ? new Date(p.committed_completion_date) : null;
     const todayDate = new Date(today);
     const completionDays = completionDate ? Math.ceil((completionDate - startDate) / (1000 * 60 * 60 * 24)) : 0;
-    const daysSinceStart = Math.ceil((todayDate - startDate) / (1000 * 60 * 60 * 24));
-    const paymentDays = daysSinceStart;
-    const totalDays = completionDays + paymentDays;
+    const paymentDays = manualPaymentDays; // Q: Payment Days (manual)
+    const totalDays = completionDays + paymentDays; // R: Total = P + Q
+
+    // Cash Velocity = (J - K) / R = (Aanchal Value - Purchase Value) / Total Days
+    const cashVelocity = totalDays > 0 ? Math.round(((aanchalValue - purchaseAmt) / totalDays) * 100) / 100 : 0;
 
     return {
       sr_no: idx + 1,
@@ -53,16 +59,16 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
       category: p.category,
       sale_amount: p.sale_amount_without_gst || 0,
       po_amount: totalPO?.total || p.po_amount || 0,
-      amount_received: amountReceived,
-      milestone_name: '',
-      aanchal_value: Math.round((amountReceived / 100000) * 100) / 100, // in lakhs
-      purchase_value: purchaseAmt,
-      cash_velocity: cashVelocity,
-      live_date: today,
-      payment_investment_days: 0,
-      completion_days: completionDays,
-      payment_days: paymentDays,
-      total_days: totalDays,
+      amount_received: pf?.amount_received || amountReceived, // H: Tally (manual)
+      milestone_name: pf?.milestone_name || '',  // I: Milestone (manual)
+      aanchal_value: pf?.aanchal_value || 0,  // J: Aanchal Value (in lakhs, manual)
+      purchase_value: purchaseAmt,  // K: Purchase Value (auto from FMS)
+      cash_velocity: cashVelocity,  // M: (J-K)/R
+      live_date: today,  // N: Today
+      payment_investment_days: paymentInvestDays,  // O: Manual by Nitin ji
+      completion_days: completionDays,  // P: from dates
+      payment_days: paymentDays,  // Q: Manual
+      total_days: totalDays,  // R: P+Q
       committed_start: p.committed_start_date,
       committed_completion: p.committed_completion_date,
     };
@@ -78,14 +84,15 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
 
 // POST update project manual fields (milestone, aanchal value, payment days)
 router.post('/projects/:id/update', requirePermission('cashflow', 'edit'), (req, res) => {
-  const { crm_person, amount_received, milestone_name, aanchal_value, payment_investment_days } = req.body;
+  const { crm_person, amount_received, milestone_name, aanchal_value, payment_investment_days, payment_days } = req.body;
   const db = getDb();
-  // Update CRM person in business_book
+  // Add payment_days column if missing
+  try { db.exec('ALTER TABLE project_finance ADD COLUMN payment_days INTEGER DEFAULT 0'); } catch(e) {}
   if (crm_person !== undefined) {
     db.prepare('UPDATE business_book SET employee_assigned=? WHERE id=?').run(crm_person, req.params.id);
   }
-  db.prepare('INSERT OR REPLACE INTO project_finance (business_book_id, amount_received, milestone_name, aanchal_value, payment_investment_days, updated_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)')
-    .run(req.params.id, amount_received || 0, milestone_name, aanchal_value || 0, payment_investment_days || 0);
+  db.prepare('INSERT OR REPLACE INTO project_finance (business_book_id, amount_received, milestone_name, aanchal_value, payment_investment_days, payment_days, updated_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)')
+    .run(req.params.id, amount_received || 0, milestone_name, aanchal_value || 0, payment_investment_days || 0, payment_days || 0);
   res.json({ message: 'Updated' });
 });
 

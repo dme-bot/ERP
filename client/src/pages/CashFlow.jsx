@@ -120,12 +120,16 @@ export default function CashFlow() {
                     <td className="px-2 py-2 text-right">{p.payment_investment_days || '-'}</td>
                   )}
                   <td className="px-2 py-2 text-right">{p.completion_days || '-'}</td>
-                  <td className="px-2 py-2 text-right">{p.payment_days || '-'}</td>
+                  {editRow === p.id ? (
+                    <td className="px-1 py-1"><input className="input text-xs w-12" type="number" value={editForm.payment_days||''} onChange={e=>setEditForm({...editForm,payment_days:+e.target.value})} /></td>
+                  ) : (
+                    <td className="px-2 py-2 text-right">{p.payment_days || '-'}</td>
+                  )}
                   <td className="px-2 py-2 text-right font-bold">{p.total_days || '-'}</td>
                   <td className="px-1 py-1">{editRow === p.id ? (
                     <div className="flex gap-1"><button onClick={()=>saveManualFields(p.id)} className="text-[10px] text-emerald-600 font-bold">Save</button><button onClick={()=>setEditRow(null)} className="text-[10px] text-gray-400">X</button></div>
                   ) : (
-                    <button onClick={()=>{setEditRow(p.id);setEditForm({crm_person:p.crm_person,amount_received:p.amount_received,milestone_name:p.milestone_name,aanchal_value:p.aanchal_value,payment_investment_days:p.payment_investment_days});}} className="text-[10px] text-blue-600 font-bold">Edit</button>
+                    <button onClick={()=>{setEditRow(p.id);setEditForm({crm_person:p.crm_person,amount_received:p.amount_received,milestone_name:p.milestone_name,aanchal_value:p.aanchal_value,payment_investment_days:p.payment_investment_days,payment_days:p.payment_days});}} className="text-[10px] text-blue-600 font-bold">Edit</button>
                   )}</td>
                 </tr>
               ))}</tbody>
