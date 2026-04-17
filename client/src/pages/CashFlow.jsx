@@ -89,7 +89,7 @@ export default function CashFlow() {
                 <th className="px-2 py-2">Sr</th><th className="px-2 py-2 text-left">Project</th><th className="px-2 py-2 text-left">CRM</th>
                 <th className="px-2 py-2 text-right">Sale Value</th>
                 <th className="px-2 py-2 text-right">Amt Received</th><th className="px-2 py-2">Milestone</th><th className="px-2 py-2 text-right">Value (L)</th>
-                <th className="px-2 py-2 text-right">Purchase (FMS)</th><th className="px-2 py-2 text-right">Velocity</th><th className="px-2 py-2">Date</th>
+                <th className="px-2 py-2 text-right">Purchase (L)</th><th className="px-2 py-2 text-right">Velocity</th><th className="px-2 py-2">Date</th>
                 <th className="px-2 py-2 text-right">Invest Days</th><th className="px-2 py-2 text-right">Completion</th><th className="px-2 py-2 text-right">Payment</th><th className="px-2 py-2 text-right">Total</th><th className="px-2 py-2"></th>
               </tr></thead>
               <tbody>{filtered.map(p => (
@@ -111,7 +111,7 @@ export default function CashFlow() {
                     <td className="px-2 py-2 text-center"><span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">{p.milestone_name || '-'}</span></td>
                     <td className="px-2 py-2 text-right font-semibold">{p.aanchal_value > 0 ? `${p.aanchal_value}L` : '-'}</td>
                   </>)}
-                  {editRow === p.id ? (<td className="px-1 py-1"><input className="input text-xs w-20" type="number" value={editForm.manual_purchase_value||''} onChange={e=>setEditForm({...editForm,manual_purchase_value:+e.target.value})} /></td>) : (<td className="px-2 py-2 text-right font-semibold text-red-600">{p.purchase_value > 0 ? fmt(p.purchase_value) : '-'}</td>)}
+                  {editRow === p.id ? (<td className="px-1 py-1"><input className="input text-xs w-20" type="number" value={editForm.manual_purchase_value||''} onChange={e=>setEditForm({...editForm,manual_purchase_value:+e.target.value})} /></td>) : (<td className="px-2 py-2 text-right font-semibold text-red-600">{p.purchase_value > 0 ? fmtL(p.purchase_value) : '-'}</td>)}
                   <td className={`px-2 py-2 text-right font-bold ${p.cash_velocity >= 1 ? 'text-emerald-600' : p.cash_velocity > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{p.cash_velocity > 0 ? p.cash_velocity.toFixed(2) : '-'}</td>
                   <td className="px-2 py-2 text-[10px]">{p.live_date}</td>
                   {editRow === p.id ? (
@@ -138,7 +138,7 @@ export default function CashFlow() {
                 <td className="px-2 py-2 text-right text-blue-700">{fmtL(filtered.reduce((s, p) => s + p.sale_amount, 0))}</td>
                 <td className="px-2 py-2 text-right text-emerald-700">{fmt(filtered.reduce((s, p) => s + p.amount_received, 0))}</td>
                 <td></td><td className="px-2 py-2 text-right">{filtered.reduce((s, p) => s + p.aanchal_value, 0).toFixed(2)}L</td>
-                <td className="px-2 py-2 text-right text-red-700">{fmt(filtered.reduce((s, p) => s + p.purchase_value, 0))}</td>
+                <td className="px-2 py-2 text-right text-red-700">{fmtL(filtered.reduce((s, p) => s + p.purchase_value, 0))}</td>
                 <td colSpan="7"></td>
               </tr></tfoot>
             </table></div>
