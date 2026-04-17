@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { FiPlus, FiEye, FiSearch, FiAlertCircle, FiClock, FiCheckCircle, FiList } from 'react-icons/fi';
 
 const emptyForm = {
@@ -21,8 +21,8 @@ export default function Complaints() {
   const load = async () => {
     const params = new URLSearchParams(Object.entries(q).filter(([,v]) => v)).toString();
     const [l, s] = await Promise.all([
-      axios.get('/api/complaints' + (params ? '?'+params : '')),
-      axios.get('/api/complaints/stats'),
+      api.get('/complaints' + (params ? '?'+params : '')),
+      api.get('/complaints/stats'),
     ]);
     setList(l.data);
     setStats(s.data);
@@ -32,14 +32,14 @@ export default function Complaints() {
 
   const create = async (e) => {
     e.preventDefault();
-    await axios.post('/api/complaints', form);
+    await api.post('/complaints', form);
     setShowAdd(false);
     setForm(emptyForm);
     load();
   };
 
   const save = async () => {
-    await axios.put(`/api/complaints/${viewing.id}`, viewing);
+    await api.put(`/complaints/${viewing.id}`, viewing);
     setViewing(null);
     load();
   };
