@@ -139,8 +139,6 @@ export default function Complaints() {
               <select value={form.complaint_type} onChange={e=>setForm({...form, complaint_type:e.target.value})} className="inp"><option>Urgent</option><option>Normal</option><option>Low</option></select>
             </Field>
             <Field label="EMP Name"><input value={form.emp_name} onChange={e=>setForm({...form, emp_name:e.target.value})} className="inp" /></Field>
-            <Field label="Step 1 Planned Date"><input type="date" value={form.step1_planned_date} onChange={e=>setForm({...form, step1_planned_date:e.target.value})} className="inp" /></Field>
-            <Field label="Step 1 Assigned To"><input value={form.step1_assigned_to} onChange={e=>setForm({...form, step1_assigned_to:e.target.value})} className="inp" /></Field>
             <div className="md:col-span-2">
               <Field label="Problem Detail *"><textarea required rows="3" value={form.problem_detail} onChange={e=>setForm({...form, problem_detail:e.target.value})} className="inp" /></Field>
             </div>
