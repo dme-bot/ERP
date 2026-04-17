@@ -573,17 +573,38 @@ function initializeDatabase() {
     -- Complaints
     CREATE TABLE IF NOT EXISTS complaints (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      complaint_number TEXT UNIQUE,
+      -- Step 1: Registration (Client)
+      client_name TEXT NOT NULL,
+      company_name TEXT,
+      mobile_number TEXT,
+      category TEXT,
+      problem_detail TEXT NOT NULL,
+      customer_type TEXT,
+      complaint_type TEXT,
+      emp_name TEXT,
+      step1_planned_date DATE,
+      step1_actual_date DATE,
+      step1_time_delay INTEGER DEFAULT 0,
+      step1_assigned_to TEXT,
+      -- Step 2: Resolution (CRM/LV Team)
+      step2_planned_date DATE,
+      step2_actual_date DATE,
+      step2_time_delay INTEGER DEFAULT 0,
+      step2_assigned_to TEXT,
+      service_report TEXT,
+      -- Legacy fields for backward compat
       installation_id INTEGER REFERENCES installations(id),
       po_id INTEGER REFERENCES purchase_orders(id),
-      complaint_number TEXT UNIQUE,
-      description TEXT NOT NULL,
+      description TEXT,
       priority TEXT DEFAULT 'medium' CHECK(priority IN ('low','medium','high','critical')),
       status TEXT DEFAULT 'open' CHECK(status IN ('open','in_progress','resolved','closed')),
       resolved_date DATE,
       resolution_notes TEXT,
       created_by INTEGER REFERENCES users(id),
       assigned_to INTEGER REFERENCES users(id),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     -- Handover Certificates
