@@ -1,0 +1,170 @@
+import { useState, useEffect } from 'react';
+import api from '../api';
+import Modal from './Modal';
+import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import { FiHelpCircle, FiBook, FiX, FiPlus, FiCheckCircle, FiClock, FiAlertTriangle } from 'react-icons/fi';
+
+const GUIDES = [
+  { title: 'How to Add a Business Book Entry', steps: ['Go to Business Book page', 'Click "New Entry"', 'Fill client, company, project details', 'Select category (FF/Electrical/etc)', 'Save - auto creates Site + Order Planning'] },
+  { title: 'How to Create a Purchase Order', steps: ['Go to Orders & Planning', 'Click "Add PO"', 'Select Business Book entry', 'Upload PO copy', 'Upload BOQ Excel → items auto-fill', 'Create PO'] },
+  { title: 'How to Submit DPR', steps: ['Go to DPR page', 'Click "Submit DPR"', 'Select site', 'Fill Table A (Installation from PO)', 'Fill Table B (Costs)', 'Add safety, hindrances, next day plan', 'Submit'] },
+  { title: 'How to Request Payment', steps: ['Go to Payment Required', 'Click "New Request"', 'Select employee name (auto fills dept/phone)', 'Select category', 'Fill required fields based on category', 'Submit - goes to category approver'] },
+  { title: 'How to Punch Attendance', steps: ['Open ERP on mobile', 'Go to Attendance', 'Click "Take Selfie"', 'Allow GPS + Camera', 'Click PUNCH IN (only inside office geofence)', 'After work click PUNCH OUT'] },
+  { title: 'How to Add a New User', steps: ['Admin → User Management', 'Click "Add User"', 'Fill name, email, password', 'Assign roles (Site Engineer/HR/etc.)', 'User can now login'] },
+  { title: 'How to Approve Payment', steps: ['Go to Payment Required', 'Click Review on pending request', 'Read all details', 'Enter approval reason (min 5 chars)', 'Click Approve or Reject'] },
+  { title: 'How Sales Funnel Works', steps: ['New Lead (SC)', 'Mark Qualified or Not (SC)', 'Assign Meeting (SC)', 'Upload MOM (ASM)', 'Upload Drawings (ASM)', 'Create BOQ (Designer)', 'Send Quotation (SC)', 'Final: Won/Lost'] },
+];
+
+export default function HelpTicket() {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState('tickets');
+  const [tickets, setTickets] = useState([]);
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({ subject: '', description: '', category: 'bug', priority: 'medium', module: '' });
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [adminResponse, setAdminResponse] = useState('');
+
+  const isAdmin = user?.role === 'admin';
+
+  const load = () => { api.get('/support').then(r => setTickets(r.data)).catch(() => {}); };
+  useEffect(() => { if (open) load(); }, [open]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    try { const res = await api.post('/support', form); toast.success(`Ticket ${res.data.ticket_no} created`); setModal(null); setForm({ subject: '', description: '', category: 'bug', priority: 'medium', module: '' }); load(); }
+    catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  };
+
+  const updateTicket = async (id, update) => {
+    try { await api.put(`/support/${id}`, update); toast.success('Updated'); setSelectedTicket(null); setAdminResponse(''); load(); }
+    catch { toast.error('Failed'); }
+  };
+
+  const statusColors = { open: 'bg-red-100 text-red-700', in_progress: 'bg-amber-100 text-amber-700', resolved: 'bg-emerald-100 text-emerald-700', closed: 'bg-gray-100 text-gray-500' };
+  const priorityColors = { low: 'text-gray-500', medium: 'text-blue-600', high: 'text-amber-600', urgent: 'text-red-600' };
+
+  return (
+    <>
+      {/* Floating Help Button */}
+      <button onClick={() => setOpen(true)}
+        className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/40 flex items-center justify-center hover:scale-110 transition-transform"
+        title="Help & Support">
+        <FiHelpCircle size={24} />
+      </button>
+
+      {/* Help Panel */}
+      {open && (
+        <div className="fixed bottom-24 right-6 z-40 w-[420px] max-w-[calc(100vw-2rem)] max-h-[80vh] bg-white rounded-2xl shadow-2xl border flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-2xl">
+            <div>
+              <h3 className="font-bold">Help & Support</h3>
+              <p className="text-xs opacity-80">We're here to help</p>
+            </div>
+            <button onClick={() => setOpen(false)} className="p-1.5 hover:bg-white/20 rounded"><FiX size={18}/></button>
+          </div>
+
+          <div className="flex border-b">
+            <button onClick={() => setTab('tickets')} className={`flex-1 py-2.5 text-xs font-bold ${tab==='tickets' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}>
+              <FiHelpCircle className="inline mr-1" size={12}/> Tickets {tickets.length > 0 && `(${tickets.filter(t=>t.status!=='closed'&&t.status!=='resolved').length})`}
+            </button>
+            <button onClick={() => setTab('learner')} className={`flex-1 py-2.5 text-xs font-bold ${tab==='learner' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}>
+              <FiBook className="inline mr-1" size={12}/> ERP Learner
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3">
+            {tab === 'tickets' && (
+              <div className="space-y-2">
+                <button onClick={() => setModal('new')} className="w-full btn btn-primary text-xs py-2 flex items-center justify-center gap-1"><FiPlus size={12}/> Raise New Ticket</button>
+                {tickets.length === 0 && <p className="text-xs text-gray-400 text-center py-6">No tickets yet</p>}
+                {tickets.map(t => (
+                  <div key={t.id} onClick={() => { setSelectedTicket(t); setAdminResponse(t.admin_response || ''); setModal('view'); }} className="p-2.5 border rounded-lg hover:bg-blue-50/40 cursor-pointer text-xs">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-blue-600">{t.ticket_no}</p>
+                        <p className="font-medium truncate">{t.subject}</p>
+                        {isAdmin && <p className="text-[10px] text-gray-400">by {t.user_name}</p>}
+                      </div>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${statusColors[t.status]}`}>{t.status}</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className={`text-[9px] font-bold ${priorityColors[t.priority]}`}>{t.priority.toUpperCase()}</span>
+                      <span className="text-[9px] text-gray-400">{t.created_at?.split('T')[0]}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tab === 'learner' && (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 mb-2">Quick guides to use the ERP</p>
+                {GUIDES.map((g, i) => (
+                  <details key={i} className="border rounded-lg p-2">
+                    <summary className="font-semibold text-xs text-blue-600 cursor-pointer">{g.title}</summary>
+                    <ol className="text-xs space-y-1 mt-2 ml-4 list-decimal text-gray-600">
+                      {g.steps.map((s, j) => <li key={j}>{s}</li>)}
+                    </ol>
+                  </details>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* New Ticket Modal */}
+      <Modal isOpen={modal === 'new'} onClose={() => setModal(null)} title="Raise Support Ticket">
+        <form onSubmit={submit} className="space-y-4">
+          <div><label className="label">Subject *</label><input className="input" value={form.subject} onChange={e => setForm({...form, subject: e.target.value})} placeholder="Brief summary..." required /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Category</label><select className="select" value={form.category} onChange={e => setForm({...form, category: e.target.value})}><option value="bug">Bug / Issue</option><option value="feature_request">Feature Request</option><option value="how_to">How To / Question</option><option value="data_issue">Data Issue</option><option value="other">Other</option></select></div>
+            <div><label className="label">Priority</label><select className="select" value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
+            <div className="col-span-2"><label className="label">Which Module?</label><input className="input" value={form.module} onChange={e => setForm({...form, module: e.target.value})} placeholder="e.g. Payment Required, DPR, Attendance..." /></div>
+          </div>
+          <div><label className="label">Description *</label><textarea className="input" rows="4" value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Describe your issue or request in detail..." required /></div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(null)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Submit Ticket</button></div>
+        </form>
+      </Modal>
+
+      {/* View Ticket Modal */}
+      <Modal isOpen={modal === 'view'} onClose={() => { setModal(null); setSelectedTicket(null); }} title={selectedTicket?.ticket_no} wide>
+        {selectedTicket && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div><h3 className="font-bold text-lg">{selectedTicket.subject}</h3><p className="text-xs text-gray-500">by {selectedTicket.user_name} on {selectedTicket.created_at}</p></div>
+              <div className="flex gap-2">
+                <span className={`text-xs px-2 py-1 rounded font-bold ${statusColors[selectedTicket.status]}`}>{selectedTicket.status}</span>
+                <span className={`text-xs font-bold ${priorityColors[selectedTicket.priority]}`}>{selectedTicket.priority.toUpperCase()}</span>
+              </div>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <span className="bg-gray-100 px-2 py-1 rounded">{selectedTicket.category}</span>
+              {selectedTicket.module && <span className="bg-blue-100 px-2 py-1 rounded">{selectedTicket.module}</span>}
+            </div>
+            <div className="bg-gray-50 p-3 rounded text-sm whitespace-pre-wrap">{selectedTicket.description}</div>
+            {selectedTicket.admin_response && (
+              <div className="bg-emerald-50 p-3 rounded border-l-4 border-emerald-500">
+                <p className="text-xs font-bold text-emerald-700 mb-1">Admin Response (by {selectedTicket.resolved_by_name})</p>
+                <p className="text-sm whitespace-pre-wrap">{selectedTicket.admin_response}</p>
+              </div>
+            )}
+            {isAdmin && selectedTicket.status !== 'closed' && (
+              <div className="border-t pt-4 space-y-3">
+                <h5 className="font-bold text-sm">Admin Actions</h5>
+                <textarea className="input" rows="3" placeholder="Your response to the user..." value={adminResponse} onChange={e => setAdminResponse(e.target.value)} />
+                <div className="flex gap-2">
+                  <button onClick={() => updateTicket(selectedTicket.id, { status: 'in_progress', admin_response: adminResponse })} className="btn btn-secondary text-xs">Mark In Progress</button>
+                  <button onClick={() => updateTicket(selectedTicket.id, { status: 'resolved', admin_response: adminResponse })} className="btn btn-success text-xs">Resolve</button>
+                  <button onClick={() => updateTicket(selectedTicket.id, { status: 'closed', admin_response: adminResponse })} className="btn btn-danger text-xs">Close</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    </>
+  );
+}

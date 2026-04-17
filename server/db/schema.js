@@ -148,6 +148,25 @@ function initializeDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Help/Support Tickets
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_no TEXT UNIQUE,
+      user_id INTEGER REFERENCES users(id),
+      subject TEXT NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT DEFAULT 'bug' CHECK(category IN ('bug','feature_request','how_to','data_issue','other')),
+      priority TEXT DEFAULT 'medium' CHECK(priority IN ('low','medium','high','urgent')),
+      status TEXT DEFAULT 'open' CHECK(status IN ('open','in_progress','resolved','closed')),
+      attachment_link TEXT,
+      module TEXT,
+      admin_response TEXT,
+      resolved_by INTEGER REFERENCES users(id),
+      resolved_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Lead Follow-ups
     CREATE TABLE IF NOT EXISTS lead_followups (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

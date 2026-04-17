@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
+import HelpTicket from './HelpTicket';
 import { useAuth } from '../context/AuthContext';
 import {
   FiHome, FiUsers, FiTarget, FiFileText, FiShoppingCart,
@@ -134,6 +135,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <HelpTicket />
     </div>
   );
 }
