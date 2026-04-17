@@ -1,117 +1,241 @@
-import { useState, useEffect } from 'react';
-import api from '../api';
-import Modal from '../components/Modal';
-import StatusBadge from '../components/StatusBadge';
-import toast from 'react-hot-toast';
-import { FiPlus, FiEdit2 } from 'react-icons/fi';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import { FiPlus, FiEye, FiSearch, FiAlertCircle, FiClock, FiCheckCircle, FiList } from 'react-icons/fi';
+
+const emptyForm = {
+  client_name:'', company_name:'', mobile_number:'', category:'', problem_detail:'',
+  customer_type:'New', complaint_type:'Normal', emp_name:'',
+  step1_planned_date:'', step1_actual_date:'', step1_assigned_to:'',
+  step2_planned_date:'', step2_actual_date:'', step2_assigned_to:'',
+  service_report:'', status:'open', priority:'normal'
+};
 
 export default function Complaints() {
-  const [tab, setTab] = useState('complaints');
-  const [complaints, setComplaints] = useState([]);
-  const [handovers, setHandovers] = useState([]);
-  const [installations, setInstallations] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({});
+  const [list, setList] = useState([]);
+  const [stats, setStats] = useState({ total:0, open:0, inProgress:0, resolved:0, byCategory:[] });
+  const [q, setQ] = useState({ search:'', status:'', category:'' });
+  const [showAdd, setShowAdd] = useState(false);
+  const [viewing, setViewing] = useState(null);
+  const [form, setForm] = useState(emptyForm);
 
-  const load = () => {
-    api.get('/installation/complaints').then(r => setComplaints(r.data));
-    api.get('/installation/handover').then(r => setHandovers(r.data));
+  const load = async () => {
+    const params = new URLSearchParams(Object.entries(q).filter(([,v]) => v)).toString();
+    const [l, s] = await Promise.all([
+      axios.get('/api/complaints' + (params ? '?'+params : '')),
+      axios.get('/api/complaints/stats'),
+    ]);
+    setList(l.data);
+    setStats(s.data);
   };
-  useEffect(() => {
-    load();
-    api.get('/installation').then(r => setInstallations(r.data));
-    api.get('/auth/users').then(r => setUsers(r.data));
-  }, []);
 
-  const saveComplaint = async (e) => { e.preventDefault(); await api.post('/installation/complaints', form); toast.success('Created'); setModal(false); load(); };
-  const updateComplaint = async (id, status, notes) => { await api.put(`/installation/complaints/${id}`, { status, resolution_notes: notes }); toast.success('Updated'); load(); };
-  const saveHandover = async (e) => { e.preventDefault(); await api.post('/installation/handover', form); toast.success('Created'); setModal(false); load(); };
+  useEffect(() => { load(); }, [q]);
+
+  const create = async (e) => {
+    e.preventDefault();
+    await axios.post('/api/complaints', form);
+    setShowAdd(false);
+    setForm(emptyForm);
+    load();
+  };
+
+  const save = async () => {
+    await axios.put(`/api/complaints/${viewing.id}`, viewing);
+    setViewing(null);
+    load();
+  };
+
+  const badge = (s) => ({
+    open: 'bg-yellow-100 text-yellow-700',
+    in_progress: 'bg-blue-100 text-blue-700',
+    resolved: 'bg-green-100 text-green-700',
+  }[s] || 'bg-gray-100 text-gray-700');
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <button onClick={() => setTab('complaints')} className={`btn ${tab === 'complaints' ? 'btn-primary' : 'btn-secondary'}`}>Complaints</button>
-        <button onClick={() => setTab('handover')} className={`btn ${tab === 'handover' ? 'btn-primary' : 'btn-secondary'}`}>Handover Certificates</button>
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <h1 className="text-xl font-bold text-gray-800">Complaint Register</h1>
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+          <FiPlus /> New Complaint
+        </button>
       </div>
 
-      {tab === 'complaints' && (
-        <>
-          <div className="flex justify-between items-center">
-            <h3 className="font-semibold">Complaint Management</h3>
-            <button onClick={() => { setForm({ installation_id: '', description: '', priority: 'medium', assigned_to: '' }); setModal('complaint'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Raise Complaint</button>
-          </div>
-          <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>Number</th><th>Description</th><th>Priority</th><th>Status</th><th>Created By</th><th>Assigned To</th><th>Actions</th></tr></thead>
-            <tbody>
-              {complaints.map(c => (
-                <tr key={c.id}>
-                  <td className="font-medium">{c.complaint_number}</td>
-                  <td className="max-w-xs truncate">{c.description}</td>
-                  <td><StatusBadge status={c.priority} /></td>
-                  <td><StatusBadge status={c.status} /></td>
-                  <td>{c.created_by_name}</td><td>{c.assigned_to_name}</td>
-                  <td>
-                    {c.status !== 'closed' && (
-                      <select className="select w-32" value={c.status} onChange={e => updateComplaint(c.id, e.target.value, c.resolution_notes)}>
-                        {['open','in_progress','resolved','closed'].map(s => <option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
-                      </select>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {complaints.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No complaints</td></tr>}
-            </tbody>
-          </table></div>
-        </>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={<FiList />} label="Total" value={stats.total} color="slate" />
+        <StatCard icon={<FiAlertCircle />} label="Open" value={stats.open} color="yellow" />
+        <StatCard icon={<FiClock />} label="In Progress" value={stats.inProgress} color="blue" />
+        <StatCard icon={<FiCheckCircle />} label="Resolved" value={stats.resolved} color="green" />
+      </div>
+
+      <div className="bg-white rounded-xl p-3 flex flex-wrap gap-2 border">
+        <div className="relative flex-1 min-w-[200px]">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input placeholder="Search client / mobile / number / company" value={q.search}
+            onChange={e => setQ({ ...q, search: e.target.value })}
+            className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm" />
+        </div>
+        <select value={q.status} onChange={e => setQ({ ...q, status: e.target.value })} className="border rounded-lg px-3 py-2 text-sm">
+          <option value="">All Statuses</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="resolved">Resolved</option>
+        </select>
+        <select value={q.category} onChange={e => setQ({ ...q, category: e.target.value })} className="border rounded-lg px-3 py-2 text-sm">
+          <option value="">All Categories</option>
+          <option>Service</option><option>Product</option><option>Installation</option><option>Billing</option><option>Other</option>
+        </select>
+      </div>
+
+      <div className="bg-white rounded-xl border overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
+            <tr>
+              <th className="text-left px-3 py-2">Complaint #</th>
+              <th className="text-left px-3 py-2">Client</th>
+              <th className="text-left px-3 py-2">Mobile</th>
+              <th className="text-left px-3 py-2">Category</th>
+              <th className="text-left px-3 py-2">Type</th>
+              <th className="text-left px-3 py-2">Status</th>
+              <th className="text-left px-3 py-2">S1 Delay</th>
+              <th className="text-left px-3 py-2">S2 Delay</th>
+              <th className="text-left px-3 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map(c => (
+              <tr key={c.id} className="border-t hover:bg-slate-50">
+                <td className="px-3 py-2 font-mono text-xs">{c.complaint_number}</td>
+                <td className="px-3 py-2">{c.client_name}<div className="text-xs text-gray-500">{c.company_name}</div></td>
+                <td className="px-3 py-2">{c.mobile_number}</td>
+                <td className="px-3 py-2">{c.category}</td>
+                <td className="px-3 py-2">{c.complaint_type}</td>
+                <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${badge(c.status)}`}>{c.status}</span></td>
+                <td className="px-3 py-2">{c.step1_time_delay ?? '-'} d</td>
+                <td className="px-3 py-2">{c.step2_time_delay ?? '-'} d</td>
+                <td className="px-3 py-2">
+                  <button onClick={() => setViewing({ ...c })} className="text-blue-600 hover:text-blue-800"><FiEye /></button>
+                </td>
+              </tr>
+            ))}
+            {list.length === 0 && <tr><td colSpan="9" className="text-center text-gray-400 py-8">No complaints found.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {showAdd && (
+        <Modal onClose={() => setShowAdd(false)} title="New Complaint">
+          <form onSubmit={create} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field label="Client Name *"><input required value={form.client_name} onChange={e=>setForm({...form, client_name:e.target.value})} className="inp" /></Field>
+            <Field label="Company"><input value={form.company_name} onChange={e=>setForm({...form, company_name:e.target.value})} className="inp" /></Field>
+            <Field label="Mobile *"><input required value={form.mobile_number} onChange={e=>setForm({...form, mobile_number:e.target.value})} className="inp" /></Field>
+            <Field label="Category">
+              <select value={form.category} onChange={e=>setForm({...form, category:e.target.value})} className="inp">
+                <option value="">Select</option><option>Service</option><option>Product</option><option>Installation</option><option>Billing</option><option>Other</option>
+              </select>
+            </Field>
+            <Field label="Customer Type">
+              <select value={form.customer_type} onChange={e=>setForm({...form, customer_type:e.target.value})} className="inp"><option>New</option><option>Existing</option></select>
+            </Field>
+            <Field label="Complaint Type">
+              <select value={form.complaint_type} onChange={e=>setForm({...form, complaint_type:e.target.value})} className="inp"><option>Urgent</option><option>Normal</option><option>Low</option></select>
+            </Field>
+            <Field label="EMP Name"><input value={form.emp_name} onChange={e=>setForm({...form, emp_name:e.target.value})} className="inp" /></Field>
+            <Field label="Step 1 Planned Date"><input type="date" value={form.step1_planned_date} onChange={e=>setForm({...form, step1_planned_date:e.target.value})} className="inp" /></Field>
+            <Field label="Step 1 Assigned To"><input value={form.step1_assigned_to} onChange={e=>setForm({...form, step1_assigned_to:e.target.value})} className="inp" /></Field>
+            <div className="md:col-span-2">
+              <Field label="Problem Detail *"><textarea required rows="3" value={form.problem_detail} onChange={e=>setForm({...form, problem_detail:e.target.value})} className="inp" /></Field>
+            </div>
+            <div className="md:col-span-2 flex justify-end gap-2">
+              <button type="button" onClick={()=>setShowAdd(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Create</button>
+            </div>
+          </form>
+        </Modal>
       )}
 
-      {tab === 'handover' && (
-        <>
-          <div className="flex justify-between items-center">
-            <h3 className="font-semibold">Handover Certificates</h3>
-            <button onClick={() => { setForm({ installation_id: '', handover_date: '', client_signatory: '', company_signatory: '', notes: '' }); setModal('handover'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Certificate</button>
+      {viewing && (
+        <Modal onClose={() => setViewing(null)} title={`Complaint ${viewing.complaint_number}`}>
+          <div className="space-y-5">
+            <Section title="Step 1 – Complaint Register">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Field label="Client"><input value={viewing.client_name||''} onChange={e=>setViewing({...viewing, client_name:e.target.value})} className="inp" /></Field>
+                <Field label="Company"><input value={viewing.company_name||''} onChange={e=>setViewing({...viewing, company_name:e.target.value})} className="inp" /></Field>
+                <Field label="Mobile"><input value={viewing.mobile_number||''} onChange={e=>setViewing({...viewing, mobile_number:e.target.value})} className="inp" /></Field>
+                <Field label="Category"><input value={viewing.category||''} onChange={e=>setViewing({...viewing, category:e.target.value})} className="inp" /></Field>
+                <Field label="Customer Type"><input value={viewing.customer_type||''} onChange={e=>setViewing({...viewing, customer_type:e.target.value})} className="inp" /></Field>
+                <Field label="Complaint Type"><input value={viewing.complaint_type||''} onChange={e=>setViewing({...viewing, complaint_type:e.target.value})} className="inp" /></Field>
+                <Field label="EMP Name"><input value={viewing.emp_name||''} onChange={e=>setViewing({...viewing, emp_name:e.target.value})} className="inp" /></Field>
+                <Field label="Assigned To"><input value={viewing.step1_assigned_to||''} onChange={e=>setViewing({...viewing, step1_assigned_to:e.target.value})} className="inp" /></Field>
+                <Field label="Planned Date"><input type="date" value={viewing.step1_planned_date||''} onChange={e=>setViewing({...viewing, step1_planned_date:e.target.value})} className="inp" /></Field>
+                <Field label="Actual Date"><input type="date" value={viewing.step1_actual_date||''} onChange={e=>setViewing({...viewing, step1_actual_date:e.target.value})} className="inp" /></Field>
+                <Field label="Time Delay (auto)"><input disabled value={`${viewing.step1_time_delay ?? 0} day(s)`} className="inp bg-slate-50" /></Field>
+                <div className="md:col-span-2"><Field label="Problem Detail"><textarea rows="2" value={viewing.problem_detail||''} onChange={e=>setViewing({...viewing, problem_detail:e.target.value})} className="inp" /></Field></div>
+              </div>
+            </Section>
+
+            <Section title="Step 2 – Complaint Resolved">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Field label="Planned Date"><input type="date" value={viewing.step2_planned_date||''} onChange={e=>setViewing({...viewing, step2_planned_date:e.target.value})} className="inp" /></Field>
+                <Field label="Actual Date"><input type="date" value={viewing.step2_actual_date||''} onChange={e=>setViewing({...viewing, step2_actual_date:e.target.value})} className="inp" /></Field>
+                <Field label="Time Delay (auto)"><input disabled value={`${viewing.step2_time_delay ?? 0} day(s)`} className="inp bg-slate-50" /></Field>
+                <Field label="Assigned To"><input value={viewing.step2_assigned_to||''} onChange={e=>setViewing({...viewing, step2_assigned_to:e.target.value})} className="inp" /></Field>
+                <Field label="Status">
+                  <select value={viewing.status||'open'} onChange={e=>setViewing({...viewing, status:e.target.value})} className="inp">
+                    <option value="open">Open</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option>
+                  </select>
+                </Field>
+                <div className="md:col-span-2"><Field label="Service Report"><textarea rows="3" value={viewing.service_report||''} onChange={e=>setViewing({...viewing, service_report:e.target.value})} className="inp" /></Field></div>
+              </div>
+            </Section>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setViewing(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button>
+              <button onClick={save} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm">Save</button>
+            </div>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>Certificate No</th><th>Date</th><th>Client Signatory</th><th>Company Signatory</th><th>Status</th></tr></thead>
-            <tbody>
-              {handovers.map(h => (
-                <tr key={h.id}>
-                  <td className="font-medium">{h.certificate_number}</td><td>{h.handover_date}</td>
-                  <td>{h.client_signatory}</td><td>{h.company_signatory}</td>
-                  <td><StatusBadge status={h.status} /></td>
-                </tr>
-              ))}
-              {handovers.length === 0 && <tr><td colSpan="5" className="text-center py-8 text-gray-400">No certificates yet</td></tr>}
-            </tbody>
-          </table></div>
-        </>
+        </Modal>
       )}
 
-      <Modal isOpen={modal === 'complaint'} onClose={() => setModal(false)} title="Raise Complaint">
-        <form onSubmit={saveComplaint} className="space-y-4">
-          <div><label className="label">Installation</label><select className="select" value={form.installation_id} onChange={e => setForm({...form, installation_id: e.target.value})}><option value="">Select</option>{installations.map(i => <option key={i.id} value={i.id}>#{i.id} - {i.site_address}</option>)}</select></div>
-          <div><label className="label">Description *</label><textarea className="input" rows="3" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="label">Priority</label><select className="select" value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}>{['low','medium','high','critical'].map(p => <option key={p} value={p}>{p}</option>)}</select></div>
-            <div><label className="label">Assign To</label><select className="select" value={form.assigned_to} onChange={e => setForm({...form, assigned_to: e.target.value})}><option value="">Select</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-          </div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
-        </form>
-      </Modal>
+      <style>{`.inp{width:100%;border:1px solid #e5e7eb;border-radius:0.5rem;padding:0.5rem 0.75rem;font-size:0.875rem}`}</style>
+    </div>
+  );
+}
 
-      <Modal isOpen={modal === 'handover'} onClose={() => setModal(false)} title="Create Handover Certificate">
-        <form onSubmit={saveHandover} className="space-y-4">
-          <div><label className="label">Installation</label><select className="select" value={form.installation_id} onChange={e => setForm({...form, installation_id: e.target.value})}><option value="">Select</option>{installations.map(i => <option key={i.id} value={i.id}>#{i.id} - {i.site_address}</option>)}</select></div>
-          <div><label className="label">Handover Date</label><input className="input" type="date" value={form.handover_date} onChange={e => setForm({...form, handover_date: e.target.value})} /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="label">Client Signatory</label><input className="input" value={form.client_signatory} onChange={e => setForm({...form, client_signatory: e.target.value})} /></div>
-            <div><label className="label">Company Signatory</label><input className="input" value={form.company_signatory} onChange={e => setForm({...form, company_signatory: e.target.value})} /></div>
-          </div>
-          <div><label className="label">Notes</label><textarea className="input" rows="3" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
-        </form>
-      </Modal>
+function StatCard({ icon, label, value, color }) {
+  const map = { slate:'text-slate-600 bg-slate-100', yellow:'text-yellow-600 bg-yellow-100', blue:'text-blue-600 bg-blue-100', green:'text-green-600 bg-green-100' };
+  return (
+    <div className="bg-white rounded-xl p-4 border flex items-center gap-3">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${map[color]}`}>{icon}</div>
+      <div>
+        <div className="text-xs text-gray-500">{label}</div>
+        <div className="text-xl font-bold text-gray-800">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (<div><label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>{children}</div>);
+}
+
+function Section({ title, children }) {
+  return (
+    <div className="border rounded-xl p-4">
+      <div className="text-sm font-bold text-gray-700 mb-3 pb-2 border-b">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function Modal({ title, children, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center px-5 py-3 border-b sticky top-0 bg-white">
+          <div className="font-bold text-gray-800">{title}</div>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
     </div>
   );
 }

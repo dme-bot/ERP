@@ -45,6 +45,7 @@ app.use('/api/support', require('./routes/support'));
 app.use('/api/item-master', require('./routes/itemmaster'));
 app.use('/api/procurement', require('./routes/procurement'));
 app.use('/api/installation', require('./routes/installation'));
+app.use('/api/complaints', require('./routes/complaints'));
 app.use('/api/hr', require('./routes/hr'));
 
 // 4 Critical Systems
