@@ -49,7 +49,10 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
     const totalDays = completionDays + paymentDays; // R: Total = P + Q
 
     // Cash Velocity = (J - K) / R = (Aanchal Value - Purchase Value) / Total Days
-    const cashVelocity = totalDays > 0 ? Math.round(((aanchalValue - purchaseAmt) / totalDays) * 100) / 100 : 0;
+    const effPurchase = pf?.manual_purchase_value ?? purchaseAmt;
+    const effCompletion = pf?.manual_completion_days ?? completionDays;
+    const effTotal = effCompletion + paymentDays;
+    const cashVelocity = effTotal > 0 ? Math.round(((aanchalValue - effPurchase) / effTotal) * 100) / 100 : 0;
 
     return {
       sr_no: idx + 1,
