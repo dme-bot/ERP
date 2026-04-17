@@ -11,7 +11,15 @@ const STATUSES = ['pending', 'step1_approved', 'accounts_approved', 'dues_checke
 const STATUS_LABELS = { pending: 'Pending', step1_approved: 'Step 1 Approved', accounts_approved: 'Accounts Approved', dues_checked: 'Dues Checked', velocity_checked: 'Velocity Checked', final_approved: 'Final Approved', rejected: 'Rejected' };
 const STEPS = [
   { step: 1, name: 'Category Approval' },
-  { step: 2, name: 'Accounts Approval & Payment' },
+  { step: 2, name: 'Accountant Approval' },
+  { step: 3, name: 'Velocity Check (Auto)' },
+  { step: 4, name: 'Billing Engineer' },
+  { step: 5, name: 'Payment Release' },
+];
+const TADA_STEPS = [
+  { step: 1, name: 'HR Approval' },
+  { step: 2, name: 'Accountant Approval' },
+  { step: 5, name: 'Payment Release' },
 ];
 
 const emptyForm = {
@@ -206,14 +214,14 @@ export default function PaymentRequired() {
 
             {/* Approval Progress */}
             <div className="flex gap-1">
-              {STEPS.map(s => {
+              {(viewData.workflow || (viewData.category === 'TA/DA' ? TADA_STEPS : STEPS)).map(s => {
                 const approval = viewData.approvals?.find(a => a.step === s.step);
                 const isCurrent = viewData.current_step === s.step && viewData.status !== 'final_approved' && viewData.status !== 'rejected';
                 return (
-                  <div key={s.step} className={`flex-1 text-center p-2 rounded text-xs font-medium ${approval?.action === 'approved' ? 'bg-emerald-100 text-emerald-700' : approval?.action === 'rejected' ? 'bg-red-100 text-red-700' : isCurrent ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-400'}`}>
+                  <div key={s.step} className={`flex-1 text-center p-2 rounded text-[11px] font-medium ${approval?.action === 'approved' ? 'bg-emerald-100 text-emerald-700' : approval?.action === 'rejected' ? 'bg-red-100 text-red-700' : isCurrent ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-400'}`}>
                     <div className="font-bold">Step {s.step}</div>
-                    <div>{s.name}</div>
-                    {approval && <div className="text-[10px] mt-1">{approval.approved_by_name}</div>}
+                    <div className="text-[10px]">{s.name}</div>
+                    {approval && <div className="text-[9px] mt-1">{approval.approved_by_name}</div>}
                   </div>
                 );
               })}
