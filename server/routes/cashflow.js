@@ -52,7 +52,7 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
     const effPurchase = pf?.manual_purchase_value != null ? pf.manual_purchase_value * 100000 : purchaseAmt;
     const effCompletion = pf?.manual_completion_days ?? completionDays;
     const effTotal = effCompletion + paymentDays;
-    const cashVelocity = effTotal > 0 ? Math.round(((aanchalValue - effPurchase) / effTotal) * 100) / 100 : 0;
+    const cashVelocity = effTotal > 0 ? Math.round(((aanchalValue - effPurchase) / effTotal / 100000) * 100) / 100 : 0;
 
     return {
       sr_no: idx + 1,
