@@ -35,12 +35,15 @@ export default function DPR() {
   const [machinery, setMachinery] = useState([{ equipment: '', quantity: 1, hours_used: 0, condition: 'working' }]);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [poItemsForSite, setPoItemsForSite] = useState([]);
+  const [progress, setProgress] = useState([]);
+  const [expandedSite, setExpandedSite] = useState({}); // { "engineerId-siteId": true }
 
   const load = () => {
     api.get('/dpr/summary').then(r => setSummary(r.data));
     api.get('/dpr', { params: { date: filterDate } }).then(r => setDprs(r.data));
     api.get('/dpr/sites').then(r => setSites(r.data));
     api.get('/auth/users').then(r => setUsers(r.data)).catch(() => {});
+    api.get('/dpr/progress').then(r => setProgress(r.data)).catch(() => setProgress([]));
   };
   useEffect(() => { load(); }, [filterDate]);
 
@@ -107,8 +110,10 @@ export default function DPR() {
   return (
     <div className="space-y-6">
       <div className="flex gap-2 flex-wrap">
-        {['dashboard', 'reports', 'sites'].map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`btn ${tab === t ? 'btn-primary' : 'btn-secondary'}`}>{t === 'dashboard' ? 'Dashboard' : t === 'reports' ? 'Daily Reports' : 'Sites'}</button>
+        {['dashboard', 'progress', 'reports', 'sites'].map(t => (
+          <button key={t} onClick={() => setTab(t)} className={`btn ${tab === t ? 'btn-primary' : 'btn-secondary'}`}>
+            {t === 'dashboard' ? 'Dashboard' : t === 'progress' ? 'Engineer Progress' : t === 'reports' ? 'Daily Reports' : 'Sites'}
+          </button>
         ))}
       </div>
 
@@ -132,6 +137,113 @@ export default function DPR() {
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3"><FiCheck className="text-emerald-600" size={24} /><h4 className="font-bold text-emerald-700">All sites submitted DPR today!</h4></div>
           )}
         </>
+      )}
+
+      {/* ENGINEER PROGRESS TAB — per-engineer per-site BOQ vs DPR-consumed with % */}
+      {tab === 'progress' && (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            BOQ items vs qty consumed through DPR submissions. Incomplete items are listed first.
+            {!isAdmin() && ' Showing only sites assigned to you.'}
+          </p>
+          {progress.length === 0 && (
+            <div className="card p-8 text-center text-gray-400 text-sm">No sites assigned yet</div>
+          )}
+          {progress.map(eng => (
+            <div key={eng.engineer.id} className="card p-0 overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-3 border-b">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-800">{eng.engineer.name}</h3>
+                    <p className="text-xs text-gray-500">{eng.engineer.email} · {eng.site_count} site{eng.site_count === 1 ? '' : 's'}</p>
+                  </div>
+                </div>
+              </div>
+              {eng.sites.length === 0 ? (
+                <p className="p-4 text-xs text-gray-400">No sites assigned</p>
+              ) : (
+                <div className="divide-y">
+                  {eng.sites.map(site => {
+                    const key = `${eng.engineer.id}-${site.site_id}`;
+                    const expanded = !!expandedSite[key];
+                    const barColor = site.overall_pct >= 90 ? 'bg-emerald-500' : site.overall_pct >= 50 ? 'bg-blue-500' : site.overall_pct >= 20 ? 'bg-amber-500' : 'bg-red-400';
+                    return (
+                      <div key={site.site_id}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedSite(s => ({ ...s, [key]: !s[key] }))}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left"
+                        >
+                          <span className="text-gray-400">{expanded ? '▼' : '▶'}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate">{site.site_name}</div>
+                            <div className="text-[11px] text-gray-500 truncate">{site.client_name || ''} · {site.item_count} BOQ items</div>
+                          </div>
+                          <div className="hidden sm:block w-40">
+                            <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div className={`h-full ${barColor} transition-all`} style={{ width: `${Math.min(100, site.overall_pct)}%` }} />
+                            </div>
+                            <div className="text-[10px] text-gray-500 text-right mt-0.5">
+                              Rs {site.total_done_amount.toLocaleString()} / Rs {site.total_boq_amount.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="w-16 text-right">
+                            <span className={`text-lg font-bold ${site.overall_pct >= 90 ? 'text-emerald-600' : site.overall_pct >= 50 ? 'text-blue-600' : site.overall_pct >= 20 ? 'text-amber-600' : 'text-red-500'}`}>
+                              {site.overall_pct}%
+                            </span>
+                          </div>
+                        </button>
+                        {expanded && (
+                          <div className="bg-gray-50/60 px-4 py-3">
+                            {site.items.length === 0 ? (
+                              <p className="text-xs text-gray-400 py-2">No BOQ items linked to this site yet</p>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="text-gray-500 border-b">
+                                      <th className="px-2 py-2 text-left">BOQ Item</th>
+                                      <th className="px-2 py-2 text-center">Unit</th>
+                                      <th className="px-2 py-2 text-right">BOQ Qty</th>
+                                      <th className="px-2 py-2 text-right">Done</th>
+                                      <th className="px-2 py-2 text-right">Remaining</th>
+                                      <th className="px-2 py-2 text-left w-40">Progress</th>
+                                      <th className="px-2 py-2 text-right">%</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {site.items.map(it => {
+                                      const ib = it.pct_complete >= 100 ? 'bg-emerald-500' : it.pct_complete >= 50 ? 'bg-blue-500' : it.pct_complete >= 20 ? 'bg-amber-500' : 'bg-red-400';
+                                      return (
+                                        <tr key={it.po_item_id} className="border-b last:border-0 hover:bg-white">
+                                          <td className="px-2 py-1.5 whitespace-normal break-words leading-snug max-w-md">{it.description}</td>
+                                          <td className="px-2 py-1.5 text-center text-gray-500">{it.unit || '-'}</td>
+                                          <td className="px-2 py-1.5 text-right font-mono">{it.boq_qty}</td>
+                                          <td className="px-2 py-1.5 text-right font-mono text-emerald-700 font-semibold">{it.done_qty}</td>
+                                          <td className="px-2 py-1.5 text-right font-mono text-red-600">{it.remaining_qty}</td>
+                                          <td className="px-2 py-1.5">
+                                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                              <div className={`h-full ${ib}`} style={{ width: `${Math.min(100, it.pct_complete)}%` }} />
+                                            </div>
+                                          </td>
+                                          <td className="px-2 py-1.5 text-right font-semibold">{it.pct_complete}%</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       {tab === 'reports' && (

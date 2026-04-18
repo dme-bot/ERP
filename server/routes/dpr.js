@@ -239,6 +239,98 @@ router.delete('/sites/:id', (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
+// Engineer → Site → BOQ progress. Shows every site each Site Engineer is
+// assigned to (directly on sites.site_engineer_id or via a linked PO's
+// site_engineer_ids CSV), with BOQ qty vs consumed qty from DPR work items
+// and a % complete per item and per site.
+router.get('/progress', (req, res) => {
+  const db = getDb();
+  const isAdmin = req.user.role === 'admin';
+  const uid = req.user.id;
+
+  // Base engineer pool: users with Site Engineer role. Non-admins only see themselves.
+  let engineers = db.prepare(`
+    SELECT DISTINCT u.id, u.name, u.email
+    FROM users u
+    LEFT JOIN user_roles ur ON u.id = ur.user_id
+    LEFT JOIN roles r ON ur.role_id = r.id
+    WHERE u.active=1 AND (r.name='Site Engineer' OR u.role='admin')
+    ORDER BY u.name
+  `).all();
+  if (!isAdmin) engineers = engineers.filter(e => e.id === uid);
+
+  const siteSql = `SELECT MIN(s.id) as id, s.name, s.business_book_id, s.po_id, s.site_engineer_id, s.client_name
+    FROM sites s
+    WHERE (s.site_engineer_id = ? OR EXISTS (
+      SELECT 1 FROM purchase_orders po
+      WHERE (po.id = s.po_id OR po.business_book_id = s.business_book_id)
+        AND ((',' || COALESCE(po.site_engineer_ids,'') || ',') LIKE ? OR po.site_engineer_id = ?)
+    ))
+    GROUP BY s.name`;
+
+  const result = [];
+  for (const eng of engineers) {
+    const sites = db.prepare(siteSql).all(eng.id, `%,${eng.id},%`, eng.id);
+    const siteDetails = [];
+    for (const site of sites) {
+      // Collect all business_book_ids for same-named sites (legacy duplicates)
+      const bbIds = db.prepare('SELECT DISTINCT business_book_id FROM sites WHERE name=? AND business_book_id IS NOT NULL').all(site.name).map(r => r.business_book_id);
+      let items = [];
+      if (bbIds.length > 0) {
+        const placeholders = bbIds.map(() => '?').join(',');
+        items = db.prepare(`SELECT * FROM po_items WHERE business_book_id IN (${placeholders})`).all(...bbIds);
+      } else if (site.business_book_id) {
+        items = db.prepare('SELECT * FROM po_items WHERE business_book_id=?').all(site.business_book_id);
+      }
+
+      let totalBoq = 0, totalDone = 0;
+      const itemRows = items.map(it => {
+        const done = db.prepare('SELECT COALESCE(SUM(actual_qty),0) as t FROM dpr_work_items WHERE po_item_id=?').get(it.id).t || 0;
+        const boq = it.quantity || 0;
+        const remaining = Math.max(0, boq - done);
+        const pct = boq > 0 ? Math.min(100, Math.round((done / boq) * 1000) / 10) : 0;
+        const boqAmount = (it.rate || 0) * boq;
+        const doneAmount = (it.rate || 0) * done;
+        totalBoq += boqAmount;
+        totalDone += doneAmount;
+        return {
+          po_item_id: it.id,
+          description: it.description,
+          unit: it.unit,
+          rate: it.rate || 0,
+          boq_qty: boq,
+          done_qty: done,
+          remaining_qty: remaining,
+          pct_complete: pct,
+          boq_amount: Math.round(boqAmount),
+          done_amount: Math.round(doneAmount),
+        };
+      });
+      // Sort: incomplete first (so engineer sees pending work), then by name
+      itemRows.sort((a, b) => (a.pct_complete - b.pct_complete) || a.description.localeCompare(b.description));
+
+      const overallPct = totalBoq > 0 ? Math.round((totalDone / totalBoq) * 1000) / 10 : 0;
+      siteDetails.push({
+        site_id: site.id,
+        site_name: site.name,
+        client_name: site.client_name,
+        total_boq_amount: Math.round(totalBoq),
+        total_done_amount: Math.round(totalDone),
+        overall_pct: overallPct,
+        item_count: itemRows.length,
+        items: itemRows,
+      });
+    }
+    siteDetails.sort((a, b) => a.site_name.localeCompare(b.site_name));
+    result.push({
+      engineer: { id: eng.id, name: eng.name, email: eng.email },
+      site_count: siteDetails.length,
+      sites: siteDetails,
+    });
+  }
+  res.json(result);
+});
+
 // No DPR = no payment check
 router.get('/payment-check/:site_id', (req, res) => {
   const db = getDb();
