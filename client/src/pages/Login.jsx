@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { FiShield, FiUser, FiLock } from 'react-icons/fi';
+import { FiUser, FiLock } from 'react-icons/fi';
 
 export default function Login() {
   const [form, setForm] = useState({ identifier: '', password: '' });
@@ -26,8 +26,8 @@ export default function Login() {
       <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-md mx-4 relative z-10">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
-            <FiShield size={32} className="text-white" />
+          <div className="w-24 h-24 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ring-1 ring-gray-100 p-2">
+            <img src="/sepl-logo.png" alt="SEPL" className="max-w-full max-h-full object-contain" />
           </div>
           <h1 className="text-2xl font-extrabold text-gray-800 tracking-tight">SEPL ERP</h1>
           <p className="text-gray-400 text-sm mt-1">Secured Engineers Pvt Ltd</p>
