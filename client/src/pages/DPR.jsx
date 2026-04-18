@@ -375,11 +375,11 @@ export default function DPR() {
             {poItemsForSite.length > 0 ? (
               <>
                 <div className="grid grid-cols-12 gap-1 text-[10px] font-bold text-gray-600 mb-1 px-1 uppercase">
-                  <div className="col-span-3">BOQ Item</div><div className="col-span-2">Qty</div><div className="col-span-2">Location</div><div className="col-span-2">Rate (Rs)</div><div className="col-span-2">Amount (Rs)</div><div></div>
+                  <div className="col-span-3 md:col-span-4">BOQ Item</div><div className="col-span-2 md:col-span-1">Qty</div><div className="col-span-2">Location</div><div className="col-span-2">Rate (Rs)</div><div className="col-span-2">Amount (Rs)</div><div></div>
                 </div>
                 {workItems.map((w, i) => (
                   <div key={i} className="grid grid-cols-12 gap-1 mb-1.5 items-start bg-white rounded p-1">
-                    <div className="col-span-3">
+                    <div className="col-span-3 md:col-span-4">
                       <SearchableSelect
                         options={poItemsForSite.map(item => ({
                           id: item.id,
@@ -393,7 +393,7 @@ export default function DPR() {
                         onChange={(item) => selectWorkItem(i, item?.id || '')}
                       />
                     </div>
-                    <div className="col-span-2">
+                    <div className="col-span-2 md:col-span-1">
                       <input className="input text-sm text-center w-full" type="number" placeholder="0" max={w.remaining_qty || w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
                         const val = +e.target.value;
                         const maxQty = w.remaining_qty ?? w.boq_qty ?? 999999;
