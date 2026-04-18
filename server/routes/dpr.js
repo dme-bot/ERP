@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../db/schema');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, requirePermission } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
@@ -209,8 +209,9 @@ router.get('/:id', (req, res) => {
   res.json(dpr);
 });
 
-// Approve/Reject DPR
-router.put('/:id/approve', (req, res) => {
+// Approve/Reject DPR — requires can_approve on the dpr module.
+// Site Engineers can only submit DPRs; admin / billing engineers approve.
+router.put('/:id/approve', requirePermission('dpr', 'approve'), (req, res) => {
   const { approval_status, billing_ready } = req.body;
   const db = getDb();
   db.prepare('UPDATE dpr SET approval_status=?, billing_ready=?, approved_by=? WHERE id=?')

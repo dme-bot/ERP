@@ -11,7 +11,7 @@ const SYSTEMS = ['Electrical', 'Fire Fighting', 'Fire Alarm', 'CCTV', 'Access Co
 const EQUIPMENT_LIST = ['Welding Machine', 'Pipe Threading Machine', 'Drill Machine', 'Grinder', 'Ladder', 'Scaffolding', 'Pipe Bending Machine', 'Cable Pulling Machine', 'Multimeter', 'Megger', 'Earth Tester', 'Hydro Test Pump', 'Generator', 'Compressor'];
 
 export default function DPR() {
-  const { user, isAdmin, canDelete } = useAuth();
+  const { user, isAdmin, canDelete, canApprove } = useAuth();
   const [tab, setTab] = useState('dashboard');
   const [summary, setSummary] = useState(null);
   const [dprs, setDprs] = useState([]);
@@ -288,7 +288,7 @@ export default function DPR() {
                   <td><StatusBadge status={d.approval_status} /></td>
                   <td><div className="flex gap-1">
                     <button onClick={() => viewDpr(d.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600"><FiEye size={14} /></button>
-                    {d.approval_status === 'pending' && <>
+                    {d.approval_status === 'pending' && canApprove('dpr') && <>
                       <button onClick={() => approveDpr(d.id, 'approved', true)} className="btn btn-success text-[10px] py-0.5 px-1.5">Approve+Bill</button>
                       <button onClick={() => approveDpr(d.id, 'rejected', false)} className="btn btn-danger text-[10px] py-0.5 px-1.5">Reject</button>
                     </>}
