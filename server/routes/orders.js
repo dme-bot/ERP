@@ -124,20 +124,57 @@ router.put('/po/:id', (req, res) => {
 router.delete('/po/:id', (req, res) => {
   const db = getDb();
   const id = req.params.id;
-  const po = db.prepare('SELECT business_book_id FROM purchase_orders WHERE id=?').get(id);
-  if (!po) return res.status(404).json({ error: 'PO not found' });
-  const vendorPoCount = db.prepare('SELECT COUNT(*) as c FROM vendor_pos WHERE indent_id IN (SELECT id FROM indents WHERE business_book_id=?)').get(po.business_book_id || 0).c;
-  const billCount = db.prepare('SELECT COUNT(*) as c FROM purchase_bills WHERE vendor_po_id IN (SELECT id FROM vendor_pos WHERE indent_id IN (SELECT id FROM indents WHERE business_book_id=?))').get(po.business_book_id || 0).c;
-  if (vendorPoCount > 0 || billCount > 0) return res.status(409).json({ error: 'Cannot delete: Vendor POs or Purchase Bills reference this PO' });
-  // Unlink children; keep business_book row intact
-  if (po.business_book_id) {
-    db.prepare('UPDATE business_book SET po_number=NULL, po_date=NULL, po_amount=0 WHERE id=?').run(po.business_book_id);
+  try {
+    const po = db.prepare('SELECT business_book_id FROM purchase_orders WHERE id=?').get(id);
+    if (!po) return res.status(404).json({ error: 'PO not found' });
+
+    // Chain: purchase_orders -> order_planning (po_id) -> indents (planning_id) -> vendor_pos (indent_id) -> purchase_bills (vendor_po_id)
+    const vendorPoCount = db.prepare(`
+      SELECT COUNT(*) as c FROM vendor_pos
+      WHERE indent_id IN (
+        SELECT id FROM indents WHERE planning_id IN (
+          SELECT id FROM order_planning WHERE po_id=?
+        )
+      )
+    `).get(id).c;
+
+    const billCount = db.prepare(`
+      SELECT COUNT(*) as c FROM purchase_bills
+      WHERE vendor_po_id IN (
+        SELECT id FROM vendor_pos WHERE indent_id IN (
+          SELECT id FROM indents WHERE planning_id IN (
+            SELECT id FROM order_planning WHERE po_id=?
+          )
+        )
+      )
+    `).get(id).c;
+
+    const salesBillCount = db.prepare('SELECT COUNT(*) as c FROM sales_bills WHERE po_id=?').get(id).c;
+    const installCount = db.prepare('SELECT COUNT(*) as c FROM installations WHERE po_id=?').get(id).c;
+
+    if (vendorPoCount > 0 || billCount > 0 || salesBillCount > 0 || installCount > 0) {
+      const refs = [];
+      if (vendorPoCount) refs.push(`${vendorPoCount} Vendor PO(s)`);
+      if (billCount) refs.push(`${billCount} Purchase Bill(s)`);
+      if (salesBillCount) refs.push(`${salesBillCount} Sales Bill(s)`);
+      if (installCount) refs.push(`${installCount} Installation(s)`);
+      return res.status(409).json({ error: `Cannot delete: referenced by ${refs.join(', ')}` });
+    }
+
+    // Unlink children; keep business_book row intact so the booking survives
+    if (po.business_book_id) {
+      db.prepare('UPDATE business_book SET po_number=NULL, po_date=NULL, po_amount=0 WHERE id=?').run(po.business_book_id);
+      db.prepare('DELETE FROM po_items WHERE business_book_id=?').run(po.business_book_id);
+    }
     db.prepare('UPDATE sites SET po_id=NULL WHERE po_id=?').run(id);
     db.prepare('UPDATE order_planning SET po_id=NULL WHERE po_id=?').run(id);
-    db.prepare('DELETE FROM po_items WHERE business_book_id=?').run(po.business_book_id);
+
+    db.prepare('DELETE FROM purchase_orders WHERE id=?').run(id);
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    console.error('PO delete error:', err);
+    res.status(500).json({ error: 'Delete failed: ' + err.message });
   }
-  db.prepare('DELETE FROM purchase_orders WHERE id=?').run(id);
-  res.json({ message: 'Deleted' });
 });
 
 router.delete('/planning/:id', (req, res) => {
