@@ -110,18 +110,43 @@ export default function ItemMaster() {
         </div>
       </div>
 
-      {/* Search + Filter */}
-      <div className="flex gap-3">
-        <div className="relative flex-1">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input className="input pl-10" placeholder="Search by name, spec, size, code, make..." value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Step 1: Pick Department. Step 2: Search by name within it. */}
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr_auto] gap-3 items-end">
+        <div>
+          <label className="label flex items-center gap-1"><FiFilter size={12} /> Step 1 — Department</label>
+          <select className="select" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
+            <option value="">All Departments</option>
+            {DEPARTMENTS.map(d => <option key={d} value={d}>{d} — {DEPT_LABELS[d] || d}</option>)}
+          </select>
         </div>
-        <select className="select w-48" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
-          <option value="">All Departments</option>
-          {DEPARTMENTS.map(d => <option key={d} value={d}>{d} - {DEPT_LABELS[d] || d}</option>)}
-        </select>
-        {(search || filterDept) && <button onClick={() => { setSearch(''); setFilterDept(''); }} className="btn btn-secondary text-red-500"><FiX size={14} /></button>}
+        <div>
+          <label className="label flex items-center gap-1"><FiSearch size={12} /> Step 2 — Search by Item Name</label>
+          <div className="relative">
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              className="input pl-10"
+              placeholder={filterDept ? `Type item name in ${DEPT_LABELS[filterDept] || filterDept}…` : 'Type item name, spec, size, code, or make…'}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+        {(search || filterDept) && (
+          <button onClick={() => { setSearch(''); setFilterDept(''); }} className="btn btn-secondary text-red-500 flex items-center gap-1 whitespace-nowrap">
+            <FiX size={14} /> Clear
+          </button>
+        )}
       </div>
+
+      {/* Active-filter chip line */}
+      {(filterDept || search) && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+          <span>Showing:</span>
+          {filterDept && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">{DEPT_LABELS[filterDept] || filterDept}</span>}
+          {search && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">"{search}"</span>}
+          <span className="text-gray-400">· {items.length} match{items.length === 1 ? '' : 'es'}</span>
+        </div>
+      )}
 
       {/* Table */}
       <div className="card p-0 overflow-hidden">
