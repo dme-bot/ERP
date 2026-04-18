@@ -24,7 +24,7 @@ export default function UserManagement() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', email: '', password: '', role: 'user', department: '', phone: '', active: true });
+    setForm({ name: '', email: '', username: '', password: '', role: 'user', department: '', phone: '', active: true });
     setSelectedRoles([]);
     setModal(true);
   };
@@ -103,12 +103,13 @@ export default function UserManagement() {
       <div className="card p-0 overflow-hidden">
         <table>
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Phone</th><th>System Role</th><th>Assigned Roles</th><th>Department</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>Name</th><th>Username</th><th>Email</th><th>Phone</th><th>System Role</th><th>Assigned Roles</th><th>Department</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {users.map(u => (
               <tr key={u.id}>
                 <td className="font-medium">{u.name}</td>
+                <td className="font-mono text-xs text-blue-700">{u.username || <span className="text-gray-300">—</span>}</td>
                 <td className="text-gray-600">{u.email}</td>
                 <td>{u.phone}</td>
                 <td><span className={`badge ${u.role === 'admin' ? 'badge-red' : u.role === 'manager' ? 'badge-purple' : 'badge-blue'}`}>{u.role}</span></td>
@@ -139,6 +140,11 @@ export default function UserManagement() {
         <form onSubmit={save} className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div><label className="label">Full Name *</label><input className="input" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} required /></div>
+            <div>
+              <label className="label">Username</label>
+              <input className="input font-mono" value={form.username || ''} onChange={e => setForm({...form, username: e.target.value.replace(/\s+/g, '.')})} placeholder="e.g. Monika.devi" />
+              <p className="text-[10px] text-gray-400 mt-0.5">Staff will log in with this. Leave blank to use email only.</p>
+            </div>
             <div><label className="label">Email *</label><input className="input" type="email" value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} required /></div>
             <div><label className="label">Phone</label><input className="input" value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} /></div>
             <div><label className="label">Department</label><input className="input" value={form.department || ''} onChange={e => setForm({...form, department: e.target.value})} /></div>

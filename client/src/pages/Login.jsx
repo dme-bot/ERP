@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { FiShield, FiMail, FiLock } from 'react-icons/fi';
+import { FiShield, FiUser, FiLock } from 'react-icons/fi';
 
 export default function Login() {
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ identifier: '', password: '' });
   const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const data = await login(form.email, form.password);
+      const data = await login(form.identifier, form.password);
       toast.success(`Welcome back, ${data.user.name}!`);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Something went wrong');
@@ -35,10 +35,10 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="label">Email</label>
+            <label className="label">Username or Email</label>
             <div className="relative">
-              <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input className="input pl-10" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} required placeholder="Enter your email" />
+              <FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input className="input pl-10" type="text" autoComplete="username" value={form.identifier} onChange={e => setForm({...form, identifier: e.target.value})} required placeholder="e.g. Monika.devi or you@email.com" />
             </div>
           </div>
           <div>

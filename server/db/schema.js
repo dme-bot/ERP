@@ -1108,7 +1108,10 @@ function initializeDatabase() {
     ['purchase_orders', 'boq_file_link TEXT'],
     ['attendance', 'auto_punched_in INTEGER DEFAULT 0'],
     ['attendance', 'auto_punched_out INTEGER DEFAULT 0'],
+    ['users', 'username TEXT'],
   ];
+  // Unique index on username — allows NULLs for legacy rows while enforcing uniqueness on set values
+  try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL'); } catch (e) {}
   for (const [table, col] of migrations) {
     try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col}`); } catch (e) {}
   }
@@ -1236,12 +1239,15 @@ function initializeDatabase() {
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@erp.com');
   if (!existing) {
     const hash = bcrypt.hashSync('admin123', 10);
-    const r = db.prepare('INSERT INTO users (name, email, password, role, department) VALUES (?, ?, ?, ?, ?)')
-      .run('Admin', 'admin@erp.com', hash, 'admin', 'Management');
+    const r = db.prepare('INSERT INTO users (name, email, username, password, role, department) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('Admin', 'admin@erp.com', 'admin', hash, 'admin', 'Management');
     // Assign Admin role
     if (adminRole) {
       db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(r.lastInsertRowid, adminRole.id);
     }
+  } else {
+    // Backfill username for the pre-existing admin row if empty
+    try { db.prepare("UPDATE users SET username='admin' WHERE email='admin@erp.com' AND (username IS NULL OR username='')").run(); } catch (e) {}
   }
 
   // Seed Item Master FIRST (needed for PO items in Business Book seed)

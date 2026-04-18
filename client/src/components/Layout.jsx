@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import HelpTicket from './HelpTicket';
+import Modal from './Modal';
+import toast from 'react-hot-toast';
+import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import {
   FiHome, FiUsers, FiTarget, FiFileText, FiShoppingCart,
   FiTruck, FiTool, FiAlertCircle, FiUserPlus,
   FiCheckSquare, FiMenu, FiX, FiLogOut, FiPackage, FiClipboard,
-  FiSettings, FiShield, FiTrendingUp, FiCreditCard, FiLayers, FiBarChart2, FiBook, FiGrid
+  FiSettings, FiShield, FiTrendingUp, FiCreditCard, FiLayers, FiBarChart2, FiBook, FiGrid, FiKey
 } from 'react-icons/fi';
 import { LuIndianRupee } from 'react-icons/lu';
 
@@ -43,8 +46,27 @@ const adminItems = [
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [pwdModal, setPwdModal] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ current_password: '', new_password: '', confirm: '' });
+  const [pwdSaving, setPwdSaving] = useState(false);
   const location = useLocation();
   const { user, logout, canView, isAdmin, userRoles } = useAuth();
+
+  const changePassword = async (e) => {
+    e.preventDefault();
+    if (pwdForm.new_password !== pwdForm.confirm) { toast.error('New password and confirmation do not match'); return; }
+    if (!pwdForm.new_password || pwdForm.new_password.length < 4) { toast.error('New password must be at least 4 characters'); return; }
+    setPwdSaving(true);
+    try {
+      await api.post('/auth/change-password', { current_password: pwdForm.current_password, new_password: pwdForm.new_password });
+      toast.success('Password changed');
+      setPwdModal(false);
+      setPwdForm({ current_password: '', new_password: '', confirm: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to change password');
+    }
+    setPwdSaving(false);
+  };
 
   useEffect(() => {
     const check = () => {
@@ -111,17 +133,43 @@ export default function Layout() {
         </nav>
         <div className="p-3 border-t border-white/10">
           <div className="text-sm text-slate-300">{user?.name}</div>
+          {user?.username && <div className="text-[10px] text-blue-300 font-mono">@{user.username}</div>}
           <div className="text-[10px] text-slate-500 mb-1">{user?.email}</div>
           <div className="flex flex-wrap gap-1 mb-2">
             {userRoles.map((r, i) => (
               <span key={i} className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded">{r}</span>
             ))}
           </div>
+          <button onClick={() => setPwdModal(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-white/10 rounded w-full mb-1">
+            <FiKey size={14} /> <span>Change Password</span>
+          </button>
           <button onClick={logout} className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-300 hover:text-red-200 hover:bg-white/10 rounded w-full">
             <FiLogOut size={15} /> <span>Logout</span>
           </button>
         </div>
       </aside>
+
+      {/* Change Password Modal */}
+      <Modal isOpen={pwdModal} onClose={() => setPwdModal(false)} title="Change Password">
+        <form onSubmit={changePassword} className="space-y-4">
+          <div>
+            <label className="label">Current Password</label>
+            <input className="input" type="password" autoComplete="current-password" value={pwdForm.current_password} onChange={e => setPwdForm({ ...pwdForm, current_password: e.target.value })} required />
+          </div>
+          <div>
+            <label className="label">New Password</label>
+            <input className="input" type="password" autoComplete="new-password" value={pwdForm.new_password} onChange={e => setPwdForm({ ...pwdForm, new_password: e.target.value })} required minLength={4} />
+          </div>
+          <div>
+            <label className="label">Confirm New Password</label>
+            <input className="input" type="password" autoComplete="new-password" value={pwdForm.confirm} onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })} required />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setPwdModal(false)} className="btn btn-secondary">Cancel</button>
+            <button type="submit" disabled={pwdSaving} className="btn btn-primary">{pwdSaving ? 'Saving...' : 'Change Password'}</button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden w-full">

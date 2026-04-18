@@ -5,10 +5,16 @@ const { generateToken, authMiddleware, adminOnly, getUserPermissions } = require
 const router = express.Router();
 
 router.post('/login', (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  // Accept either `username` or `email` as the identifier. Historical clients
+  // send `email`; the new login UI sends `username` which may actually be a
+  // username OR an email — we match against both columns.
+  const { username, email, password } = req.body;
+  const identifier = (username || email || '').trim();
+  if (!identifier || !password) return res.status(400).json({ error: 'Username/email and password required' });
   const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE email = ? AND active = 1').get(email);
+  const user = db.prepare(
+    'SELECT * FROM users WHERE (LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?)) AND active = 1'
+  ).get(identifier, identifier);
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
@@ -17,20 +23,20 @@ router.post('/login', (req, res) => {
   const userRoles = db.prepare(`SELECT r.name FROM roles r JOIN user_roles ur ON r.id=ur.role_id WHERE ur.user_id=?`).all(user.id);
   res.json({
     token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, department: user.department, phone: user.phone },
+    user: { id: user.id, name: user.name, email: user.email, username: user.username, role: user.role, department: user.department, phone: user.phone },
     permissions,
     userRoles: userRoles.map(r => r.name)
   });
 });
 
 router.post('/register', authMiddleware, adminOnly, (req, res) => {
-  const { name, email, password, role, department, phone, role_ids } = req.body;
+  const { name, email, username, password, role, department, phone, role_ids } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'Name, email and password required' });
   const db = getDb();
   try {
     const hash = bcrypt.hashSync(password, 10);
-    const result = db.prepare('INSERT INTO users (name, email, password, role, department, phone) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(name, email, hash, role || 'user', department || null, phone || null);
+    const result = db.prepare('INSERT INTO users (name, email, username, password, role, department, phone) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(name, email, username ? username.trim() : null, hash, role || 'user', department || null, phone || null);
 
     // Assign roles
     if (role_ids && role_ids.length > 0) {
@@ -38,17 +44,20 @@ router.post('/register', authMiddleware, adminOnly, (req, res) => {
       for (const rid of role_ids) insertUserRole.run(result.lastInsertRowid, rid);
     }
 
-    const user = db.prepare('SELECT id, name, email, role, department, phone FROM users WHERE id = ?').get(result.lastInsertRowid);
+    const user = db.prepare('SELECT id, name, email, username, role, department, phone FROM users WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json({ user, message: 'User created successfully' });
   } catch (e) {
-    if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email already exists' });
+    if (e.message.includes('UNIQUE')) {
+      const msg = e.message.includes('username') ? 'Username already taken' : 'Email already exists';
+      return res.status(409).json({ error: msg });
+    }
     res.status(500).json({ error: e.message });
   }
 });
 
 router.get('/me', authMiddleware, (req, res) => {
   const db = getDb();
-  const user = db.prepare('SELECT id, name, email, role, department, phone FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, name, email, username, role, department, phone FROM users WHERE id = ?').get(req.user.id);
   const permissions = getUserPermissions(req.user.id);
   const userRoles = db.prepare(`SELECT r.name FROM roles r JOIN user_roles ur ON r.id=ur.role_id WHERE ur.user_id=?`).all(req.user.id);
   res.json({ ...user, permissions, userRoles: userRoles.map(r => r.name) });
@@ -57,7 +66,7 @@ router.get('/me', authMiddleware, (req, res) => {
 router.get('/users', authMiddleware, (req, res) => {
   const db = getDb();
   const users = db.prepare(`
-    SELECT u.id, u.name, u.email, u.role, u.department, u.phone, u.active, u.created_at,
+    SELECT u.id, u.name, u.email, u.username, u.role, u.department, u.phone, u.active, u.created_at,
     GROUP_CONCAT(r.name) as role_names
     FROM users u
     LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -69,18 +78,33 @@ router.get('/users', authMiddleware, (req, res) => {
 
 // Update user (admin only)
 router.put('/users/:id', authMiddleware, adminOnly, (req, res) => {
-  const { name, email, department, phone, role, active, role_ids, password } = req.body;
+  const { name, email, username, department, phone, role, active, role_ids, password } = req.body;
   const db = getDb();
 
-  let sql = 'UPDATE users SET name=?, email=?, department=?, phone=?, role=?, active=? WHERE id=?';
-  let params = [name, email, department, phone, role, active ? 1 : 0, req.params.id];
-
-  if (password) {
-    sql = 'UPDATE users SET name=?, email=?, department=?, phone=?, role=?, active=?, password=? WHERE id=?';
-    params = [name, email, department, phone, role, active ? 1 : 0, bcrypt.hashSync(password, 10), req.params.id];
+  try {
+    const uname = username !== undefined ? (username ? String(username).trim() : null) : undefined;
+    if (uname !== undefined) {
+      if (password) {
+        db.prepare('UPDATE users SET name=?, email=?, username=?, department=?, phone=?, role=?, active=?, password=? WHERE id=?')
+          .run(name, email, uname, department, phone, role, active ? 1 : 0, bcrypt.hashSync(password, 10), req.params.id);
+      } else {
+        db.prepare('UPDATE users SET name=?, email=?, username=?, department=?, phone=?, role=?, active=? WHERE id=?')
+          .run(name, email, uname, department, phone, role, active ? 1 : 0, req.params.id);
+      }
+    } else if (password) {
+      db.prepare('UPDATE users SET name=?, email=?, department=?, phone=?, role=?, active=?, password=? WHERE id=?')
+        .run(name, email, department, phone, role, active ? 1 : 0, bcrypt.hashSync(password, 10), req.params.id);
+    } else {
+      db.prepare('UPDATE users SET name=?, email=?, department=?, phone=?, role=?, active=? WHERE id=?')
+        .run(name, email, department, phone, role, active ? 1 : 0, req.params.id);
+    }
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) {
+      const msg = e.message.includes('username') ? 'Username already taken' : 'Email already exists';
+      return res.status(409).json({ error: msg });
+    }
+    return res.status(500).json({ error: e.message });
   }
-
-  db.prepare(sql).run(...params);
 
   // Update role assignments
   if (role_ids) {
@@ -90,6 +114,20 @@ router.put('/users/:id', authMiddleware, adminOnly, (req, res) => {
   }
 
   res.json({ message: 'User updated' });
+});
+
+// Self-service: change own password (any logged-in user)
+router.post('/change-password', authMiddleware, (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!new_password || new_password.length < 4) return res.status(400).json({ error: 'New password must be at least 4 characters' });
+  const db = getDb();
+  const user = db.prepare('SELECT id, password FROM users WHERE id=?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!current_password || !bcrypt.compareSync(current_password, user.password)) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+  db.prepare('UPDATE users SET password=? WHERE id=?').run(bcrypt.hashSync(new_password, 10), req.user.id);
+  res.json({ message: 'Password changed successfully' });
 });
 
 // Deactivate user (admin only)

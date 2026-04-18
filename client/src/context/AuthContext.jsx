@@ -15,7 +15,7 @@ export function AuthProvider({ children }) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       api.get('/auth/me')
         .then(r => {
-          setUser({ id: r.data.id, name: r.data.name, email: r.data.email, role: r.data.role, department: r.data.department, phone: r.data.phone });
+          setUser({ id: r.data.id, name: r.data.name, email: r.data.email, username: r.data.username, role: r.data.role, department: r.data.department, phone: r.data.phone });
           setPermissions(r.data.permissions || {});
           setUserRoles(r.data.userRoles || []);
         })
@@ -26,8 +26,9 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  const login = async (email, password) => {
-    const { data } = await api.post('/auth/login', { email, password });
+  const login = async (identifier, password) => {
+    // Accept username or email — backend matches either.
+    const { data } = await api.post('/auth/login', { username: identifier, email: identifier, password });
     localStorage.setItem('token', data.token);
     api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
     setToken(data.token);
