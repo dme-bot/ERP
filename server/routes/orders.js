@@ -24,26 +24,54 @@ router.get('/business-book-entries', (req, res) => {
 
 // Purchase Orders
 router.get('/po', (req, res) => {
-  res.json(getDb().prepare(`SELECT po.*, bb.lead_no, bb.client_name as bb_client, bb.company_name as bb_company,
+  const db = getDb();
+  const rows = db.prepare(`SELECT po.*, bb.lead_no, bb.client_name as bb_client, bb.company_name as bb_company,
     COALESCE(s.name, bb.project_name) as bb_project, bb.category as bb_category,
     l.company_name, q.quotation_number, se.name as site_engineer_name FROM purchase_orders po
     LEFT JOIN business_book bb ON po.business_book_id=bb.id
     LEFT JOIN sites s ON s.business_book_id=bb.id
     LEFT JOIN leads l ON po.lead_id=l.id LEFT JOIN quotations q ON po.quotation_id=q.id
     LEFT JOIN users se ON po.site_engineer_id=se.id
-    ORDER BY po.created_at DESC`).all());
+    ORDER BY po.created_at DESC`).all();
+  // Resolve multi-engineer names from site_engineer_ids CSV
+  for (const r of rows) {
+    const csv = r.site_engineer_ids;
+    if (csv) {
+      const ids = String(csv).split(',').map(x => parseInt(x, 10)).filter(Boolean);
+      if (ids.length) {
+        const placeholders = ids.map(() => '?').join(',');
+        const users = db.prepare(`SELECT id, name FROM users WHERE id IN (${placeholders})`).all(...ids);
+        r.site_engineer_ids_list = ids;
+        r.site_engineer_names = users.map(u => u.name).join(', ');
+      }
+    } else if (r.site_engineer_id) {
+      r.site_engineer_ids_list = [r.site_engineer_id];
+      r.site_engineer_names = r.site_engineer_name || '';
+    } else {
+      r.site_engineer_ids_list = [];
+      r.site_engineer_names = '';
+    }
+  }
+  res.json(rows);
 });
 
 router.post('/po', (req, res) => {
-  const { business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, crm_name, items } = req.body;
+  const { business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, site_engineer_ids, crm_name, items } = req.body;
   const db = getDb();
 
-  if (!site_engineer_id) return res.status(400).json({ error: 'Site Engineer is required' });
+  // Normalize engineer IDs: accept array (preferred) or single legacy id
+  const engIds = Array.isArray(site_engineer_ids)
+    ? site_engineer_ids.map(x => parseInt(x, 10)).filter(Boolean)
+    : (site_engineer_id ? [parseInt(site_engineer_id, 10)].filter(Boolean) : []);
+  if (engIds.length === 0) return res.status(400).json({ error: 'At least one Site Engineer is required' });
   if (!crm_name) return res.status(400).json({ error: 'CRM is required' });
 
+  const primaryEng = engIds[0];
+  const engCsv = engIds.join(',');
+
   const r = db.prepare(
-    'INSERT INTO purchase_orders (business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, crm_name, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(business_book_id || null, lead_id || null, quotation_id || null, po_number, po_date, total_amount, advance_amount || 0, po_copy_link || null, pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0, site_engineer_id, crm_name, req.user.id);
+    'INSERT INTO purchase_orders (business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, site_engineer_ids, crm_name, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(business_book_id || null, lead_id || null, quotation_id || null, po_number, po_date, total_amount, advance_amount || 0, po_copy_link || null, pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0, primaryEng, engCsv, crm_name, req.user.id);
   const poId = r.lastInsertRowid;
 
   // Insert PO items
@@ -73,17 +101,22 @@ router.post('/po', (req, res) => {
 });
 
 router.put('/po/:id', (req, res) => {
-  const { po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, status, site_engineer_id, crm_name } = req.body;
-  if (!site_engineer_id) return res.status(400).json({ error: 'Site Engineer is required' });
+  const { po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, status, site_engineer_id, site_engineer_ids, crm_name } = req.body;
+  const engIds = Array.isArray(site_engineer_ids)
+    ? site_engineer_ids.map(x => parseInt(x, 10)).filter(Boolean)
+    : (site_engineer_id ? [parseInt(site_engineer_id, 10)].filter(Boolean) : []);
+  if (engIds.length === 0) return res.status(400).json({ error: 'At least one Site Engineer is required' });
   if (!crm_name) return res.status(400).json({ error: 'CRM is required' });
+  const primaryEng = engIds[0];
+  const engCsv = engIds.join(',');
   getDb().prepare(`UPDATE purchase_orders SET po_number=COALESCE(?,po_number), po_date=COALESCE(?,po_date),
     total_amount=COALESCE(?,total_amount), advance_amount=COALESCE(?,advance_amount),
     po_copy_link=?, pt_advance=?, pt_delivery=?, pt_installation=?, pt_commissioning=?, pt_retention=?,
-    site_engineer_id=?, crm_name=?,
+    site_engineer_id=?, site_engineer_ids=?, crm_name=?,
     status=COALESCE(?,status) WHERE id=?`)
     .run(po_number, po_date, total_amount, advance_amount, po_copy_link || null,
       pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0,
-      site_engineer_id, crm_name,
+      primaryEng, engCsv, crm_name,
       status, req.params.id);
   res.json({ message: 'Updated' });
 });

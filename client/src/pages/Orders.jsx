@@ -57,6 +57,10 @@ export default function Orders() {
 
   const handleEditPO = (po) => {
     setEditingPO(po);
+    // Prefer multi-id list from backend; fall back to legacy single id
+    const engIds = Array.isArray(po.site_engineer_ids_list) && po.site_engineer_ids_list.length > 0
+      ? po.site_engineer_ids_list
+      : (po.site_engineer_id ? [po.site_engineer_id] : []);
     setForm({
       business_book_id: po.business_book_id || '',
       po_number: po.po_number, po_date: po.po_date, total_amount: po.total_amount || 0,
@@ -64,7 +68,7 @@ export default function Orders() {
       pt_advance: po.pt_advance || '', pt_delivery: po.pt_delivery || '',
       pt_installation: po.pt_installation || '', pt_commissioning: po.pt_commissioning || '',
       pt_retention: po.pt_retention || '', status: po.status || 'received',
-      site_engineer_id: po.site_engineer_id || '', crm_name: po.crm_name || ''
+      site_engineer_ids: engIds, crm_name: po.crm_name || ''
     });
     // Load existing PO items
     api.get(`/orders/po/${po.id}/items`).then(r => {
@@ -75,7 +79,8 @@ export default function Orders() {
 
   const savePo = async (e) => {
     e.preventDefault();
-    if (!form.site_engineer_id) { toast.error('Site Engineer is required'); return; }
+    const engIds = form.site_engineer_ids || [];
+    if (!engIds.length) { toast.error('At least one Site Engineer is required'); return; }
     if (!form.crm_name) { toast.error('CRM is required'); return; }
     try {
       if (editingPO) {
@@ -118,7 +123,7 @@ export default function Orders() {
             <h3 className="font-semibold">Client Purchase Orders</h3>
             <button onClick={() => {
               setEditingPO(null);
-              setForm({ business_book_id: '', po_number: '', po_date: '', total_amount: 0, advance_amount: 0, po_copy_link: '', pt_advance: '', pt_delivery: '', pt_installation: '', pt_commissioning: '', pt_retention: '', site_engineer_id: '', crm_name: '' });
+              setForm({ business_book_id: '', po_number: '', po_date: '', total_amount: 0, advance_amount: 0, po_copy_link: '', pt_advance: '', pt_delivery: '', pt_installation: '', pt_commissioning: '', pt_retention: '', site_engineer_ids: [], crm_name: '' });
               setPoItems([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
               setModal('po');
             }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add PO</button>
@@ -135,7 +140,7 @@ export default function Orders() {
                   <td>{p.bb_category || '-'}</td>
                   <td>{p.po_date}</td>
                   <td className="font-semibold">Rs {p.total_amount?.toLocaleString()}</td>
-                  <td className="text-xs">{p.site_engineer_name || <span className="text-gray-400">-</span>}</td>
+                  <td className="text-xs">{p.site_engineer_names || p.site_engineer_name || <span className="text-gray-400">-</span>}</td>
                   <td className="text-xs">{p.crm_name || <span className="text-gray-400">-</span>}</td>
                   <td>{p.po_copy_link ? <a href={p.po_copy_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
                   <td><StatusBadge status={p.status} /></td>
@@ -210,13 +215,28 @@ export default function Orders() {
               <div><label className="label">PO Number *</label><input className="input" value={form.po_number || ''} onChange={e => setForm({ ...form, po_number: e.target.value })} required /></div>
               <div><label className="label">PO Date *</label><input className="input" type="date" value={form.po_date || ''} onChange={e => setForm({ ...form, po_date: e.target.value })} required /></div>
               <div><label className="label">Total Amount (Rs)</label><input className="input" type="number" value={form.total_amount || 0} onChange={e => setForm({ ...form, total_amount: +e.target.value })} /></div>
-              <div>
-                <label className="label">Site Engineer *</label>
-                <select className="select" required value={form.site_engineer_id || ''} onChange={e => setForm({ ...form, site_engineer_id: e.target.value ? +e.target.value : '' })}>
-                  <option value="">Select Site Engineer</option>
-                  {siteEngineers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-                {siteEngineers.length === 0 && <p className="text-[10px] text-amber-600 mt-0.5">No users with role "Site Engineer" yet</p>}
+              <div className="col-span-2">
+                <label className="label">Site Engineer(s) * <span className="text-gray-400 font-normal">(select one or more)</span></label>
+                <div className="border rounded-lg p-2 bg-white flex flex-wrap gap-1.5 min-h-[42px]">
+                  {siteEngineers.map(u => {
+                    const selected = (form.site_engineer_ids || []).includes(u.id);
+                    return (
+                      <button key={u.id} type="button"
+                        onClick={() => {
+                          const cur = form.site_engineer_ids || [];
+                          const next = selected ? cur.filter(id => id !== u.id) : [...cur, u.id];
+                          setForm({ ...form, site_engineer_ids: next });
+                        }}
+                        className={`px-2 py-1 rounded-full text-xs font-medium border transition ${selected ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}>
+                        {selected && <span className="mr-1">✓</span>}{u.name}
+                      </button>
+                    );
+                  })}
+                  {siteEngineers.length === 0 && <p className="text-[10px] text-amber-600">No users with role "Site Engineer" yet</p>}
+                </div>
+                {(form.site_engineer_ids || []).length > 0 && (
+                  <p className="text-[10px] text-blue-600 mt-0.5">{(form.site_engineer_ids || []).length} selected</p>
+                )}
               </div>
               <div>
                 <label className="label">CRM *</label>

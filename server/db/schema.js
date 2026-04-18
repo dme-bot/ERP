@@ -1103,6 +1103,7 @@ function initializeDatabase() {
   // Safe schema migrations for columns added after initial release
   const migrations = [
     ['purchase_orders', 'site_engineer_id INTEGER REFERENCES users(id)'],
+    ['purchase_orders', 'site_engineer_ids TEXT'],
     ['purchase_orders', 'crm_name TEXT'],
   ];
   for (const [table, col] of migrations) {
