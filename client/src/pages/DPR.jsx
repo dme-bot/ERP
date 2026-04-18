@@ -374,12 +374,12 @@ export default function DPR() {
             </div>
             {poItemsForSite.length > 0 ? (
               <>
-                <div className="grid grid-cols-12 gap-1 text-[10px] font-bold text-gray-600 mb-1 px-1 uppercase">
-                  <div className="col-span-3 md:col-span-4">BOQ Item</div><div className="col-span-2 md:col-span-1">Qty</div><div className="col-span-2">Location</div><div className="col-span-2">Rate (Rs)</div><div className="col-span-2">Amount (Rs)</div><div></div>
+                <div className="hidden md:grid grid-cols-12 gap-1 text-[10px] font-bold text-gray-600 mb-1 px-1 uppercase">
+                  <div className="md:col-span-4">BOQ Item</div><div className="md:col-span-1">Qty</div><div className="md:col-span-2">Location</div><div className="md:col-span-2">Rate (Rs)</div><div className="md:col-span-2">Amount (Rs)</div><div></div>
                 </div>
                 {workItems.map((w, i) => (
                   <div key={i} className="grid grid-cols-12 gap-1 mb-1.5 items-start bg-white rounded p-1">
-                    <div className="col-span-3 md:col-span-4">
+                    <div className="col-span-12 md:col-span-4">
                       <SearchableSelect
                         options={poItemsForSite.map(item => ({
                           id: item.id,
@@ -393,8 +393,8 @@ export default function DPR() {
                         onChange={(item) => selectWorkItem(i, item?.id || '')}
                       />
                     </div>
-                    <div className="col-span-2 md:col-span-1">
-                      <input className="input text-sm text-center w-full" type="number" placeholder="0" max={w.remaining_qty || w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
+                    <div className="col-span-3 md:col-span-1">
+                      <input className="input text-sm text-center w-full" type="number" placeholder="Qty" max={w.remaining_qty || w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
                         const val = +e.target.value;
                         const maxQty = w.remaining_qty ?? w.boq_qty ?? 999999;
                         if (val > maxQty) { toast.error(`Max qty: ${maxQty} (BOQ: ${w.boq_qty}, Already filled: ${w.filled_qty || 0})`); return; }
@@ -409,10 +409,10 @@ export default function DPR() {
                         </div>
                       )}
                     </div>
-                    <input className="input col-span-2 text-sm" placeholder="GF/1F/2F" value={w.location || ''} onChange={e => updateWork(i, 'location', e.target.value)} />
-                    <input className="input col-span-2 text-sm" type="number" placeholder="0" value={w.rate || ''} onChange={e => updateWork(i, 'rate', +e.target.value)} />
-                    <div className="col-span-2 text-sm font-bold text-right pr-2">Rs {(w.amount || 0).toLocaleString()}</div>
-                    <button type="button" onClick={() => removeWorkItem(i)} className="p-1 text-red-400 hover:text-red-600"><FiTrash2 size={13} /></button>
+                    <input className="input col-span-3 md:col-span-2 text-sm" placeholder="Loc (GF/1F)" value={w.location || ''} onChange={e => updateWork(i, 'location', e.target.value)} />
+                    <input className="input col-span-3 md:col-span-2 text-sm" type="number" placeholder="Rate" value={w.rate || ''} onChange={e => updateWork(i, 'rate', +e.target.value)} />
+                    <div className="col-span-2 md:col-span-2 text-sm font-bold text-right pr-2">Rs {(w.amount || 0).toLocaleString()}</div>
+                    <button type="button" onClick={() => removeWorkItem(i)} className="col-span-1 p-1 text-red-400 hover:text-red-600 flex justify-center"><FiTrash2 size={13} /></button>
                   </div>
                 ))}
                 {workItems.length === 0 && <p className="text-xs text-gray-400 text-center py-3">Click "+ Add Item" for items installed today</p>}
