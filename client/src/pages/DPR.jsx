@@ -393,12 +393,22 @@ export default function DPR() {
                         onChange={(item) => selectWorkItem(i, item?.id || '')}
                       />
                     </div>
-                    <input className="input text-sm text-center" type="number" placeholder="0" max={w.remaining_qty || w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
-                      const val = +e.target.value;
-                      const maxQty = w.remaining_qty ?? w.boq_qty ?? 999999;
-                      if (val > maxQty) { toast.error(`Max qty: ${maxQty} (BOQ: ${w.boq_qty}, Already filled: ${w.filled_qty || 0})`); return; }
-                      updateWork(i, 'qty', val);
-                    }} />
+                    <div>
+                      <input className="input text-sm text-center" type="number" placeholder="0" max={w.remaining_qty || w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
+                        const val = +e.target.value;
+                        const maxQty = w.remaining_qty ?? w.boq_qty ?? 999999;
+                        if (val > maxQty) { toast.error(`Max qty: ${maxQty} (BOQ: ${w.boq_qty}, Already filled: ${w.filled_qty || 0})`); return; }
+                        updateWork(i, 'qty', val);
+                      }} />
+                      {w.po_item_id && (
+                        <div className="text-[9px] leading-tight mt-0.5 text-center">
+                          <div className="text-gray-500">BOQ: <span className="font-semibold">{w.boq_qty} {w.unit || ''}</span></div>
+                          <div className={w.remaining_qty > 0 ? 'text-emerald-600 font-semibold' : 'text-red-500 font-semibold'}>
+                            Rem: {w.remaining_qty ?? 0} {w.unit || ''}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <input className="input col-span-2 text-sm" placeholder="GF/1F/2F" value={w.location || ''} onChange={e => updateWork(i, 'location', e.target.value)} />
                     <input className="input col-span-2 text-sm" type="number" placeholder="0" value={w.rate || ''} onChange={e => updateWork(i, 'rate', +e.target.value)} />
                     <div className="col-span-2 text-sm font-bold text-right pr-2">Rs {(w.amount || 0).toLocaleString()}</div>
