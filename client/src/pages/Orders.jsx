@@ -65,6 +65,7 @@ export default function Orders() {
       business_book_id: po.business_book_id || '',
       po_number: po.po_number, po_date: po.po_date, total_amount: po.total_amount || 0,
       advance_amount: po.advance_amount || 0, po_copy_link: po.po_copy_link || '',
+      boq_file_link: po.boq_file_link || '',
       pt_advance: po.pt_advance || '', pt_delivery: po.pt_delivery || '',
       pt_installation: po.pt_installation || '', pt_commissioning: po.pt_commissioning || '',
       pt_retention: po.pt_retention || '', status: po.status || 'received',
@@ -123,13 +124,13 @@ export default function Orders() {
             <h3 className="font-semibold">Client Purchase Orders</h3>
             <button onClick={() => {
               setEditingPO(null);
-              setForm({ business_book_id: '', po_number: '', po_date: '', total_amount: 0, advance_amount: 0, po_copy_link: '', pt_advance: '', pt_delivery: '', pt_installation: '', pt_commissioning: '', pt_retention: '', site_engineer_ids: [], crm_name: '' });
+              setForm({ business_book_id: '', po_number: '', po_date: '', total_amount: 0, advance_amount: 0, po_copy_link: '', boq_file_link: '', pt_advance: '', pt_delivery: '', pt_installation: '', pt_commissioning: '', pt_retention: '', site_engineer_ids: [], crm_name: '' });
               setPoItems([{ item_master_id: '', description: '', quantity: 0, unit: 'nos', rate: 0, amount: 0, hsn_code: '' }]);
               setModal('po');
             }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add PO</button>
           </div>
           <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table>
-            <thead><tr><th>PO Number</th><th>Lead No</th><th>Client</th><th>Project</th><th>Category</th><th>Date</th><th>Amount</th><th>Site Engineer</th><th>CRM</th><th>PO Copy</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>PO Number</th><th>Lead No</th><th>Client</th><th>Project</th><th>Category</th><th>Date</th><th>Amount</th><th>Site Engineer</th><th>CRM</th><th>PO Copy</th><th>BOQ File</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {pos.map(p => (
                 <tr key={p.id}>
@@ -143,6 +144,7 @@ export default function Orders() {
                   <td className="text-xs">{p.site_engineer_names || p.site_engineer_name || <span className="text-gray-400">-</span>}</td>
                   <td className="text-xs">{p.crm_name || <span className="text-gray-400">-</span>}</td>
                   <td>{p.po_copy_link ? <a href={p.po_copy_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
+                  <td>{p.boq_file_link ? <a href={p.boq_file_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
                   <td><StatusBadge status={p.status} /></td>
                   <td>
                     <div className="flex gap-1">
@@ -156,7 +158,7 @@ export default function Orders() {
                   </td>
                 </tr>
               ))}
-              {pos.length === 0 && <tr><td colSpan="12" className="text-center py-8 text-gray-400">No orders yet</td></tr>}
+              {pos.length === 0 && <tr><td colSpan="13" className="text-center py-8 text-gray-400">No orders yet</td></tr>}
             </tbody>
           </table></div></div>
         </>
@@ -287,15 +289,26 @@ export default function Orders() {
                   if (res.data.items?.length > 0) {
                     setPoItems(res.data.items.map(i => ({ ...i, item_master_id: '' })));
                     const total = res.data.items.reduce((s, i) => s + (i.amount || 0), 0);
-                    setForm(f => ({ ...f, total_amount: Math.round(total) }));
+                    setForm(f => ({ ...f, total_amount: Math.round(total), boq_file_link: res.data.file_url || f.boq_file_link }));
                     toast.success(`Fetched ${res.data.count} items from BOQ`);
-                  } else { toast.error('No items found in BOQ'); }
+                  } else {
+                    // Even without items, keep the uploaded file link so it's visible on the PO
+                    if (res.data.file_url) setForm(f => ({ ...f, boq_file_link: res.data.file_url }));
+                    toast.error('No items found in BOQ');
+                  }
                 } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
                 e.target.value = '';
               }} />
             </label>
             {poItems.length > 0 && poItems[0].description && (
               <p className="text-xs text-emerald-600 font-bold mt-2">{poItems.length} items loaded. Total Amount auto-updated.</p>
+            )}
+            {form.boq_file_link && (
+              <div className="mt-2 flex items-center justify-center gap-2 text-xs">
+                <span className="text-gray-500">BOQ file attached:</span>
+                <a href={form.boq_file_link} target="_blank" rel="noreferrer" className="text-blue-600 underline truncate max-w-[260px]">{form.boq_file_link.split('/').pop()}</a>
+                <button type="button" onClick={() => setForm(f => ({ ...f, boq_file_link: '' }))} className="text-red-500 hover:underline">Remove</button>
+              </div>
             )}
           </div>
 

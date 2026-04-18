@@ -1105,6 +1105,7 @@ function initializeDatabase() {
     ['purchase_orders', 'site_engineer_id INTEGER REFERENCES users(id)'],
     ['purchase_orders', 'site_engineer_ids TEXT'],
     ['purchase_orders', 'crm_name TEXT'],
+    ['purchase_orders', 'boq_file_link TEXT'],
   ];
   for (const [table, col] of migrations) {
     try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col}`); } catch (e) {}

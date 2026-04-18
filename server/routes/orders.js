@@ -56,7 +56,7 @@ router.get('/po', (req, res) => {
 });
 
 router.post('/po', (req, res) => {
-  const { business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, site_engineer_ids, crm_name, items } = req.body;
+  const { business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, boq_file_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, site_engineer_ids, crm_name, items } = req.body;
   const db = getDb();
 
   // Normalize engineer IDs: accept array (preferred) or single legacy id
@@ -70,8 +70,8 @@ router.post('/po', (req, res) => {
   const engCsv = engIds.join(',');
 
   const r = db.prepare(
-    'INSERT INTO purchase_orders (business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, site_engineer_ids, crm_name, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(business_book_id || null, lead_id || null, quotation_id || null, po_number, po_date, total_amount, advance_amount || 0, po_copy_link || null, pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0, primaryEng, engCsv, crm_name, req.user.id);
+    'INSERT INTO purchase_orders (business_book_id, lead_id, quotation_id, po_number, po_date, total_amount, advance_amount, po_copy_link, boq_file_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, site_engineer_id, site_engineer_ids, crm_name, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(business_book_id || null, lead_id || null, quotation_id || null, po_number, po_date, total_amount, advance_amount || 0, po_copy_link || null, boq_file_link || null, pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0, primaryEng, engCsv, crm_name, req.user.id);
   const poId = r.lastInsertRowid;
 
   // Insert PO items
@@ -101,7 +101,7 @@ router.post('/po', (req, res) => {
 });
 
 router.put('/po/:id', (req, res) => {
-  const { po_number, po_date, total_amount, advance_amount, po_copy_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, status, site_engineer_id, site_engineer_ids, crm_name } = req.body;
+  const { po_number, po_date, total_amount, advance_amount, po_copy_link, boq_file_link, pt_advance, pt_delivery, pt_installation, pt_commissioning, pt_retention, status, site_engineer_id, site_engineer_ids, crm_name } = req.body;
   const engIds = Array.isArray(site_engineer_ids)
     ? site_engineer_ids.map(x => parseInt(x, 10)).filter(Boolean)
     : (site_engineer_id ? [parseInt(site_engineer_id, 10)].filter(Boolean) : []);
@@ -111,10 +111,10 @@ router.put('/po/:id', (req, res) => {
   const engCsv = engIds.join(',');
   getDb().prepare(`UPDATE purchase_orders SET po_number=COALESCE(?,po_number), po_date=COALESCE(?,po_date),
     total_amount=COALESCE(?,total_amount), advance_amount=COALESCE(?,advance_amount),
-    po_copy_link=?, pt_advance=?, pt_delivery=?, pt_installation=?, pt_commissioning=?, pt_retention=?,
+    po_copy_link=?, boq_file_link=?, pt_advance=?, pt_delivery=?, pt_installation=?, pt_commissioning=?, pt_retention=?,
     site_engineer_id=?, site_engineer_ids=?, crm_name=?,
     status=COALESCE(?,status) WHERE id=?`)
-    .run(po_number, po_date, total_amount, advance_amount, po_copy_link || null,
+    .run(po_number, po_date, total_amount, advance_amount, po_copy_link || null, boq_file_link || null,
       pt_advance || 0, pt_delivery || 0, pt_installation || 0, pt_commissioning || 0, pt_retention || 0,
       primaryEng, engCsv, crm_name,
       status, req.params.id);
@@ -374,9 +374,20 @@ router.post('/po-upload-excel', upload.single('file'), (req, res) => {
       });
     }
 
-    try { fs.unlinkSync(req.file.path); } catch (e) {}
-    res.json({ items, count: items.length, format: isBOQ ? 'BOQ' : 'template' });
+    // Keep the uploaded file so it can be viewed later as the PO's BOQ file.
+    // Rename to include a readable suffix (original filename) served via /uploads.
+    let fileUrl = `/uploads/${req.file.filename}`;
+    try {
+      const safeName = (req.file.originalname || 'boq.xlsx').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const newName = `${Date.now()}-${safeName}`;
+      const newPath = path.join(path.dirname(req.file.path), newName);
+      fs.renameSync(req.file.path, newPath);
+      fileUrl = `/uploads/${newName}`;
+    } catch (e) { /* if rename fails, fall back to multer's hashed name */ }
+
+    res.json({ items, count: items.length, format: isBOQ ? 'BOQ' : 'template', file_url: fileUrl, filename: req.file.originalname });
   } catch (err) {
+    try { if (req.file) fs.unlinkSync(req.file.path); } catch (e) {}
     res.status(500).json({ error: 'Failed to parse Excel: ' + err.message });
   }
 });
