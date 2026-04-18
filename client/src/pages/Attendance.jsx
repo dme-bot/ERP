@@ -15,6 +15,15 @@ export default function Attendance() {
   const [report, setReport] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [geofences, setGeofences] = useState([]);
+  // "By User" tab state
+  const [allUsers, setAllUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [userRecords, setUserRecords] = useState([]);
+  const today = new Date().toISOString().split('T')[0];
+  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+  const [userDateFrom, setUserDateFrom] = useState(firstOfMonth);
+  const [userDateTo, setUserDateTo] = useState(today);
   const [location, setLocation] = useState(null);
   const [address, setAddress] = useState('');
   const [photo, setPhoto] = useState(null);
@@ -34,10 +43,19 @@ export default function Attendance() {
       api.get(`/attendance?date=${filterDate}`).then(r => setRecords(r.data)).catch(() => {});
       api.get('/attendance/geofence').then(r => setGeofences(r.data)).catch(() => {});
       api.get('/attendance/leaves').then(r => setLeaves(r.data)).catch(() => {});
+      api.get('/auth/users').then(r => setAllUsers((r.data || []).filter(u => u.active !== 0))).catch(() => {});
       const m = new Date().getMonth() + 1, y = new Date().getFullYear();
       api.get(`/attendance/report?month=${m}&year=${y}`).then(r => setReport(r.data)).catch(() => {});
     }
   }, [filterDate]);
+
+  // Load per-user records when the By User tab filters change
+  useEffect(() => {
+    if (!isAdmin() || tab !== 'byuser' || !selectedUserId) { setUserRecords([]); return; }
+    api.get(`/attendance?user_id=${selectedUserId}&date_from=${userDateFrom}&date_to=${userDateTo}`)
+      .then(r => setUserRecords(r.data))
+      .catch(() => setUserRecords([]));
+  }, [tab, selectedUserId, userDateFrom, userDateTo, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -141,6 +159,7 @@ export default function Attendance() {
         {isAdmin() && <>
           <button onClick={() => setTab('dashboard')} className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-secondary'} text-sm`}>Dashboard</button>
           <button onClick={() => setTab('records')} className={`btn ${tab === 'records' ? 'btn-primary' : 'btn-secondary'} text-sm`}>Records</button>
+          <button onClick={() => setTab('byuser')} className={`btn ${tab === 'byuser' ? 'btn-primary' : 'btn-secondary'} text-sm`}>By User</button>
           <button onClick={() => setTab('report')} className={`btn ${tab === 'report' ? 'btn-primary' : 'btn-secondary'} text-sm`}>Monthly Report</button>
           <button onClick={() => setTab('geofence')} className={`btn ${tab === 'geofence' ? 'btn-primary' : 'btn-secondary'} text-sm`}>Geofence</button>
           <button onClick={() => setTab('leaves')} className={`btn ${tab === 'leaves' ? 'btn-primary' : 'btn-secondary'} text-sm`}>Leaves</button>
@@ -283,6 +302,145 @@ export default function Attendance() {
             ))}</tbody>
           </table></div></div>
         </>
+      )}
+
+      {/* BY USER TAB — pick a person, see their in/out/hours over a range */}
+      {tab === 'byuser' && isAdmin() && (
+        <div className="space-y-4">
+          <div className="card p-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="md:col-span-2">
+                <label className="label">Search Employee</label>
+                <input
+                  className="input"
+                  placeholder="Type name, email, or department..."
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                />
+                <div className="mt-2 max-h-48 overflow-y-auto border rounded-lg bg-white">
+                  {allUsers
+                    .filter(u => {
+                      if (!userSearch) return true;
+                      const q = userSearch.toLowerCase();
+                      return (u.name || '').toLowerCase().includes(q)
+                        || (u.email || '').toLowerCase().includes(q)
+                        || (u.department || '').toLowerCase().includes(q);
+                    })
+                    .slice(0, 50)
+                    .map(u => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => setSelectedUserId(u.id)}
+                        className={`w-full text-left px-3 py-2 text-sm border-b last:border-b-0 hover:bg-blue-50 ${selectedUserId === u.id ? 'bg-blue-100 font-semibold' : ''}`}
+                      >
+                        {u.name} <span className="text-xs text-gray-400">— {u.department || u.role_names || u.role || 'User'}</span>
+                      </button>
+                    ))}
+                  {allUsers.length === 0 && <p className="p-3 text-xs text-gray-400">No users loaded</p>}
+                </div>
+              </div>
+              <div>
+                <label className="label">From</label>
+                <input type="date" className="input" value={userDateFrom} onChange={e => setUserDateFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">To</label>
+                <input type="date" className="input" value={userDateTo} onChange={e => setUserDateTo(e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          {!selectedUserId ? (
+            <div className="card p-8 text-center text-gray-400 text-sm">Pick an employee on the left to see their attendance details</div>
+          ) : (
+            <>
+              {/* Summary cards */}
+              {(() => {
+                const total = userRecords.length;
+                const present = userRecords.filter(r => r.punch_in_time).length;
+                const late = userRecords.filter(r => r.status === 'late').length;
+                const halfDay = userRecords.filter(r => r.status === 'half_day').length;
+                const autoIn = userRecords.filter(r => r.auto_punched_in).length;
+                const autoOut = userRecords.filter(r => r.auto_punched_out).length;
+                const totalHours = userRecords.reduce((s, r) => s + (r.total_hours || 0), 0);
+                const avgHours = present > 0 ? (totalHours / present).toFixed(1) : '0';
+                const selectedUser = allUsers.find(u => u.id === selectedUserId);
+                return (
+                  <>
+                    <div className="card p-3 flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-lg">{selectedUser?.name || '—'}</h4>
+                        <p className="text-xs text-gray-500">{selectedUser?.department || ''} {selectedUser?.email ? `· ${selectedUser.email}` : ''}</p>
+                      </div>
+                      <span className="text-xs text-gray-400">{userDateFrom} → {userDateTo}</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                      <div className="card p-3"><div className="text-[11px] text-gray-500">Records</div><div className="text-2xl font-bold">{total}</div></div>
+                      <div className="card p-3"><div className="text-[11px] text-gray-500">Present</div><div className="text-2xl font-bold text-emerald-600">{present}</div></div>
+                      <div className="card p-3"><div className="text-[11px] text-gray-500">Late</div><div className="text-2xl font-bold text-amber-600">{late}</div></div>
+                      <div className="card p-3"><div className="text-[11px] text-gray-500">Half Day</div><div className="text-2xl font-bold text-orange-600">{halfDay}</div></div>
+                      <div className="card p-3"><div className="text-[11px] text-gray-500">Total Hours</div><div className="text-2xl font-bold">{totalHours.toFixed(1)}</div></div>
+                      <div className="card p-3"><div className="text-[11px] text-gray-500">Avg Hours / day</div><div className="text-2xl font-bold">{avgHours}</div></div>
+                    </div>
+                    {(autoIn > 0 || autoOut > 0) && (
+                      <div className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+                        Auto-punched: {autoIn} in · {autoOut} out. These entries were marked automatically after 5 min inside/outside the geofence.
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+
+              {/* Detail table */}
+              <div className="card p-0 overflow-hidden">
+                <div className="p-3 border-b"><h4 className="font-semibold text-sm">Daily Detail</h4></div>
+                <div className="overflow-x-auto">
+                  <table className="text-sm w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-2 py-2 text-left">Date</th>
+                        <th className="px-2 py-2">In</th>
+                        <th className="px-2 py-2">Out</th>
+                        <th className="px-2 py-2">Hours</th>
+                        <th className="px-2 py-2 text-left">Site</th>
+                        <th className="px-2 py-2">Status</th>
+                        <th className="px-2 py-2">Photos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userRecords.map(r => (
+                        <tr key={r.id} className="border-b">
+                          <td className="px-2 py-2 font-medium">{r.date}</td>
+                          <td className="px-2 py-2 text-center text-xs text-emerald-600">
+                            {r.punch_in_time ? new Date(r.punch_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                            {r.auto_punched_in ? <span className="ml-1 text-[9px] bg-purple-100 text-purple-700 px-1 rounded">AUTO</span> : null}
+                          </td>
+                          <td className="px-2 py-2 text-center text-xs text-red-600">
+                            {r.punch_out_time ? new Date(r.punch_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                            {r.auto_punched_out ? <span className="ml-1 text-[9px] bg-purple-100 text-purple-700 px-1 rounded">AUTO</span> : null}
+                          </td>
+                          <td className="px-2 py-2 text-center font-semibold">{r.total_hours || '-'}</td>
+                          <td className="px-2 py-2 text-xs">{r.site_name || '-'}</td>
+                          <td className="px-2 py-2 text-center"><StatusBadge status={r.status} /></td>
+                          <td className="px-2 py-2">
+                            <div className="flex gap-1 justify-center">
+                              {r.punch_in_photo && <img src={r.punch_in_photo} alt="In" className="w-8 h-8 rounded object-cover" title="Punch In" />}
+                              {r.punch_out_photo && <img src={r.punch_out_photo} alt="Out" className="w-8 h-8 rounded object-cover" title="Punch Out" />}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {userRecords.length === 0 && (
+                        <tr><td colSpan="7" className="text-center py-6 text-gray-400">No attendance records in this range</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {/* MONTHLY REPORT */}
