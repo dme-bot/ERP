@@ -106,7 +106,7 @@ router.post('/', requirePermission('business_book', 'create'), (req, res) => {
     boq_file_link, boq_signed_link, tpa_material_link, tpa_material_signed_link,
     tpa_labour_link, tpa_labour_signed_link, final_drawing_link,
     remarks, created_by
-  ) VALUES (${Array(68).fill('?').join(',')})`).run(
+  ) VALUES (${Array(69).fill('?').join(',')})`).run(
     leadNo, b.lead_type || 'Private', b.client_name, b.company_name, b.project_name, b.client_contact, b.client_email, b.email_address,
     b.source_of_enquiry, b.district, b.state, b.billing_address, b.shipping_address,
     b.guarantee_required || 'No', b.guarantee_percentage, b.sale_amount_without_gst || 0, b.po_amount || 0,
