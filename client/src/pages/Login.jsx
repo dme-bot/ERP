@@ -4,13 +4,21 @@ import toast from 'react-hot-toast';
 import { FiShield, FiUser, FiLock } from 'react-icons/fi';
 
 export default function Login() {
-  const [form, setForm] = useState({ identifier: '', password: '' });
+  // Prefill the username if "Remember me" was ticked on a previous login.
+  const savedIdentifier = typeof window !== 'undefined' ? (localStorage.getItem('sepl_remember_identifier') || '') : '';
+  const [form, setForm] = useState({ identifier: savedIdentifier, password: '' });
+  const [remember, setRemember] = useState(!!savedIdentifier);
   const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const data = await login(form.identifier, form.password);
+      if (remember) {
+        localStorage.setItem('sepl_remember_identifier', form.identifier);
+      } else {
+        localStorage.removeItem('sepl_remember_identifier');
+      }
       toast.success(`Welcome back, ${data.user.name}!`);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Something went wrong');
@@ -48,6 +56,18 @@ export default function Login() {
               <input className="input pl-10" type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required placeholder="Enter your password" />
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              checked={remember}
+              onChange={e => setRemember(e.target.checked)}
+            />
+            <span>Remember me</span>
+            <span className="ml-auto text-[10px] text-gray-400">Saves your username on this device</span>
+          </label>
+
           <button type="submit" className="btn btn-primary w-full py-3.5 text-base rounded-xl">Sign In</button>
         </form>
 
