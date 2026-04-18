@@ -272,60 +272,44 @@ export default function Orders() {
                 )}
                 {uploading && <p className="text-xs text-blue-500 mt-1">Uploading...</p>}
               </div>
-              <div>
-                <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload BOQ File</label>
-                {form.boq_file_link ? (
-                  <div className="flex items-center gap-2">
-                    <a href={form.boq_file_link} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline truncate flex-1">{form.boq_file_link.split('/').pop()}</a>
-                    <button type="button" onClick={() => setForm({ ...form, boq_file_link: '' })} className="text-red-500 text-xs">Remove</button>
-                  </div>
-                ) : (
-                  <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" disabled={uploading}
-                    onChange={async (e) => {
-                      const file = e.target.files[0]; if (!file) return;
-                      setUploading(true);
-                      try {
-                        const fd = new FormData(); fd.append('file', file);
-                        const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-                        setForm(f => ({ ...f, boq_file_link: res.data.url }));
-                        toast.success(`Uploaded: ${res.data.filename}`);
-                      } catch { toast.error('Upload failed'); }
-                      setUploading(false); e.target.value = '';
-                    }}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                )}
-                <p className="text-[10px] text-gray-400 mt-0.5">Or use "Upload BOQ & Fetch Items" below to auto-fill items.</p>
-              </div>
             </div>
           </div>
 
-          {/* 3. Upload BOQ Excel → Fetch Items */}
+          {/* 3. Upload BOQ → Auto-fetch items (Excel) or just attach (PDF/image) */}
           <div className="border-2 border-dashed border-indigo-400 rounded-lg p-4 bg-indigo-50 text-center">
-            <h4 className="font-bold text-indigo-800 mb-2">Upload BOQ Excel to Fetch Items</h4>
-            <p className="text-xs text-indigo-600 mb-3">Upload your BOQ Excel file. All items with SN, Qty, Unit, SITC Rate, Amount will auto-fill below.</p>
-            <label className="btn btn-primary inline-flex items-center gap-2 cursor-pointer text-base px-6 py-3">
-              <FiUpload size={18} /> Upload BOQ & Fetch Items
-              <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async (e) => {
+            <h4 className="font-bold text-indigo-800 mb-2">Upload BOQ File</h4>
+            <p className="text-xs text-indigo-600 mb-3">Upload Excel (.xlsx/.xls) to auto-fill items below. PDF/Image/Word also accepted — will just attach the file.</p>
+            <label className={`btn btn-primary inline-flex items-center gap-2 cursor-pointer text-base px-6 py-3 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+              <FiUpload size={18} /> {uploading ? 'Uploading...' : 'Upload BOQ & Fetch Items'}
+              <input type="file" accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" disabled={uploading} onChange={async (e) => {
                 const file = e.target.files[0]; if (!file) return;
+                const isExcel = /\.(xlsx|xls)$/i.test(file.name);
                 const fd = new FormData(); fd.append('file', file);
+                setUploading(true);
                 try {
-                  const res = await api.post('/orders/po-upload-excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-                  if (res.data.items?.length > 0) {
-                    setPoItems(res.data.items.map(i => ({ ...i, item_master_id: '' })));
-                    const total = res.data.items.reduce((s, i) => s + (i.amount || 0), 0);
-                    setForm(f => ({ ...f, total_amount: Math.round(total), boq_file_link: res.data.file_url || f.boq_file_link }));
-                    toast.success(`Fetched ${res.data.count} items from BOQ`);
+                  if (isExcel) {
+                    const res = await api.post('/orders/po-upload-excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                    if (res.data.items?.length > 0) {
+                      setPoItems(res.data.items.map(i => ({ ...i, item_master_id: '' })));
+                      const total = res.data.items.reduce((s, i) => s + (i.amount || 0), 0);
+                      setForm(f => ({ ...f, total_amount: Math.round(total), boq_file_link: res.data.file_url || f.boq_file_link }));
+                      toast.success(`Fetched ${res.data.count} items from BOQ`);
+                    } else {
+                      if (res.data.file_url) setForm(f => ({ ...f, boq_file_link: res.data.file_url }));
+                      const hdrs = (res.data.detectedHeaders || []).filter(Boolean).join(' | ');
+                      toast.error(`No items parsed. Detected headers row ${res.data.headerRow}: ${hdrs || '(none)'}. Check your Excel has Item/Qty columns.`, { duration: 10000 });
+                    }
                   } else {
-                    // Even without items, keep the uploaded file link so it's visible on the PO
-                    if (res.data.file_url) setForm(f => ({ ...f, boq_file_link: res.data.file_url }));
-                    toast.error('No items found in BOQ');
+                    const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                    setForm(f => ({ ...f, boq_file_link: res.data.url }));
+                    toast.success(`BOQ attached: ${res.data.filename}`);
                   }
-                } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
-                e.target.value = '';
+                } catch (err) { toast.error(err.response?.data?.error || 'Upload failed', { duration: 10000 }); }
+                setUploading(false); e.target.value = '';
               }} />
             </label>
             {poItems.length > 0 && poItems[0].description && (
-              <p className="text-xs text-emerald-600 font-bold mt-2">{poItems.length} items loaded. Total Amount auto-updated.</p>
+              <p className="text-xs text-emerald-600 font-bold mt-2">{poItems.filter(i => i.description).length} items loaded. Total Amount auto-updated.</p>
             )}
             {form.boq_file_link && (
               <div className="mt-2 flex items-center justify-center gap-2 text-xs">
