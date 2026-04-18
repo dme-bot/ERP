@@ -61,12 +61,12 @@ export default function Login() {
             Crafted with <span className="text-pink-400">&hearts;</span> by
           </p>
           <p className="text-base font-bold bg-gradient-to-r from-blue-300 via-indigo-300 to-purple-300 bg-clip-text text-transparent drop-shadow-sm">
-            Monika Devi
+            Secured Engineers Pvt Ltd
           </p>
           <div className="mt-2 flex items-center justify-center gap-2">
             <span className="h-px w-8 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
             <p className="text-[10px] font-semibold tracking-widest text-white/60 uppercase">
-              Secured Engineers Pvt Ltd
+              Monika Devi
             </p>
             <span className="h-px w-8 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
           </div>
