@@ -296,8 +296,6 @@ router.post('/po-upload-excel', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
     const wb = XLSX.readFile(req.file.path);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
     // Parse a cell that may be a number, a string like "10 nos", "1,250", or blank
     const parseNum = (v) => {
@@ -307,94 +305,127 @@ router.post('/po-upload-excel', upload.single('file'), (req, res) => {
       return cleaned ? parseFloat(cleaned[0]) : 0;
     };
 
-    // Find header row — scan first 20 rows for any known column keyword
-    const HEADER_KEYWORDS = ['item name', 'description', 'particulars', 'work', 'item', 'qty', 'quantity', 'sitc', 'rate', 'amount'];
-    let headerIdx = -1;
-    for (let i = 0; i < Math.min(20, data.length); i++) {
-      const row = (data[i] || []).map(c => String(c || '').toLowerCase().trim());
-      const matches = HEADER_KEYWORDS.filter(k => row.some(c => c.includes(k))).length;
-      if (matches >= 2) { headerIdx = i; break; }
-    }
-    if (headerIdx === -1) headerIdx = 0;
+    // Parse a single sheet → items[]. Returns { items, debug }
+    const parseSheet = (sheetName) => {
+      const ws = wb.Sheets[sheetName];
+      if (!ws) return { items: [], debug: { sheetName, error: 'sheet missing' } };
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-    const headers = (data[headerIdx] || []).map(h => String(h || '').toLowerCase().trim());
+      // Find header row — scan first 20 rows for any known column keyword
+      const HEADER_KEYWORDS = ['item name', 'description', 'particulars', 'work', 'item', 'qty', 'qnty', 'quantity', 'sitc', 'rate', 'amount', 's/n', 's.no'];
+      let headerIdx = -1;
+      for (let i = 0; i < Math.min(20, data.length); i++) {
+        const row = (data[i] || []).map(c => String(c || '').toLowerCase().trim());
+        const matches = HEADER_KEYWORDS.filter(k => row.some(c => c === k || c.includes(k))).length;
+        if (matches >= 2) { headerIdx = i; break; }
+      }
+      if (headerIdx === -1) return { items: [], debug: { sheetName, error: 'no header row found', rowCount: data.length } };
 
-    // Detect format: BOQ (has 'sitc rate' or 'sn') vs simple template
-    const isBOQ = headers.some(h => h.includes('sitc') || h.includes('supply rate') || h.includes('total cost'));
+      const headers = (data[headerIdx] || []).map(h => String(h || '').toLowerCase().trim());
+      const isBOQ = headers.some(h => h.includes('sitc') || h.includes('supply rate') || h.includes('total cost'));
 
-    const colMap = {};
-    headers.forEach((h, i) => {
-      if (colMap.name === undefined && (h.includes('item name') || h.includes('description') || h.includes('particulars') || h.includes('work') || h === 'item' || h === 'items')) colMap.name = i;
-      if (h.includes('specification') || h === 'spec' || h.includes('specs')) colMap.spec = i;
-      if (h === 'size' || h.includes('size')) colMap.size = i;
-      if (colMap.qty === undefined && (h === 'qty' || h === 'quantity' || h.includes('qty') || h.includes('quantity') || h === 'nos')) colMap.qty = i;
-      if (colMap.unit === undefined && (h === 'unit' || h === 'uom' || h.includes('unit'))) colMap.unit = i;
-      if (h.includes('sitc rate') || h === 'sitc') colMap.sitcRate = i;
-      if (h.includes('supply rate')) colMap.supplyRate = i;
-      if (h.includes('installation')) colMap.installRate = i;
-      if (h.includes('total cost')) colMap.totalCost = i;
-      if (!colMap.rate && (h.includes('rate') && !h.includes('supply') && !h.includes('sitc') && !h.includes('install'))) colMap.rate = i;
-      if (h.includes('amount') && !h.includes('total')) colMap.amount = i;
-      if (h.includes('hsn')) colMap.hsn = i;
-      if (h === 'sn' || h === 'sr no' || h === 'sr' || h === 's.no' || h === 's. no' || h === 'sl no' || h === 'sl.no') colMap.sn = i;
-    });
-
-    // Debug info — always returned so frontend can show exactly why parse fell short
-    const detectedHeaders = (data[headerIdx] || []).map(h => String(h || ''));
-
-    if (colMap.name === undefined) {
-      return res.status(400).json({
-        error: 'Could not find an Item/Description column. Detected headers: ' + detectedHeaders.join(' | '),
-        detectedHeaders, headerRow: headerIdx, colMap,
+      const colMap = {};
+      headers.forEach((h, i) => {
+        if (colMap.name === undefined && (h.includes('item name') || h.includes('description') || h.includes('particulars') || h === 'work' || h.includes('work description') || h === 'item' || h === 'items')) colMap.name = i;
+        if (h.includes('specification') || h === 'spec' || h.includes('specs')) colMap.spec = i;
+        if (h === 'size' || h.includes('size')) colMap.size = i;
+        if (colMap.qty === undefined && (h === 'qty' || h === 'quantity' || h === 'qnty' || h === 'qnty.' || h.includes('qty') || h.includes('qnty') || h.includes('quantity') || h === 'nos')) colMap.qty = i;
+        if (colMap.unit === undefined && (h === 'unit' || h === 'uom' || h.includes('unit') || h === 'units')) colMap.unit = i;
+        if (h.includes('sitc rate') || h === 'sitc') colMap.sitcRate = i;
+        if (h.includes('supply rate')) colMap.supplyRate = i;
+        if (h.includes('installation')) colMap.installRate = i;
+        if (h.includes('total cost')) colMap.totalCost = i;
+        if (!colMap.rate && (h.includes('rate') && !h.includes('supply') && !h.includes('sitc') && !h.includes('install'))) colMap.rate = i;
+        if (h.includes('amount') && !h.includes('total')) colMap.amount = i;
+        if (h.includes('hsn')) colMap.hsn = i;
+        if (h === 'sn' || h === 's/n' || h === 'sr no' || h === 'sr' || h === 's.no' || h === 's. no' || h === 's.no.' || h === 'sl no' || h === 'sl.no') colMap.sn = i;
       });
-    }
 
-    const items = [];
-    const skipped = { noName: 0, noQty: 0 };
-    let serial = 1;
-    for (let i = headerIdx + 1; i < data.length; i++) {
-      const row = data[i] || [];
-      const name = String(row[colMap.name] || '').trim();
-      if (!name || name.length < 3) { skipped.noName++; continue; }
+      // If unit column header is blank but there's a column right after qty with string values like "mtr", "Nos", "Set", auto-detect it
+      if (colMap.qty !== undefined && colMap.unit === undefined) {
+        const maybeUnitCol = colMap.qty + 1;
+        const UNIT_LIKE = /^(mtr|nos|set|kg|sqm|rft|pair|pcs?|no|lot|unit|ltr|ton|bag|rmt|cum|sft|box|roll|feet|ft|mm|inch)\.?$/i;
+        let unitMatches = 0;
+        for (let i = headerIdx + 1; i < Math.min(headerIdx + 40, data.length); i++) {
+          const v = String((data[i] || [])[maybeUnitCol] || '').trim();
+          if (v && UNIT_LIKE.test(v)) unitMatches++;
+        }
+        if (unitMatches >= 2) colMap.unit = maybeUnitCol;
+      }
 
-      let qty = 0;
-      if (colMap.qty !== undefined) qty = parseNum(row[colMap.qty]);
+      const detectedHeaders = (data[headerIdx] || []).map(h => String(h || ''));
+      if (colMap.name === undefined) return { items: [], debug: { sheetName, headerRow: headerIdx, detectedHeaders, colMap, error: 'no description column' } };
 
-      let rate = 0;
-      if (colMap.sitcRate !== undefined) rate = parseNum(row[colMap.sitcRate]);
-      if (!rate && colMap.rate !== undefined) rate = parseNum(row[colMap.rate]);
-      if (!rate && colMap.supplyRate !== undefined) rate = parseNum(row[colMap.supplyRate]);
+      const items = [];
+      const skipped = { noName: 0, noData: 0 };
+      let serial = 1;
+      for (let i = headerIdx + 1; i < data.length; i++) {
+        const row = data[i] || [];
+        const name = String(row[colMap.name] || '').trim();
+        if (!name || name.length < 3) { skipped.noName++; continue; }
 
-      let amount = 0;
-      if (colMap.totalCost !== undefined) amount = parseNum(row[colMap.totalCost]);
-      if (!amount && colMap.amount !== undefined) amount = parseNum(row[colMap.amount]);
+        let qty = colMap.qty !== undefined ? parseNum(row[colMap.qty]) : 0;
+        let rate = 0;
+        if (colMap.sitcRate !== undefined) rate = parseNum(row[colMap.sitcRate]);
+        if (!rate && colMap.rate !== undefined) rate = parseNum(row[colMap.rate]);
+        if (!rate && colMap.supplyRate !== undefined) rate = parseNum(row[colMap.supplyRate]);
 
-      // Skip rows that are clearly section-headers: no qty AND no rate AND no amount
-      if (qty === 0 && rate === 0 && amount === 0) { skipped.noQty++; continue; }
+        let amount = 0;
+        if (colMap.totalCost !== undefined) amount = parseNum(row[colMap.totalCost]);
+        if (!amount && colMap.amount !== undefined) amount = parseNum(row[colMap.amount]);
 
-      // If qty missing but rate+amount present, derive qty
-      if (qty === 0 && amount && rate) qty = Math.round((amount / rate) * 100) / 100;
-      // If still no qty, default to 1 so item isn't lost
-      if (qty === 0) qty = 1;
+        if (qty === 0 && rate === 0 && amount === 0) { skipped.noData++; continue; }
 
-      if (!amount) amount = qty * rate;
+        if (qty === 0 && amount && rate) qty = Math.round((amount / rate) * 100) / 100;
+        if (qty === 0) qty = 1;
+        if (!amount) amount = qty * rate;
 
-      const spec = colMap.spec !== undefined ? String(row[colMap.spec] || '').trim() : '';
-      const size = colMap.size !== undefined ? String(row[colMap.size] || '').trim() : '';
-      const description = [name, spec, size].filter(Boolean).join(' / ');
-      const unit = colMap.unit !== undefined ? String(row[colMap.unit] || 'Nos').trim() : 'Nos';
+        const spec = colMap.spec !== undefined ? String(row[colMap.spec] || '').trim() : '';
+        const size = colMap.size !== undefined ? String(row[colMap.size] || '').trim() : '';
+        const description = [name, spec, size].filter(Boolean).join(' / ');
+        const unit = colMap.unit !== undefined ? String(row[colMap.unit] || 'Nos').trim() : 'Nos';
 
-      items.push({
-        sr_no: serial++,
-        description,
-        item_name: name,
-        specification: spec,
-        size: size,
-        quantity: qty,
-        unit: unit || 'Nos',
-        rate: Math.round(rate * 100) / 100,
-        amount: Math.round(amount * 100) / 100,
-        hsn_code: colMap.hsn !== undefined ? String(row[colMap.hsn] || '').trim() : '',
+        items.push({
+          sr_no: serial++,
+          description,
+          item_name: name,
+          specification: spec,
+          size: size,
+          quantity: qty,
+          unit: unit || 'Nos',
+          rate: Math.round(rate * 100) / 100,
+          amount: Math.round(amount * 100) / 100,
+          hsn_code: colMap.hsn !== undefined ? String(row[colMap.hsn] || '').trim() : '',
+        });
+      }
+
+      return { items, debug: { sheetName, headerRow: headerIdx, detectedHeaders, colMap, skipped, isBOQ } };
+    };
+
+    // Try every sheet; pick the one with the most items
+    const perSheet = wb.SheetNames.map(parseSheet);
+    const best = perSheet.reduce((a, b) => (b.items.length > a.items.length ? b : a), { items: [], debug: {} });
+    const items = best.items;
+    const headerIdx = best.debug.headerRow;
+    const detectedHeaders = best.debug.detectedHeaders || [];
+    const colMap = best.debug.colMap || {};
+    const skipped = best.debug.skipped || {};
+    const isBOQ = !!best.debug.isBOQ;
+
+    if (items.length === 0) {
+      // Still keep the file accessible — rename + return file_url so frontend can attach it as BOQ
+      let fileUrl = `/uploads/${req.file.filename}`;
+      try {
+        const safeName = (req.file.originalname || 'boq.xlsx').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const newName = `${Date.now()}-${safeName}`;
+        const newPath = path.join(path.dirname(req.file.path), newName);
+        fs.renameSync(req.file.path, newPath);
+        fileUrl = `/uploads/${newName}`;
+      } catch (e) {}
+      return res.json({
+        items: [], count: 0,
+        file_url: fileUrl, filename: req.file.originalname,
+        sheetsTried: perSheet.map(s => ({ sheet: s.debug.sheetName, items: s.items.length, headers: s.debug.detectedHeaders, error: s.debug.error })),
       });
     }
 
