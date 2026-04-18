@@ -6,20 +6,29 @@ router.use(authMiddleware);
 
 // ============= PROJECT FINANCIAL TRACKER =============
 
-// GET all projects with financial data
+// GET all projects with financial data.
+// Non-admin users only see projects where they are the assigned CRM —
+// match by employee_assigned containing their name or first name.
 router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
   const db = getDb();
   const today = new Date().toISOString().split('T')[0];
+  const isAdmin = req.user.role === 'admin';
 
-  // Get all unique projects from business_book
-  const projects = db.prepare(`SELECT bb.id, bb.lead_no, bb.company_name as project_name, bb.client_name,
+  let sql = `SELECT bb.id, bb.lead_no, bb.company_name as project_name, bb.client_name,
     bb.employee_assigned as crm_person, bb.sale_amount_without_gst, bb.po_amount, bb.advance_received,
     bb.balance_amount, bb.category, bb.order_type, bb.committed_start_date, bb.committed_completion_date,
     bb.created_at, s.name as site_name
     FROM business_book bb
-    LEFT JOIN sites s ON s.business_book_id=bb.id
-    GROUP BY bb.company_name
-    ORDER BY bb.company_name`).all();
+    LEFT JOIN sites s ON s.business_book_id=bb.id`;
+  const params = [];
+  if (!isAdmin) {
+    const fullName = (req.user.name || '').trim();
+    const firstName = fullName.split(/\s+/)[0] || fullName;
+    sql += ` WHERE (LOWER(COALESCE(bb.employee_assigned,'')) LIKE ? OR LOWER(COALESCE(bb.employee_assigned,'')) LIKE ?)`;
+    params.push(`%${fullName.toLowerCase()}%`, `%${firstName.toLowerCase()}%`);
+  }
+  sql += ' GROUP BY bb.company_name ORDER BY bb.company_name';
+  const projects = db.prepare(sql).all(...params);
 
   const result = projects.map((p, idx) => {
     // Amount received (from cash flow inflows for this client)

@@ -4,8 +4,10 @@ import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 import { FiPlus, FiTrendingUp, FiTrendingDown, FiCalendar, FiTrash2, FiSearch } from 'react-icons/fi';
 import { LuIndianRupee } from 'react-icons/lu';
+import { useAuth } from '../context/AuthContext';
 
 export default function CashFlow() {
+  const { isAdmin } = useAuth();
   const [tab, setTab] = useState('projects');
   const [projects, setProjects] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -75,13 +77,15 @@ export default function CashFlow() {
               <div className="card p-3 border-l-4 border-red-500"><p className="text-xs text-gray-500">Total Purchase</p><p className="text-xl font-bold text-red-600">{fmtL(summary.totalPurchase)}</p></div>
             </div>
           )}
-          {/* CRM Filter */}
-          <div className="flex gap-2 flex-wrap items-center">
-            <button onClick={() => setCrmFilter('')} className={`btn ${!crmFilter ? 'btn-primary' : 'btn-secondary'} text-xs`}>All ({projects.length})</button>
-            {crmPersons.map(c => (
-              <button key={c} onClick={() => setCrmFilter(c)} className={`btn ${crmFilter === c ? 'btn-primary' : 'btn-secondary'} text-xs`}>{c} ({projects.filter(p => (p.crm_person || '').toLowerCase() === c.toLowerCase()).length})</button>
-            ))}
-          </div>
+          {/* CRM Filter — admin only. Non-admin CRM users see just their own projects (backend-scoped). */}
+          {isAdmin() && (
+            <div className="flex gap-2 flex-wrap items-center">
+              <button onClick={() => setCrmFilter('')} className={`btn ${!crmFilter ? 'btn-primary' : 'btn-secondary'} text-xs`}>All ({projects.length})</button>
+              {crmPersons.map(c => (
+                <button key={c} onClick={() => setCrmFilter(c)} className={`btn ${crmFilter === c ? 'btn-primary' : 'btn-secondary'} text-xs`}>{c} ({projects.filter(p => (p.crm_person || '').toLowerCase() === c.toLowerCase()).length})</button>
+              ))}
+            </div>
+          )}
           <div className="relative"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input className="input pl-10" placeholder="Search project..." value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="card p-0 overflow-hidden">
             <div className="p-3 border-b bg-blue-50"><h4 className="font-bold text-blue-800">ALL NEW PROJECTS - Financial Tracker</h4></div>
