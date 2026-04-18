@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
+import SearchableSelect from '../components/SearchableSelect';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiMapPin, FiAlertTriangle, FiCheck, FiEye, FiTrash2 } from 'react-icons/fi';
@@ -248,15 +249,21 @@ export default function DPR() {
                   <div className="col-span-4">BOQ Item</div><div>Qty</div><div className="col-span-2">Location</div><div className="col-span-2">Rate (Rs)</div><div className="col-span-2">Amount (Rs)</div><div></div>
                 </div>
                 {workItems.map((w, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-1 mb-1.5 items-center bg-white rounded p-1">
-                    <select className="input col-span-4 text-sm" value={w.po_item_id || ''} onChange={e => selectWorkItem(i, e.target.value)}>
-                      <option value="">-- Select PO Item --</option>
-                      {poItemsForSite.map(item => (
-                        <option key={item.id} value={item.id} disabled={item.remaining_qty <= 0}>
-                          {item.description} (BOQ:{item.quantity} | Remaining:{item.remaining_qty ?? item.quantity} {item.unit}){item.remaining_qty <= 0 ? ' - COMPLETED' : ''}
-                        </option>
-                      ))}
-                    </select>
+                  <div key={i} className="grid grid-cols-12 gap-1 mb-1.5 items-start bg-white rounded p-1">
+                    <div className="col-span-4">
+                      <SearchableSelect
+                        options={poItemsForSite.map(item => ({
+                          id: item.id,
+                          label: `${item.description} (BOQ:${item.quantity} | Remaining:${item.remaining_qty ?? item.quantity} ${item.unit})${item.remaining_qty <= 0 ? ' — COMPLETED' : ''}`,
+                          ...item
+                        }))}
+                        value={w.po_item_id || null}
+                        valueKey="id"
+                        displayKey="label"
+                        placeholder="-- Select PO Item --"
+                        onChange={(item) => selectWorkItem(i, item?.id || '')}
+                      />
+                    </div>
                     <input className="input text-sm text-center" type="number" placeholder="0" max={w.remaining_qty || w.boq_qty || 999999} value={w.qty || ''} onChange={e => {
                       const val = +e.target.value;
                       const maxQty = w.remaining_qty ?? w.boq_qty ?? 999999;

@@ -34,13 +34,13 @@ export default function SearchableSelect({ options, value, onChange, placeholder
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden">
+        <div className="absolute z-50 mt-1 min-w-full w-max max-w-[90vw] md:max-w-[720px] bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
           <div className="p-2 border-b">
             <input ref={inputRef} type="text" className="input text-sm w-full" placeholder="Type to search..."
               value={search} onChange={e => setSearch(e.target.value)}
               onKeyDown={e => { if (e.key === 'Escape') setOpen(false); }} />
           </div>
-          <div className="overflow-y-auto max-h-48">
+          <div className="overflow-y-auto max-h-64">
             {value && (
               <button type="button" onClick={() => { onChange(null); setOpen(false); }}
                 className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 border-b">
@@ -50,7 +50,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
             {filtered.length === 0 && <div className="px-3 py-4 text-sm text-gray-400 text-center">No items found</div>}
             {filtered.slice(0, 100).map(o => (
               <button type="button" key={o[valueKey]} onClick={() => { onChange(o); setOpen(false); setSearch(''); }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors ${o[valueKey] === value ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}>
+                className={`w-full text-left px-3 py-2 text-sm whitespace-normal break-words leading-snug hover:bg-blue-50 transition-colors ${o[valueKey] === value ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}>
                 {o[displayKey]}
               </button>
             ))}
