@@ -4,15 +4,16 @@ import HelpTicket from './HelpTicket';
 import { useAuth } from '../context/AuthContext';
 import {
   FiHome, FiUsers, FiTarget, FiFileText, FiShoppingCart,
-  FiTruck, FiTool, FiAlertCircle, FiUserPlus, FiDollarSign,
+  FiTruck, FiTool, FiAlertCircle, FiUserPlus,
   FiCheckSquare, FiMenu, FiX, FiLogOut, FiPackage, FiClipboard,
   FiSettings, FiShield, FiTrendingUp, FiCreditCard, FiLayers, FiBarChart2, FiBook, FiGrid
 } from 'react-icons/fi';
+import { LuIndianRupee } from 'react-icons/lu';
 
 const menuItems = [
   { path: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
   { path: '/cashflow', label: 'Cash Flow', icon: FiTrendingUp, module: 'cashflow' },
-  { path: '/payment-required', label: 'Payment Required', icon: FiDollarSign, module: 'payment_required' },
+  { path: '/payment-required', label: 'Payment Required', icon: LuIndianRupee, module: 'payment_required' },
   { path: '/attendance', label: 'Attendance', icon: FiCheckSquare, module: 'attendance' },
   { path: '/collections', label: 'Collection Engine', icon: FiCreditCard, module: 'collections' },
   { path: '/indent-fms', label: 'Indent to Payment', icon: FiLayers, module: 'indent_fms' },
@@ -30,7 +31,7 @@ const menuItems = [
   { path: '/complaints', label: 'Complaints', icon: FiAlertCircle, module: 'complaints' },
   { path: '/hr', label: 'HR & Hiring', icon: FiUserPlus, module: 'hr' },
   { path: '/employees', label: 'Employees', icon: FiUsers, module: 'employees' },
-  { path: '/expenses', label: 'Expenses', icon: FiDollarSign, module: 'expenses' },
+  { path: '/expenses', label: 'Expenses', icon: LuIndianRupee, module: 'expenses' },
   { path: '/checklists', label: 'Checklists', icon: FiCheckSquare, module: 'checklists' },
 ];
 

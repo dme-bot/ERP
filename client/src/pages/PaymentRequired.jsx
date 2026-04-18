@@ -4,7 +4,8 @@ import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiPlus, FiSearch, FiFilter, FiEye, FiCheck, FiX, FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiUpload, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiFilter, FiEye, FiCheck, FiX, FiClock, FiCheckCircle, FiXCircle, FiUpload, FiTrash2 } from 'react-icons/fi';
+import { LuIndianRupee } from 'react-icons/lu';
 
 const CATEGORIES = ['TA/DA', 'Purchase', 'Labour', 'Transport'];
 const STATUSES = ['pending', 'step1_approved', 'accounts_approved', 'dues_checked', 'velocity_checked', 'final_approved', 'rejected'];
@@ -99,7 +100,7 @@ export default function PaymentRequired() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><FiDollarSign className="text-orange-600" /> Payment Required</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><LuIndianRupee className="text-orange-600" /> Payment Required</h1>
           <p className="text-sm text-gray-500">Request payments with multi-level approval workflow</p>
         </div>
         <div className="flex gap-2">

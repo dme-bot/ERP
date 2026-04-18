@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 import StatusBadge from '../components/StatusBadge';
-import { FiTarget, FiShoppingCart, FiTool, FiAlertCircle, FiUsers, FiDollarSign } from 'react-icons/fi';
+import { FiTarget, FiShoppingCart, FiTool, FiAlertCircle, FiUsers } from 'react-icons/fi';
+import { LuIndianRupee } from 'react-icons/lu';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -19,7 +20,7 @@ export default function Dashboard() {
     { title: 'Installations', value: stats.installations.inProgress, sub: `${stats.installations.completed} completed`, icon: FiTool, color: 'bg-amber-500' },
     { title: 'Open Complaints', value: stats.complaints.open, sub: `${stats.complaints.inProgress} in progress`, icon: FiAlertCircle, color: 'bg-red-500' },
     { title: 'Employees', value: stats.hr.employees, sub: `${stats.hr.subContractors} contractors`, icon: FiUsers, color: 'bg-teal-500' },
-    { title: 'Pending Expenses', value: `Rs ${stats.expenses.pending.toLocaleString()}`, sub: `Rs ${stats.expenses.approved.toLocaleString()} approved`, icon: FiDollarSign, color: 'bg-orange-500' },
+    { title: 'Pending Expenses', value: `Rs ${stats.expenses.pending.toLocaleString()}`, sub: `Rs ${stats.expenses.approved.toLocaleString()} approved`, icon: LuIndianRupee, color: 'bg-orange-500' },
     { title: 'Candidates', value: stats.hr.candidates, sub: 'in pipeline', icon: FiUsers, color: 'bg-indigo-500' },
   ];
 

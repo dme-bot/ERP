@@ -6,8 +6,9 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import {
   FiPlus, FiSearch, FiFilter, FiDownload, FiEdit2, FiTrash2, FiEye,
-  FiX, FiBook, FiDollarSign, FiTrendingUp, FiClock, FiUpload
+  FiX, FiBook, FiTrendingUp, FiClock, FiUpload
 } from 'react-icons/fi';
+import { LuIndianRupee } from 'react-icons/lu';
 
 const STATUSES = ['booked', 'advance_received', 'planning', 'execution', 'completed'];
 const CATEGORIES = ['Low Voltage', 'Fire Fighting', 'Fire Alarm', 'CCTV', 'Access Control', 'PA System', 'Networking', 'Solar', 'Other'];
@@ -131,7 +132,7 @@ export default function BusinessBook() {
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard icon={FiBook} color="blue" label="Total Entries" value={stats.total} />
-          <StatCard icon={FiDollarSign} color="emerald" label="Total PO Value" value={fmt(stats.total_po)} />
+          <StatCard icon={LuIndianRupee} color="emerald" label="Total PO Value" value={fmt(stats.total_po)} />
           <StatCard icon={FiTrendingUp} color="amber" label="Advance Received" value={fmt(stats.total_advance)} valueColor="text-emerald-600" />
           <StatCard icon={FiClock} color="red" label="Balance Pending" value={fmt(stats.total_balance)} valueColor="text-red-600" />
         </div>

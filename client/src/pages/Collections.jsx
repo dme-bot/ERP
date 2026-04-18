@@ -3,7 +3,8 @@ import api from '../api';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiPlus, FiEdit2, FiPhoneCall, FiDollarSign, FiAlertTriangle, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiPhoneCall, FiAlertTriangle, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
+import { LuIndianRupee } from 'react-icons/lu';
 
 export default function Collections() {
   const { canDelete } = useAuth();
@@ -134,7 +135,7 @@ export default function Collections() {
                   <td>
                     <div className="flex gap-1">
                       <button onClick={() => openFollowUps(r.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600" title="Follow-up"><FiPhoneCall size={14} /></button>
-                      <button onClick={() => { setSelectedId(r.id); setForm({ amount: 0, collection_date: new Date().toISOString().split('T')[0], payment_mode: '', transaction_ref: '', notes: '' }); setCollectModal(true); }} className="p-1 hover:bg-emerald-50 rounded text-emerald-600" title="Record Collection"><FiDollarSign size={14} /></button>
+                      <button onClick={() => { setSelectedId(r.id); setForm({ amount: 0, collection_date: new Date().toISOString().split('T')[0], payment_mode: '', transaction_ref: '', notes: '' }); setCollectModal(true); }} className="p-1 hover:bg-emerald-50 rounded text-emerald-600" title="Record Collection"><LuIndianRupee size={14} /></button>
                       {canDelete('collections') && <button onClick={async () => {
                         if (!confirm(`Delete receivable "${r.invoice_number || r.client_name}"?`)) return;
                         try { await api.delete(`/collections/${r.id}`); toast.success('Deleted'); load(); }

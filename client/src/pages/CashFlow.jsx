@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
-import { FiPlus, FiTrendingUp, FiTrendingDown, FiDollarSign, FiCalendar, FiTrash2, FiSearch } from 'react-icons/fi';
+import { FiPlus, FiTrendingUp, FiTrendingDown, FiCalendar, FiTrash2, FiSearch } from 'react-icons/fi';
+import { LuIndianRupee } from 'react-icons/lu';
 
 export default function CashFlow() {
   const [tab, setTab] = useState('projects');
@@ -149,10 +150,10 @@ export default function CashFlow() {
       {tab === 'daily' && dailySummary && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="card p-3"><FiDollarSign className="text-blue-600 inline mr-1" /><span className="text-xs text-gray-500">Opening</span><p className="text-lg font-bold">{fmt(dailySummary.today.opening_balance)}</p></div>
+            <div className="card p-3"><LuIndianRupee className="text-blue-600 inline mr-1" /><span className="text-xs text-gray-500">Opening</span><p className="text-lg font-bold">{fmt(dailySummary.today.opening_balance)}</p></div>
             <div className="card p-3"><FiTrendingUp className="text-emerald-600 inline mr-1" /><span className="text-xs text-gray-500">Inflows</span><p className="text-lg font-bold text-emerald-600">+{fmt(dailySummary.today.total_inflows)}</p></div>
             <div className="card p-3"><FiTrendingDown className="text-red-600 inline mr-1" /><span className="text-xs text-gray-500">Outflows</span><p className="text-lg font-bold text-red-600">-{fmt(dailySummary.today.total_outflows)}</p></div>
-            <div className="card p-3"><FiDollarSign className="text-purple-600 inline mr-1" /><span className="text-xs text-gray-500">Closing</span><p className="text-lg font-bold text-purple-600">{fmt(dailySummary.today.closing_balance)}</p></div>
+            <div className="card p-3"><LuIndianRupee className="text-purple-600 inline mr-1" /><span className="text-xs text-gray-500">Closing</span><p className="text-lg font-bold text-purple-600">{fmt(dailySummary.today.closing_balance)}</p></div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2"><FiCalendar className="text-gray-400" /><input type="date" className="input w-48" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} /></div>
