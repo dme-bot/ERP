@@ -73,6 +73,12 @@ router.post('/', requirePermission('business_book', 'create'), (req, res) => {
   const b = req.body;
   const db = getDb();
 
+  if (!b.client_name || !String(b.client_name).trim()) {
+    return res.status(400).json({ error: 'Client name is required' });
+  }
+
+  try {
+
   // Auto-generate Lead No
   const count = db.prepare('SELECT COUNT(*) as c FROM business_book').get().c;
   const leadNo = `SEPL${String(count + 20001).padStart(5, '0')}`;
@@ -168,6 +174,10 @@ router.post('/', requirePermission('business_book', 'create'), (req, res) => {
     id: bbId, lead_no: leadNo, message: 'Business Book entry created with auto-links',
     auto_created: { order_planning: planResult.lastInsertRowid, dpr_site: siteId }
   });
+  } catch (err) {
+    console.error('Business Book POST error:', err);
+    res.status(500).json({ error: 'Failed to save: ' + (err.message || 'unknown error') });
+  }
 });
 
 // PUT update

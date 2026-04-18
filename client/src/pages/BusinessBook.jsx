@@ -65,6 +65,10 @@ export default function BusinessBook() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!form.client_name || !form.client_name.trim()) {
+      toast.error('Client Name is required');
+      return;
+    }
     try {
       if (modal === 'edit' && form.id) {
         await api.put(`/business-book/${form.id}`, form);
