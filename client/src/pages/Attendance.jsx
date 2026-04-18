@@ -41,18 +41,24 @@ export default function Attendance() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto track location every 15 min if punched in
+  // Location tracking: every 2 min whenever the attendance page is open.
+  // The server uses this to auto punch-in after 5 min inside a geofence
+  // and auto punch-out after 5 min outside all geofences. We stop once the
+  // day's attendance is closed (punched out).
   useEffect(() => {
-    if (!myToday || myToday.punch_out_time) return;
+    if (myToday?.punch_out_time) return; // day is done
     const trackLocation = () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-          api.post('/attendance/track-location', { latitude: pos.coords.latitude, longitude: pos.coords.longitude, address: '' }).catch(() => {});
-        }, () => {}, { enableHighAccuracy: true });
-      }
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(pos => {
+        api.post('/attendance/track-location', {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          address: ''
+        }).catch(() => {});
+      }, () => {}, { enableHighAccuracy: true, timeout: 15000 });
     };
-    trackLocation(); // Track immediately
-    const interval = setInterval(trackLocation, 15 * 60 * 1000); // Every 15 min
+    trackLocation(); // fire immediately
+    const interval = setInterval(trackLocation, 2 * 60 * 1000); // every 2 min
     return () => clearInterval(interval);
   }, [myToday]);
 
@@ -156,8 +162,8 @@ export default function Attendance() {
             <div className={`card p-4 ${myToday.punch_out_time ? 'bg-gray-50' : 'bg-emerald-50'}`}>
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm font-bold text-emerald-700"><FiCheckCircle className="inline mr-1" /> Punched In: {new Date(myToday.punch_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
-                  {myToday.punch_out_time && <p className="text-sm text-gray-600">Punched Out: {new Date(myToday.punch_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>}
+                  <p className="text-sm font-bold text-emerald-700"><FiCheckCircle className="inline mr-1" /> Punched In: {new Date(myToday.punch_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}{myToday.auto_punched_in ? <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded">AUTO</span> : null}</p>
+                  {myToday.punch_out_time && <p className="text-sm text-gray-600">Punched Out: {new Date(myToday.punch_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}{myToday.auto_punched_out ? <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded">AUTO</span> : null}</p>}
                   {myToday.total_hours > 0 && <p className="text-sm font-bold">Total: {myToday.total_hours} hours</p>}
                 </div>
                 <StatusBadge status={myToday.status} />
@@ -240,8 +246,8 @@ export default function Attendance() {
               <tbody>{dashboard.todayRecords?.map(r => (
                 <tr key={r.id}>
                   <td className="font-medium">{r.user_name}</td><td className="text-xs">{r.department}</td>
-                  <td className="text-emerald-600 text-xs">{r.punch_in_time ? new Date(r.punch_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                  <td className="text-red-600 text-xs">{r.punch_out_time ? new Date(r.punch_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                  <td className="text-emerald-600 text-xs">{r.punch_in_time ? new Date(r.punch_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}{r.auto_punched_in ? <span className="ml-1 text-[9px] bg-purple-100 text-purple-700 px-1 rounded">AUTO</span> : null}</td>
+                  <td className="text-red-600 text-xs">{r.punch_out_time ? new Date(r.punch_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}{r.auto_punched_out ? <span className="ml-1 text-[9px] bg-purple-100 text-purple-700 px-1 rounded">AUTO</span> : null}</td>
                   <td className="font-semibold">{r.total_hours || '-'}</td>
                   <td><StatusBadge status={r.status} /></td>
                   <td>{r.punch_in_photo && <img src={r.punch_in_photo} alt="" className="w-10 h-8 rounded object-cover" />}</td>
@@ -261,8 +267,8 @@ export default function Attendance() {
             <tbody>{records.map(r => (
               <tr key={r.id}>
                 <td className="font-medium">{r.user_name}</td><td>{r.date}</td>
-                <td className="text-xs">{r.punch_in_time ? new Date(r.punch_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                <td className="text-xs">{r.punch_out_time ? new Date(r.punch_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                <td className="text-xs">{r.punch_in_time ? new Date(r.punch_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}{r.auto_punched_in ? <span className="ml-1 text-[9px] bg-purple-100 text-purple-700 px-1 rounded">AUTO</span> : null}</td>
+                <td className="text-xs">{r.punch_out_time ? new Date(r.punch_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}{r.auto_punched_out ? <span className="ml-1 text-[9px] bg-purple-100 text-purple-700 px-1 rounded">AUTO</span> : null}</td>
                 <td className="font-semibold">{r.total_hours || '-'}</td>
                 <td className="text-xs">{r.site_name || '-'}</td>
                 <td><StatusBadge status={r.status} /></td>

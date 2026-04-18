@@ -259,4 +259,70 @@ router.delete('/:id', requirePermission('attendance', 'delete'), (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
+// -------------------- Auto punch-in / punch-out --------------------
+// Runs every 60s. Uses the last 5 minutes of /attendance/track-location
+// samples to decide if a user has been continuously inside a geofence
+// (→ auto punch-in) or continuously outside all geofences (→ auto
+// punch-out). Flag columns let admins spot auto-marked rows.
+function runAutoPunchCheck() {
+  const db = getDb();
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  const recentUsers = db.prepare(
+    'SELECT DISTINCT user_id FROM location_tracking WHERE date=? AND time >= ?'
+  ).all(today, fiveMinAgo);
+
+  for (const { user_id } of recentUsers) {
+    const updates = db.prepare(
+      'SELECT * FROM location_tracking WHERE user_id=? AND date=? AND time >= ? ORDER BY time DESC'
+    ).all(user_id, today, fiveMinAgo);
+
+    if (updates.length < 2) continue; // need at least 2 pings in the window
+
+    const allInside = updates.every(u => u.site_name && u.site_name !== 'Outside');
+    const allOutside = updates.every(u => !u.site_name || u.site_name === 'Outside');
+    if (!allInside && !allOutside) continue; // mixed — still transitioning
+
+    const attendance = db.prepare('SELECT * FROM attendance WHERE user_id=? AND date=?').get(user_id, today);
+    const latest = updates[0];
+
+    if (!attendance && allInside) {
+      const h = new Date().getHours();
+      const m = new Date().getMinutes();
+      const isLate = h > 9 || (h === 9 && m > 45);
+      try {
+        db.prepare(`INSERT INTO attendance
+          (user_id, date, punch_in_time, punch_in_lat, punch_in_lng, punch_in_address, site_name, status, auto_punched_in)
+          VALUES (?,?,?,?,?,?,?,?,1)`).run(
+          user_id, today, now, latest.latitude, latest.longitude, latest.address || '',
+          latest.site_name, isLate ? 'late' : 'present'
+        );
+        console.log(`[auto-punch] IN user=${user_id} site=${latest.site_name} late=${isLate}`);
+      } catch (e) { console.error('[auto-punch] IN failed:', e.message); }
+    } else if (attendance && attendance.punch_in_time && !attendance.punch_out_time && allOutside) {
+      const punchIn = new Date(attendance.punch_in_time);
+      const totalHours = Math.round((new Date(now) - punchIn) / (1000 * 60 * 60) * 100) / 100;
+      const status = totalHours < 4 ? 'half_day' : (totalHours < 8 ? 'short_day' : attendance.status);
+      try {
+        db.prepare(`UPDATE attendance
+          SET punch_out_time=?, punch_out_lat=?, punch_out_lng=?, punch_out_address=?,
+              total_hours=?, status=?, auto_punched_out=1 WHERE id=?`).run(
+          now, latest.latitude, latest.longitude, latest.address || '',
+          totalHours, status, attendance.id
+        );
+        console.log(`[auto-punch] OUT user=${user_id} hours=${totalHours}`);
+      } catch (e) { console.error('[auto-punch] OUT failed:', e.message); }
+    }
+  }
+}
+
+// Kick off the cron once per Node process. Skip during tests.
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(() => {
+    try { runAutoPunchCheck(); } catch (e) { console.error('[auto-punch] tick error:', e.message); }
+  }, 60 * 1000);
+}
+
 module.exports = router;
