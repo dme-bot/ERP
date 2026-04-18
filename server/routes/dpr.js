@@ -63,9 +63,19 @@ router.get('/sites/:site_id/po-items', (req, res) => {
     items = db.prepare('SELECT * FROM po_items WHERE business_book_id=?').all(site.business_book_id);
   }
   if (items.length > 0) {
-    // Calculate already filled qty from previous DPRs
+    // Match DPR consumption by po_item_id OR by description (so re-uploading
+    // a PO — which recycles po_items with new IDs — doesn't lose history).
+    const siteIds = db.prepare('SELECT id FROM sites WHERE name=?').all(site.name).map(r => r.id);
+    const sidPlaceholders = siteIds.length ? siteIds.map(() => '?').join(',') : '?';
+    const sidParams = siteIds.length ? siteIds : [req.params.site_id];
     const result = items.map(item => {
-      const filled = db.prepare('SELECT COALESCE(SUM(actual_qty),0) as total FROM dpr_work_items WHERE po_item_id=?').get(item.id);
+      const filled = db.prepare(`
+        SELECT COALESCE(SUM(wi.actual_qty), 0) as total
+        FROM dpr_work_items wi
+        JOIN dpr d ON wi.dpr_id = d.id
+        WHERE d.site_id IN (${sidPlaceholders})
+          AND (wi.po_item_id = ? OR (wi.description IS NOT NULL AND wi.description = ?))
+      `).get(...sidParams, item.id, item.description);
       const filledQty = filled?.total || 0;
       const remaining = Math.max(0, (item.quantity || 0) - filledQty);
       return { ...item, filled_qty: filledQty, remaining_qty: remaining };
@@ -283,9 +293,23 @@ router.get('/progress', (req, res) => {
         items = db.prepare('SELECT * FROM po_items WHERE business_book_id=?').all(site.business_book_id);
       }
 
+      // All site-IDs with the same site name — DPRs are submitted against a
+      // specific site_id, but re-uploading a PO recycles po_items with new
+      // IDs, so we also match on description within this site's DPRs.
+      const siteIds = db.prepare('SELECT id FROM sites WHERE name=?').all(site.name).map(r => r.id);
+      const sidPlaceholders = siteIds.length ? siteIds.map(() => '?').join(',') : '?';
+      const sidParams = siteIds.length ? siteIds : [site.id];
+
       let totalBoq = 0, totalDone = 0;
       const itemRows = items.map(it => {
-        const done = db.prepare('SELECT COALESCE(SUM(actual_qty),0) as t FROM dpr_work_items WHERE po_item_id=?').get(it.id).t || 0;
+        const done = db.prepare(`
+          SELECT COALESCE(SUM(wi.actual_qty), 0) as t
+          FROM dpr_work_items wi
+          JOIN dpr d ON wi.dpr_id = d.id
+          WHERE d.site_id IN (${sidPlaceholders})
+            AND (wi.po_item_id = ? OR (wi.description IS NOT NULL AND wi.description = ?))
+        `).get(...sidParams, it.id, it.description).t || 0;
+
         const boq = it.quantity || 0;
         const remaining = Math.max(0, boq - done);
         const pct = boq > 0 ? Math.min(100, Math.round((done / boq) * 1000) / 10) : 0;
