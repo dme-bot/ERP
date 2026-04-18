@@ -272,6 +272,30 @@ export default function Orders() {
                 )}
                 {uploading && <p className="text-xs text-blue-500 mt-1">Uploading...</p>}
               </div>
+              <div>
+                <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload BOQ File</label>
+                {form.boq_file_link ? (
+                  <div className="flex items-center gap-2">
+                    <a href={form.boq_file_link} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline truncate flex-1">{form.boq_file_link.split('/').pop()}</a>
+                    <button type="button" onClick={() => setForm({ ...form, boq_file_link: '' })} className="text-red-500 text-xs">Remove</button>
+                  </div>
+                ) : (
+                  <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" disabled={uploading}
+                    onChange={async (e) => {
+                      const file = e.target.files[0]; if (!file) return;
+                      setUploading(true);
+                      try {
+                        const fd = new FormData(); fd.append('file', file);
+                        const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                        setForm(f => ({ ...f, boq_file_link: res.data.url }));
+                        toast.success(`Uploaded: ${res.data.filename}`);
+                      } catch { toast.error('Upload failed'); }
+                      setUploading(false); e.target.value = '';
+                    }}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                )}
+                <p className="text-[10px] text-gray-400 mt-0.5">Or use "Upload BOQ & Fetch Items" below to auto-fill items.</p>
+              </div>
             </div>
           </div>
 
