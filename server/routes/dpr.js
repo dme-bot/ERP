@@ -5,14 +5,33 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // ===== SITES =====
+// Non-admins see only sites where they are assigned as a site engineer —
+// either directly on the site row, or via a PO linked to that site whose
+// site_engineer_ids CSV contains their user id.
 router.get('/sites', (req, res) => {
-  res.json(getDb().prepare(`SELECT MIN(s.id) as id, s.name, s.address, s.client_name, s.po_id, s.business_book_id,
+  const db = getDb();
+  const isAdmin = req.user.role === 'admin';
+  const uid = req.user.id;
+
+  let sql = `SELECT MIN(s.id) as id, s.name, s.address, s.client_name, s.po_id, s.business_book_id,
     s.site_engineer_id, s.supervisor, s.status, u.name as engineer_name, bb.lead_no,
     COUNT(*) as entry_count
     FROM sites s
     LEFT JOIN users u ON s.site_engineer_id=u.id
-    LEFT JOIN business_book bb ON s.business_book_id=bb.id
-    GROUP BY s.name ORDER BY s.name`).all());
+    LEFT JOIN business_book bb ON s.business_book_id=bb.id`;
+  const params = [];
+
+  if (!isAdmin) {
+    sql += ` WHERE (s.site_engineer_id = ? OR EXISTS (
+      SELECT 1 FROM purchase_orders po
+      WHERE (po.id = s.po_id OR po.business_book_id = s.business_book_id)
+        AND ((',' || COALESCE(po.site_engineer_ids,'') || ',') LIKE ? OR po.site_engineer_id = ?)
+    ))`;
+    params.push(uid, `%,${uid},%`, uid);
+  }
+
+  sql += ' GROUP BY s.name ORDER BY s.name';
+  res.json(db.prepare(sql).all(...params));
 });
 
 router.post('/sites', (req, res) => {
@@ -59,12 +78,22 @@ router.get('/sites/:site_id/po-items', (req, res) => {
 // ===== DPR =====
 router.get('/', (req, res) => {
   const { site_id, date, status } = req.query;
+  const isAdmin = req.user.role === 'admin';
+  const uid = req.user.id;
   let sql = `SELECT d.*, s.name as site_name, u.name as submitted_by_name, au.name as approved_by_name
     FROM dpr d LEFT JOIN sites s ON d.site_id=s.id LEFT JOIN users u ON d.submitted_by=u.id LEFT JOIN users au ON d.approved_by=au.id WHERE 1=1`;
   const params = [];
   if (site_id) { sql += ' AND d.site_id=?'; params.push(site_id); }
   if (date) { sql += ' AND d.report_date=?'; params.push(date); }
   if (status) { sql += ' AND d.approval_status=?'; params.push(status); }
+  if (!isAdmin) {
+    sql += ` AND (s.site_engineer_id = ? OR EXISTS (
+      SELECT 1 FROM purchase_orders po
+      WHERE (po.id = s.po_id OR po.business_book_id = s.business_book_id)
+        AND ((',' || COALESCE(po.site_engineer_ids,'') || ',') LIKE ? OR po.site_engineer_id = ?)
+    ))`;
+    params.push(uid, `%,${uid},%`, uid);
+  }
   sql += ' ORDER BY d.report_date DESC, s.name';
   res.json(getDb().prepare(sql).all(...params));
 });
@@ -77,8 +106,21 @@ router.get('/summary', (req, res) => {
   const todayDprs = db.prepare('SELECT COUNT(*) as c FROM dpr WHERE report_date=?').get(today);
   const pendingApproval = db.prepare("SELECT COUNT(*) as c FROM dpr WHERE approval_status='pending'").get();
   const billingReady = db.prepare('SELECT COUNT(*) as c FROM dpr WHERE billing_ready=1').get();
-  const missingSites = db.prepare(`SELECT MIN(s.id) as id, s.name, s.supervisor FROM sites s WHERE s.status='active'
-    AND s.id NOT IN (SELECT site_id FROM dpr WHERE report_date=?) GROUP BY s.name`).all(today);
+  const isAdmin = req.user.role === 'admin';
+  const uid = req.user.id;
+  let missingSql = `SELECT MIN(s.id) as id, s.name, s.supervisor FROM sites s WHERE s.status='active'
+    AND s.id NOT IN (SELECT site_id FROM dpr WHERE report_date=?)`;
+  const missingParams = [today];
+  if (!isAdmin) {
+    missingSql += ` AND (s.site_engineer_id = ? OR EXISTS (
+      SELECT 1 FROM purchase_orders po
+      WHERE (po.id = s.po_id OR po.business_book_id = s.business_book_id)
+        AND ((',' || COALESCE(po.site_engineer_ids,'') || ',') LIKE ? OR po.site_engineer_id = ?)
+    ))`;
+    missingParams.push(uid, `%,${uid},%`, uid);
+  }
+  missingSql += ' GROUP BY s.name';
+  const missingSites = db.prepare(missingSql).all(...missingParams);
   const variance = db.prepare(`SELECT d.report_date, s.name as site_name,
     COALESCE(AVG(w.variance_pct),0) as avg_variance
     FROM dpr d JOIN sites s ON d.site_id=s.id LEFT JOIN dpr_work_items w ON w.dpr_id=d.id
