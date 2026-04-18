@@ -54,7 +54,25 @@ export default function Login() {
         <p className="mt-6 text-center text-[11px] text-gray-400">Contact your admin for login credentials</p>
       </div>
 
-      <p className="fixed bottom-3 left-3 text-[10px] text-white/30">Created by Monika Devi</p>
+      {/* Elegant footer: creator + company, centered at bottom */}
+      <div className="fixed bottom-5 left-0 right-0 flex justify-center px-4 z-10 pointer-events-none">
+        <div className="pointer-events-auto text-center select-none">
+          <p className="text-[11px] uppercase tracking-[0.35em] text-white/40 mb-1.5">
+            Crafted with <span className="text-pink-400">&hearts;</span> by
+          </p>
+          <p className="text-base font-bold bg-gradient-to-r from-blue-300 via-indigo-300 to-purple-300 bg-clip-text text-transparent drop-shadow-sm">
+            Monika Devi
+          </p>
+          <div className="mt-2 flex items-center justify-center gap-2">
+            <span className="h-px w-8 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+            <p className="text-[10px] font-semibold tracking-widest text-white/60 uppercase">
+              Secured Engineers Pvt Ltd
+            </p>
+            <span className="h-px w-8 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+          </div>
+          <p className="text-[9px] text-white/30 mt-1">&copy; {new Date().getFullYear()} &middot; All rights reserved</p>
+        </div>
+      </div>
     </div>
   );
 }
