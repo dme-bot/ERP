@@ -38,7 +38,7 @@ export default function Login() {
             <label className="label">Username or Email</label>
             <div className="relative">
               <FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input className="input pl-10" type="text" autoComplete="username" value={form.identifier} onChange={e => setForm({...form, identifier: e.target.value})} required placeholder="e.g. Monika.devi or you@email.com" />
+              <input className="input pl-10" type="text" autoComplete="username" value={form.identifier} onChange={e => setForm({...form, identifier: e.target.value})} required placeholder="Enter your username or email id" />
             </div>
           </div>
           <div>
