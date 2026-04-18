@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import {
   FiPlus, FiSearch, FiFilter, FiDownload, FiEdit2, FiTrash2, FiEye,
-  FiX, FiBook, FiDollarSign, FiTrendingUp, FiClock
+  FiX, FiBook, FiDollarSign, FiTrendingUp, FiClock, FiUpload
 } from 'react-icons/fi';
 
 const STATUSES = ['booked', 'advance_received', 'planning', 'execution', 'completed'];
@@ -34,9 +34,8 @@ const emptyForm = {
   payment_advance: '', payment_against_delivery: '', payment_against_installation: '',
   payment_against_commissioning: '', payment_retention: '', payment_credit: '', credit_days: 0,
   advance_received: 0,
-  po_number: '', po_date: '', po_copy_link: '',
-  boq_file_link: '', boq_signed_link: '', tpa_material_link: '', tpa_material_signed_link: '',
-  tpa_labour_link: '', tpa_labour_signed_link: '', final_drawing_link: '',
+  po_number: '', po_date: '',
+  final_drawing_link: '',
   remarks: '', status: 'booked'
 };
 
@@ -302,7 +301,6 @@ export default function BusinessBook() {
               <Sel label="Freight Extra" value={form.freight_extra} onChange={v => F('freight_extra', v)} options={['No', 'Yes']} />
               <Inp label="PO Number" value={form.po_number} onChange={v => F('po_number', v)} />
               <Inp label="PO Date" value={form.po_date} onChange={v => F('po_date', v)} type="date" />
-              <Inp label="PO Copy Link" value={form.po_copy_link} onChange={v => F('po_copy_link', v)} placeholder="Drive/URL link" />
             </div>
           </FSection>
 
@@ -373,17 +371,33 @@ export default function BusinessBook() {
             </div>
           </FSection>
 
-          {/* 9. File Links */}
-          <FSection title="Document Links" color="gray">
-            <div className="grid grid-cols-2 gap-3">
-              <Inp label="BOQ (Excel with Rates)" value={form.boq_file_link} onChange={v => F('boq_file_link', v)} placeholder="Drive link" />
-              <Inp label="BOQ (Signed Document)" value={form.boq_signed_link} onChange={v => F('boq_signed_link', v)} placeholder="Drive link" />
-              <Inp label="TPA Material" value={form.tpa_material_link} onChange={v => F('tpa_material_link', v)} placeholder="Drive link" />
-              <Inp label="TPA Material (Signed)" value={form.tpa_material_signed_link} onChange={v => F('tpa_material_signed_link', v)} placeholder="Drive link" />
-              <Inp label="TPA Labour" value={form.tpa_labour_link} onChange={v => F('tpa_labour_link', v)} placeholder="Drive link" />
-              <Inp label="TPA Labour (Signed)" value={form.tpa_labour_signed_link} onChange={v => F('tpa_labour_signed_link', v)} placeholder="Drive link" />
-              <Inp label="PO Copy" value={form.po_copy_link} onChange={v => F('po_copy_link', v)} placeholder="Drive link" />
-              <Inp label="Final Drawing" value={form.final_drawing_link} onChange={v => F('final_drawing_link', v)} placeholder="Drive link" />
+          {/* 9. Final Drawing Upload */}
+          <FSection title="Final Drawing" color="gray">
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload Final Drawing</label>
+                {form.final_drawing_link ? (
+                  <div className="flex items-center gap-2">
+                    <a href={form.final_drawing_link} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline truncate flex-1">
+                      {form.final_drawing_link.split('/').pop()}
+                    </a>
+                    <button type="button" onClick={() => F('final_drawing_link', '')} className="text-red-500 text-xs hover:underline">Remove</button>
+                  </div>
+                ) : (
+                  <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.dwg,.jpg,.jpeg,.png"
+                    onChange={async (e) => {
+                      const file = e.target.files[0]; if (!file) return;
+                      try {
+                        const fd = new FormData(); fd.append('file', file);
+                        const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                        F('final_drawing_link', res.data.url);
+                        toast.success(`Uploaded: ${res.data.filename}`);
+                      } catch { toast.error('Upload failed'); }
+                      e.target.value = '';
+                    }}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                )}
+              </div>
             </div>
           </FSection>
 
