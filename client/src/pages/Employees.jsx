@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import Modal from '../components/Modal';
+import SearchableSelect from '../components/SearchableSelect';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiPlus, FiEdit2, FiTrash2, FiDownload, FiUpload, FiSearch, FiUsers } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiDownload, FiUpload, FiSearch, FiUsers, FiLink, FiLink2 } from 'react-icons/fi';
 
 export default function Employees() {
   const { canDelete, isAdmin, userRoles, user } = useAuth();
@@ -12,6 +13,7 @@ export default function Employees() {
   const canSeeSalary = isAdmin() || (userRoles || []).some(r => String(r).toLowerCase().includes('hr'))
     || String(user?.department || '').toLowerCase().includes('hr');
   const [employees, setEmployees] = useState([]);
+  const [users, setUsers] = useState([]);
   const [modal, setModal] = useState(false);
   const [bulkModal, setBulkModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -21,8 +23,20 @@ export default function Employees() {
   const [bulkPreview, setBulkPreview] = useState([]);
   const fileRef = useRef(null);
 
-  const load = () => api.get('/hr/employees').then(r => setEmployees(r.data));
+  const load = () => {
+    api.get('/hr/employees').then(r => setEmployees(r.data));
+    api.get('/auth/users').then(r => setUsers((r.data || []).filter(u => u.active !== 0))).catch(() => {});
+  };
   useEffect(() => { load(); }, []);
+
+  // Auto-link employees to users by matching email — for existing records
+  const autoLink = async () => {
+    try {
+      const res = await api.post('/hr/employees/auto-link');
+      toast.success(`Linked ${res.data.linked} employee${res.data.linked === 1 ? '' : 's'} by email`);
+      load();
+    } catch { toast.error('Auto-link failed'); }
+  };
 
   const save = async (e) => {
     e.preventDefault();
@@ -136,8 +150,9 @@ export default function Employees() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={exportCSV} className="btn btn-secondary flex items-center gap-2 text-sm"><FiDownload size={15} /> Export CSV</button>
+          <button onClick={autoLink} className="btn btn-secondary flex items-center gap-2 text-sm" title="Link unlinked employees to users by matching email"><FiLink2 size={15} /> Auto-Link by Email</button>
           <button onClick={() => { setBulkData(''); setBulkPreview([]); setBulkModal(true); }} className="btn btn-secondary flex items-center gap-2 text-sm"><FiUpload size={15} /> Bulk Import</button>
-          <button onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', designation: '', department: '', join_date: '', salary: 0 }); setModal(true); }} className="btn btn-primary flex items-center gap-2"><FiPlus size={15} /> Add Employee</button>
+          <button onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', designation: '', department: '', join_date: '', salary: 0, user_id: null }); setModal(true); }} className="btn btn-primary flex items-center gap-2"><FiPlus size={15} /> Add Employee</button>
         </div>
       </div>
 
@@ -151,6 +166,7 @@ export default function Employees() {
       <div className="card p-0 overflow-hidden"><table>
         <thead><tr>
           <th>Name</th><th>Phone</th><th>Email</th><th>Designation</th><th>Department</th><th>Join Date</th>
+          <th title="Linked user login — needed for DPR Staff Cost auto-calc">Linked User</th>
           {canSeeSalary && <th>Salary</th>}
           <th>Status</th><th>Actions</th>
         </tr></thead>
@@ -159,6 +175,11 @@ export default function Employees() {
             <tr key={e.id}>
               <td className="font-medium">{e.name}</td><td>{e.phone}</td><td>{e.email}</td>
               <td>{e.designation}</td><td>{e.department}</td><td>{e.join_date}</td>
+              <td>
+                {e.linked_user_name
+                  ? <span className="badge badge-green text-[10px] flex items-center gap-1 w-fit"><FiLink size={10} /> {e.linked_user_name}</span>
+                  : <span className="badge badge-red text-[10px]">Not linked</span>}
+              </td>
               {canSeeSalary && <td className="font-medium">Rs {(e.salary || 0).toLocaleString('en-IN')}</td>}
               <td><StatusBadge status={e.status} /></td>
               <td><div className="flex gap-1">
@@ -171,7 +192,7 @@ export default function Employees() {
               </div></td>
             </tr>
           ))}
-          {filtered.length === 0 && <tr><td colSpan={canSeeSalary ? 9 : 8} className="text-center py-8 text-gray-400">No employees found</td></tr>}
+          {filtered.length === 0 && <tr><td colSpan={canSeeSalary ? 10 : 9} className="text-center py-8 text-gray-400">No employees found</td></tr>}
         </tbody>
       </table></div>
 
@@ -187,6 +208,18 @@ export default function Employees() {
             <div><label className="label">Join Date</label><input className="input" type="date" value={form.join_date || ''} onChange={e => setForm({...form, join_date: e.target.value})} /></div>
             {canSeeSalary && <div><label className="label">Salary (Rs)</label><input className="input" type="number" value={form.salary || 0} onChange={e => setForm({...form, salary: +e.target.value})} /></div>}
             {editing && <div><label className="label">Status</label><select className="select" value={form.status || ''} onChange={e => setForm({...form, status: e.target.value})}>{['active','training','inactive','terminated'].map(s => <option key={s} value={s}>{s}</option>)}</select></div>}
+            <div className="col-span-2">
+              <label className="label flex items-center gap-1"><FiLink size={12} /> Linked Login User <span className="text-gray-400 font-normal">(required for DPR Staff Cost auto-calc)</span></label>
+              <SearchableSelect
+                options={users.map(u => ({ ...u, label: `${u.name} (${u.username || u.email})` }))}
+                value={form.user_id || null}
+                valueKey="id"
+                displayKey="label"
+                placeholder="Search by name, username or email…"
+                onChange={(u) => setForm({ ...form, user_id: u?.id || null })}
+              />
+              <p className="text-[10px] text-gray-500 mt-0.5">If left blank and email matches a user, it will auto-link on save.</p>
+            </div>
           </div>
           <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'}</button></div>
         </form>

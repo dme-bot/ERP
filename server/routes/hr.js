@@ -60,7 +60,10 @@ const canSeeSalary = (userId, userRole) => {
 };
 
 router.get('/employees', (req, res) => {
-  const rows = getDb().prepare('SELECT * FROM employees ORDER BY name').all();
+  const rows = getDb().prepare(
+    `SELECT e.*, u.name as linked_user_name, u.username as linked_username
+     FROM employees e LEFT JOIN users u ON u.id = e.user_id ORDER BY e.name`
+  ).all();
   if (canSeeSalary(req.user.id, req.user.role)) return res.json(rows);
   // Redact salary for everyone else
   res.json(rows.map(({ salary, ...rest }) => rest));
@@ -68,9 +71,31 @@ router.get('/employees', (req, res) => {
 
 router.post('/employees', (req, res) => {
   const { name, phone, email, designation, department, join_date, salary } = req.body;
-  const r = getDb().prepare('INSERT INTO employees (name,phone,email,designation,department,join_date,salary) VALUES (?,?,?,?,?,?,?)')
-    .run(name, phone, email, designation, department, join_date, salary);
-  res.status(201).json({ id: r.lastInsertRowid });
+  let { user_id } = req.body;
+  const db = getDb();
+  // Auto-link by email if user_id wasn't explicitly set
+  if (!user_id && email) {
+    const u = db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').get(email);
+    if (u) user_id = u.id;
+  }
+  const r = db.prepare('INSERT INTO employees (user_id,name,phone,email,designation,department,join_date,salary) VALUES (?,?,?,?,?,?,?,?)')
+    .run(user_id || null, name, phone, email, designation, department, join_date, salary);
+  res.status(201).json({ id: r.lastInsertRowid, linked_user_id: user_id || null });
+});
+
+// Auto-link existing employees to users by matching email (case-insensitive).
+// Safe to run any time — only fills rows where user_id IS NULL.
+router.post('/employees/auto-link', (req, res) => {
+  const db = getDb();
+  const candidates = db.prepare(
+    `SELECT e.id, u.id as user_id FROM employees e
+     JOIN users u ON LOWER(u.email) = LOWER(e.email)
+     WHERE e.user_id IS NULL AND e.email IS NOT NULL AND e.email != ''`
+  ).all();
+  const upd = db.prepare('UPDATE employees SET user_id = ? WHERE id = ?');
+  let linked = 0;
+  for (const c of candidates) { upd.run(c.user_id, c.id); linked++; }
+  res.json({ linked, scanned: candidates.length });
 });
 
 // Bulk import employees
@@ -94,9 +119,9 @@ router.post('/employees/bulk', (req, res) => {
 });
 
 router.put('/employees/:id', (req, res) => {
-  const { name, phone, email, designation, department, salary, status } = req.body;
-  getDb().prepare('UPDATE employees SET name=?,phone=?,email=?,designation=?,department=?,salary=?,status=? WHERE id=?')
-    .run(name, phone, email, designation, department, salary, status, req.params.id);
+  const { name, phone, email, designation, department, salary, status, user_id } = req.body;
+  getDb().prepare('UPDATE employees SET name=?,phone=?,email=?,designation=?,department=?,salary=?,status=?,user_id=? WHERE id=?')
+    .run(name, phone, email, designation, department, salary, status, user_id || null, req.params.id);
   res.json({ message: 'Updated' });
 });
 
