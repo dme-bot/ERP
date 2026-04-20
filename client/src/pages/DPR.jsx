@@ -282,7 +282,13 @@ export default function DPR() {
             <button onClick={() => {
               setForm({ site_id: '', report_date: filterDate, weather: 'clear', overall_status: 'on_track', system_type: '', shift: 'day', contractor_name: '', contractor_manpower: 0, mb_sheet_no: '', safety_toolbox_talk: false, safety_ppe_compliance: false, safety_incidents: '', next_day_plan: '', hindrances: '', remarks: '' });
               setWorkItems([]); setPoItemsForSite([]);
-              setCosts([{ type: 'Skilled Manpower', qty: 0, rate: 0, amount: 0 }, { type: 'Helper', qty: 0, rate: 0, amount: 0 }, { type: 'Rental Cost', qty: 0, rate: 0, amount: 0 }, { type: 'Staff Cost', qty: 0, rate: 0, amount: 0 }, { type: 'TA/DA', qty: 0, rate: 0, amount: 0 }]);
+              setCosts([
+                { type: 'Skilled Manpower', qty: 0, rate: 800, amount: 0, fixed: true },
+                { type: 'Helper', qty: 0, rate: 500, amount: 0, fixed: true },
+                { type: 'Rental Cost', qty: 0, rate: 0, amount: 0 },
+                { type: 'Staff Cost', qty: 1, rate: 0, amount: 0, auto: true, engineer_count: 0 },
+                { type: 'TA/DA', qty: 0, rate: 0, amount: 0 },
+              ]);
               setMachinery([{ equipment: '', quantity: 1, hours_used: 0, condition: 'working' }]);
               setModal(true);
             }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Submit DPR</button>
@@ -449,9 +455,13 @@ export default function DPR() {
                     <div className="text-sm font-medium">
                       {c.type}
                       {c.fixed && <span className="ml-1 text-[9px] text-gray-400">(fixed)</span>}
-                      {isStaff && <span className="ml-1 text-[9px] text-gray-400">(auto from PO)</span>}
+                      {isStaff && <span className="ml-1 text-[9px] text-gray-400">(auto, 1 day)</span>}
                     </div>
-                    <input className="input text-sm text-center" type="number" placeholder={isStaff ? 'Days' : '0'} value={c.qty || ''} onChange={e => updateCost(i, 'qty', +e.target.value)} />
+                    {isStaff ? (
+                      <div className="text-sm text-center text-gray-500 font-medium">1</div>
+                    ) : (
+                      <input className="input text-sm text-center" type="number" placeholder="0" value={c.qty || ''} onChange={e => updateCost(i, 'qty', +e.target.value)} />
+                    )}
                     <input
                       className={`input text-sm text-center ${(c.fixed || isStaff) ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
                       type="number"
