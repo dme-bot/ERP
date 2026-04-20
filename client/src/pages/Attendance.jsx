@@ -38,10 +38,11 @@ export default function Attendance() {
 
   const load = useCallback(() => {
     api.get('/attendance/my-today').then(r => setMyToday(r.data)).catch(() => {});
+    // Everyone needs geofence list to see auto-punch status live
+    api.get('/attendance/geofence').then(r => setGeofences(r.data || [])).catch(() => {});
     if (isAdmin()) {
       api.get('/attendance/dashboard').then(r => setDashboard(r.data)).catch(() => {});
       api.get(`/attendance?date=${filterDate}`).then(r => setRecords(r.data)).catch(() => {});
-      api.get('/attendance/geofence').then(r => setGeofences(r.data)).catch(() => {});
       api.get('/attendance/leaves').then(r => setLeaves(r.data)).catch(() => {});
       api.get('/auth/users').then(r => setAllUsers((r.data || []).filter(u => u.active !== 0))).catch(() => {});
       const m = new Date().getMonth() + 1, y = new Date().getFullYear();
@@ -59,26 +60,37 @@ export default function Attendance() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Location tracking: every 2 min whenever the attendance page is open.
-  // The server uses this to auto punch-in after 5 min inside a geofence
-  // and auto punch-out after 5 min outside all geofences. We stop once the
-  // day's attendance is closed (punched out).
+  // Location tracking + live geofence status.
+  // Pings server every 30 sec so backend auto-punch (5-min rolling window)
+  // triggers as soon as the user has been inside/outside long enough.
+  // Stops once the day's attendance is closed (punched out).
   useEffect(() => {
     if (myToday?.punch_out_time) return; // day is done
     const trackLocation = () => {
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(pos => {
-        api.post('/attendance/track-location', {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          address: ''
-        }).catch(() => {});
+        const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        setLocation(loc);
+        api.post('/attendance/track-location', { ...loc, address: '' }).catch(() => {});
+        // Re-fetch my-today so auto-punch events reflect in UI quickly
+        api.get('/attendance/my-today').then(r => setMyToday(r.data)).catch(() => {});
       }, () => {}, { enableHighAccuracy: true, timeout: 15000 });
     };
     trackLocation(); // fire immediately
-    const interval = setInterval(trackLocation, 2 * 60 * 1000); // every 2 min
+    const interval = setInterval(trackLocation, 30 * 1000); // every 30 sec
     return () => clearInterval(interval);
-  }, [myToday]);
+  }, [myToday?.punch_out_time]);
+
+  // Client-side geofence detection (haversine) — purely for live status display
+  const haversineMeters = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000, toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+  const insideSite = location && geofences.length > 0
+    ? geofences.filter(g => g.active !== 0).find(g => haversineMeters(location.latitude, location.longitude, g.latitude, g.longitude) <= (g.radius_meters || 200))
+    : null;
 
   // Get current location
   const getLocation = () => {
@@ -193,8 +205,30 @@ export default function Attendance() {
             <div className="card p-4 bg-amber-50 text-center"><p className="text-amber-700 font-medium"><FiAlertTriangle className="inline mr-1" /> Not punched in today</p></div>
           )}
 
-          {/* Camera */}
+          {/* Auto-punch status card — prominent, updates every 30s */}
+          <div className={`card p-4 border-l-4 ${insideSite ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <FiMapPin size={16} className={insideSite ? 'text-emerald-600' : 'text-amber-600'} />
+              <span className={`font-bold text-sm ${insideSite ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {!location ? 'Getting your location…'
+                  : insideSite ? `Inside ${insideSite.site_name || 'geofence'} (${Math.round(haversineMeters(location.latitude, location.longitude, insideSite.latitude, insideSite.longitude))} m)`
+                  : 'Outside all geofences'}
+              </span>
+            </div>
+            {!myToday && insideSite && <p className="text-xs text-emerald-700">⏱ Auto punch-in will fire within 5 min of continuous presence — no action needed.</p>}
+            {!myToday && !insideSite && <p className="text-xs text-amber-700">Move to a site geofence and auto punch-in will fire, or use manual punch below.</p>}
+            {myToday && !myToday.punch_out_time && (
+              <p className="text-xs text-emerald-700">
+                ✓ {myToday.auto_punched_in ? 'Auto punched in' : 'Punched in'} at {myToday.punch_in_time ? new Date(myToday.punch_in_time).toLocaleTimeString() : '—'}.
+                {!insideSite && ' Outside geofence — auto punch-out will fire in 5 min.'}
+              </p>
+            )}
+            {myToday?.punch_out_time && <p className="text-xs text-gray-600">Today's attendance completed.</p>}
+          </div>
+
+          {/* Camera + Manual Punch (shown as fallback — auto will fire if inside geofence) */}
           <div className="card p-4 space-y-3">
+            <p className="text-[11px] text-gray-500 text-center">Manual punch (optional — only if auto-punch hasn't fired or you need a selfie record)</p>
             {cameraOpen ? (
               <div className="text-center">
                 <video ref={videoRef} autoPlay playsInline className="rounded-lg mx-auto w-full max-w-[320px]" />
@@ -215,16 +249,16 @@ export default function Attendance() {
               </button>
             )}
 
-            {location && <p className="text-xs text-gray-500 flex items-center gap-1"><FiMapPin size={12} /> {address}</p>}
+            {location && <p className="text-xs text-gray-500 flex items-center gap-1"><FiMapPin size={12} /> {address || `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`}</p>}
 
-            {/* Punch Buttons */}
+            {/* Manual Punch Buttons (still available as fallback) */}
             {!myToday ? (
-              <button onClick={handlePunchIn} disabled={loading || !photo} className="btn btn-success w-full py-4 text-lg font-bold disabled:opacity-50">
-                {loading ? 'Getting Location...' : 'PUNCH IN'}
+              <button onClick={handlePunchIn} disabled={loading || !photo} className="btn btn-success w-full py-3 text-sm font-bold disabled:opacity-50">
+                {loading ? 'Getting Location…' : 'Manual PUNCH IN'}
               </button>
             ) : !myToday.punch_out_time ? (
-              <button onClick={handlePunchOut} disabled={loading || !photo} className="btn btn-danger w-full py-4 text-lg font-bold disabled:opacity-50">
-                {loading ? 'Getting Location...' : 'PUNCH OUT'}
+              <button onClick={handlePunchOut} disabled={loading || !photo} className="btn btn-danger w-full py-3 text-sm font-bold disabled:opacity-50">
+                {loading ? 'Getting Location…' : 'Manual PUNCH OUT'}
               </button>
             ) : (
               <p className="text-center text-emerald-600 font-bold py-2">Today's attendance completed</p>
