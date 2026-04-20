@@ -55,11 +55,11 @@ export default function DPR() {
     if (siteId) {
       api.get(`/dpr/sites/${siteId}/po-items`).then(r => setPoItemsForSite(r.data)).catch(() => setPoItemsForSite([]));
       // Auto-fill Staff Cost rate from the site's PO engineers (salary/30).
-      // Backend returns only { per_day_cost, engineer_count } — no individual salaries.
+      // Backend returns only { per_day_cost, engineer_count, po_engineers } — no individual salaries.
       api.get(`/dpr/sites/${siteId}/staff-cost`).then(r => {
-        const { per_day_cost = 0, engineer_count = 0 } = r.data || {};
+        const { per_day_cost = 0, engineer_count = 0, po_engineers = 0 } = r.data || {};
         setCosts(prev => prev.map(c => c.type === 'Staff Cost'
-          ? { ...c, rate: per_day_cost, engineer_count, amount: (c.qty || 0) * per_day_cost }
+          ? { ...c, rate: per_day_cost, engineer_count, po_engineers, amount: (c.qty || 0) * per_day_cost }
           : c));
       }).catch(() => {});
     } else { setPoItemsForSite([]); }
@@ -478,8 +478,10 @@ export default function DPR() {
                       {!form.site_id
                         ? 'Select a site first — Staff Cost auto-fills from that PO’s site engineers.'
                         : c.engineer_count > 0
-                          ? `Auto: ${c.engineer_count} site engineer${c.engineer_count > 1 ? 's' : ''} on this PO × Rs ${c.rate}/day (individual salaries not shown)`
-                          : 'No site engineers with salary records linked to this PO. Ask HR to link users → employees.'}
+                          ? `Auto: ${c.engineer_count} of ${c.po_engineers || c.engineer_count} PO engineer${c.engineer_count > 1 ? 's' : ''} × Rs ${c.rate}/day (individual salaries not shown)`
+                          : c.po_engineers > 0
+                            ? `${c.po_engineers} site engineer${c.po_engineers > 1 ? 's' : ''} are on this PO but none have a matching employee salary record. Open HR → Employees and check each engineer's Linked User, email, or name matches.`
+                            : 'No site engineers assigned to this PO yet. Edit the PO (Orders → PO) and assign site engineers first.'}
                     </p>
                   )}
                 </div>

@@ -49,21 +49,24 @@ router.put('/sites/:id', (req, res) => {
 });
 
 // Per-day staff cost for a site = sum of monthly salary / 30 of all site
-// engineers assigned to the PO for this site. IMPORTANT: this endpoint
-// returns ONLY the aggregated number and engineer count — never individual
-// salaries or names — because salaries are confidential.
+// engineers assigned to the PO for this site. IMPORTANT: returns only the
+// aggregated number + counts — never individual salaries — because salaries
+// are confidential.
+//
+// Matching is forgiving: for each site-engineer user we try employees.user_id
+// first, then fall back to matching employees.email to users.email (case
+// insensitive), then employees.name to users.name (exact, case insensitive).
+// That way DPR works even if the Employees ↔ Users link wasn't set manually.
 router.get('/sites/:site_id/staff-cost', (req, res) => {
   const db = getDb();
   const site = db.prepare('SELECT id, name, po_id, business_book_id FROM sites WHERE id=?').get(req.params.site_id);
-  if (!site) return res.json({ per_day_cost: 0, engineer_count: 0 });
+  if (!site) return res.json({ per_day_cost: 0, engineer_count: 0, po_engineers: 0 });
 
-  // Gather all POs that cover this site (either directly via po_id, or via business_book_id)
   const pos = db.prepare(
     `SELECT DISTINCT site_engineer_id, site_engineer_ids FROM purchase_orders
      WHERE id = ? OR business_book_id = ?`
   ).all(site.po_id, site.business_book_id);
 
-  // Build a set of unique engineer user IDs across those POs
   const ids = new Set();
   for (const po of pos) {
     if (po.site_engineer_id) ids.add(po.site_engineer_id);
@@ -71,18 +74,38 @@ router.get('/sites/:site_id/staff-cost', (req, res) => {
       String(po.site_engineer_ids).split(',').map(s => parseInt(s, 10)).filter(Boolean).forEach(i => ids.add(i));
     }
   }
-  if (ids.size === 0) return res.json({ per_day_cost: 0, engineer_count: 0 });
+  if (ids.size === 0) return res.json({ per_day_cost: 0, engineer_count: 0, po_engineers: 0 });
 
   const idList = [...ids];
   const placeholders = idList.map(() => '?').join(',');
-  // salary is treated as monthly; per-day = monthly / 30
-  const row = db.prepare(
-    `SELECT COALESCE(SUM(salary), 0) as total_monthly, COUNT(*) as matched
-     FROM employees WHERE user_id IN (${placeholders}) AND (status IS NULL OR status = 'active')`
-  ).get(...idList);
+  const engUsers = db.prepare(`SELECT id, name, email FROM users WHERE id IN (${placeholders})`).all(...idList);
 
-  const perDay = Math.round(((row.total_monthly || 0) / 30) * 100) / 100;
-  res.json({ per_day_cost: perDay, engineer_count: row.matched || 0 });
+  // For each PO engineer, find their employee record via link → email → name
+  const findEmp = db.prepare(
+    `SELECT id, salary FROM employees
+     WHERE (status IS NULL OR status = 'active')
+       AND (
+         user_id = ?
+         OR (email IS NOT NULL AND email != '' AND LOWER(email) = LOWER(?))
+         OR (name IS NOT NULL AND LOWER(TRIM(name)) = LOWER(TRIM(?)))
+       )
+     LIMIT 1`
+  );
+
+  let totalMonthly = 0;
+  let matched = 0;
+  const seenEmpIds = new Set();
+  for (const u of engUsers) {
+    const emp = findEmp.get(u.id, u.email || '', u.name || '');
+    if (emp && !seenEmpIds.has(emp.id)) {
+      seenEmpIds.add(emp.id);
+      totalMonthly += emp.salary || 0;
+      matched++;
+    }
+  }
+
+  const perDay = Math.round((totalMonthly / 30) * 100) / 100;
+  res.json({ per_day_cost: perDay, engineer_count: matched, po_engineers: engUsers.length });
 });
 
 // Get PO items for a site - fetches ALL PO items for that company/site name
