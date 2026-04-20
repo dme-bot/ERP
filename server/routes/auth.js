@@ -130,6 +130,29 @@ router.post('/change-password', authMiddleware, (req, res) => {
   res.json({ message: 'Password changed successfully' });
 });
 
+// Admin reset password — set a new password for any user and return it once.
+// Existing passwords are bcrypt-hashed and CANNOT be recovered, so admin has
+// to set a new one. The returned plain password is shown once to the admin so
+// they can share it with the user through a secure channel. Admins should
+// never store or email this password.
+router.post('/users/:id/reset-password', authMiddleware, adminOnly, (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT id, name, username, email FROM users WHERE id=?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  // If admin passed a password, use it (min 6 chars); else generate a random one
+  let newPassword = String(req.body?.new_password || '').trim();
+  if (newPassword && newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (!newPassword) {
+    // Random: 10 chars, mixed case + digits, no ambiguous chars (0/O, 1/l)
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    newPassword = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  }
+
+  db.prepare('UPDATE users SET password=? WHERE id=?').run(bcrypt.hashSync(newPassword, 10), req.params.id);
+  res.json({ message: 'Password reset', user: { id: user.id, name: user.name, username: user.username, email: user.email }, new_password: newPassword });
+});
+
 // Deactivate user (admin only)
 router.delete('/users/:id', authMiddleware, adminOnly, (req, res) => {
   getDb().prepare('UPDATE users SET active=0 WHERE id=?').run(req.params.id);

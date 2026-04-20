@@ -15,6 +15,10 @@ export default function UserManagement() {
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkData, setBulkData] = useState('');
   const [bulkPreview, setBulkPreview] = useState([]);
+  // Admin password reset
+  const [resetUser, setResetUser] = useState(null);        // user being reset
+  const [resetInput, setResetInput] = useState('');        // optional custom password typed by admin
+  const [revealedPassword, setRevealedPassword] = useState(null); // { user, password } shown once after reset
 
   const load = () => {
     api.get('/auth/users').then(r => setUsers(r.data));
@@ -65,6 +69,31 @@ export default function UserManagement() {
 
   const toggleRole = (roleId) => {
     setSelectedRoles(prev => prev.includes(roleId) ? prev.filter(r => r !== roleId) : [...prev, roleId]);
+  };
+
+  // Admin password reset — backend returns the new plain password ONCE so
+  // admin can share it with the user. Stored passwords are bcrypt-hashed and
+  // cannot be recovered, so "set + reveal once" is the safe equivalent.
+  const submitReset = async (e) => {
+    e.preventDefault();
+    if (!resetUser) return;
+    try {
+      const payload = resetInput ? { new_password: resetInput } : {};
+      const res = await api.post(`/auth/users/${resetUser.id}/reset-password`, payload);
+      setRevealedPassword({ user: res.data.user, password: res.data.new_password });
+      setResetUser(null);
+      setResetInput('');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Reset failed');
+    }
+  };
+
+  const copyPassword = async () => {
+    if (!revealedPassword?.password) return;
+    try {
+      await navigator.clipboard.writeText(revealedPassword.password);
+      toast.success('Password copied to clipboard');
+    } catch { toast.error('Copy failed — select and copy manually'); }
   };
 
   return (
@@ -125,6 +154,9 @@ export default function UserManagement() {
                 <td>
                   <div className="flex gap-1">
                     <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-red-50 rounded text-red-600" title="Edit"><FiEdit2 size={15} /></button>
+                    <button onClick={() => { setResetUser(u); setResetInput(''); }} className="p-1.5 hover:bg-amber-50 rounded text-amber-600" title="Reset password">
+                      <FiKey size={15} />
+                    </button>
                     <button onClick={() => toggleActive(u)} className={`p-1.5 rounded ${u.active ? 'hover:bg-red-50 text-red-600' : 'hover:bg-green-50 text-green-600'}`} title={u.active ? 'Deactivate' : 'Activate'}>
                       {u.active ? <FiUserX size={15} /> : <FiUserCheck size={15} />}
                     </button>
@@ -253,6 +285,40 @@ export default function UserManagement() {
               } catch { toast.error('Import failed'); }
             }} className="btn btn-primary flex items-center gap-2 disabled:opacity-50"><FiUpload size={14} /> Import {bulkPreview.length} Users</button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Admin: Reset Password — confirm & optionally set custom password */}
+      <Modal isOpen={!!resetUser} onClose={() => { setResetUser(null); setResetInput(''); }} title={resetUser ? `Reset password — ${resetUser.name}` : 'Reset password'}>
+        <form onSubmit={submitReset} className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+            <p className="font-semibold mb-1">Why can't I see the old password?</p>
+            <p>Passwords are one-way encrypted (bcrypt) — nobody can recover the original, not even the server. Instead you can set a new one and share it with the user through a secure channel. The user can change it themselves via "Change Password".</p>
+          </div>
+          <div>
+            <label className="label">New password (leave blank to auto-generate)</label>
+            <input className="input" type="text" placeholder="e.g. Welcome@123 — or leave blank for a random password" value={resetInput} onChange={e => setResetInput(e.target.value)} />
+            <p className="text-[10px] text-gray-500 mt-1">Min 6 characters when typed. Auto-generated passwords are 10 chars, mixed case + digits.</p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => { setResetUser(null); setResetInput(''); }} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary flex items-center gap-2"><FiKey size={14} /> Reset & Show Once</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Admin: Reveal new password ONCE after a successful reset */}
+      <Modal isOpen={!!revealedPassword} onClose={() => setRevealedPassword(null)} title={revealedPassword ? `New password for ${revealedPassword.user.name}` : 'New password'}>
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">Share this password with the user via a secure channel (in person, internal chat). It will NOT be shown again.</p>
+          <div className="bg-gray-900 text-white rounded-lg p-4 font-mono text-lg tracking-wider text-center select-all break-all">
+            {revealedPassword?.password}
+          </div>
+          <div className="flex justify-between gap-3">
+            <button type="button" onClick={copyPassword} className="btn btn-secondary flex items-center gap-2"><FiKey size={14} /> Copy</button>
+            <button type="button" onClick={() => setRevealedPassword(null)} className="btn btn-primary">I've shared it — Close</button>
+          </div>
+          <p className="text-[10px] text-amber-700 text-center">Tell the user to change their password after login.</p>
         </div>
       </Modal>
     </div>
