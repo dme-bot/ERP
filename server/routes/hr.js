@@ -42,9 +42,28 @@ router.get('/candidates/stats', (req, res) => {
   res.json({ total: total.count, byStatus, bySource });
 });
 
-// Employees
+// Employees — salary is confidential; strip it from the response unless the
+// requester is an admin or on the HR team (by role name or department).
+// JWT only carries { id, role, name, email }, so we look up HR role + dept
+// from the DB on each request. The DPR staff-cost endpoint works independently
+// via a server-side aggregate, so non-HR users never see individual figures
+// even if they are site engineers.
+const canSeeSalary = (userId, userRole) => {
+  if (userRole === 'admin') return true;
+  const db = getDb();
+  const u = db.prepare('SELECT department FROM users WHERE id=?').get(userId);
+  if (u?.department && String(u.department).toLowerCase().includes('hr')) return true;
+  const roles = db.prepare(
+    `SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id=r.id WHERE ur.user_id=?`
+  ).all(userId);
+  return roles.some(r => String(r.name || '').toLowerCase().includes('hr'));
+};
+
 router.get('/employees', (req, res) => {
-  res.json(getDb().prepare('SELECT * FROM employees ORDER BY name').all());
+  const rows = getDb().prepare('SELECT * FROM employees ORDER BY name').all();
+  if (canSeeSalary(req.user.id, req.user.role)) return res.json(rows);
+  // Redact salary for everyone else
+  res.json(rows.map(({ salary, ...rest }) => rest));
 });
 
 router.post('/employees', (req, res) => {

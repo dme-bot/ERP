@@ -7,7 +7,10 @@ import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiEdit2, FiTrash2, FiDownload, FiUpload, FiSearch, FiUsers } from 'react-icons/fi';
 
 export default function Employees() {
-  const { canDelete } = useAuth();
+  const { canDelete, isAdmin, userRoles, user } = useAuth();
+  // Salary is confidential — only admins and HR-role users see it
+  const canSeeSalary = isAdmin() || (userRoles || []).some(r => String(r).toLowerCase().includes('hr'))
+    || String(user?.department || '').toLowerCase().includes('hr');
   const [employees, setEmployees] = useState([]);
   const [modal, setModal] = useState(false);
   const [bulkModal, setBulkModal] = useState(false);
@@ -29,11 +32,15 @@ export default function Employees() {
     setModal(false); load();
   };
 
-  // Export CSV
+  // Export CSV — never include salary for non-HR/non-admin users
   const exportCSV = () => {
     if (employees.length === 0) return toast.error('No data');
-    const headers = ['Name', 'Phone', 'Email', 'Designation', 'Department', 'Join Date', 'Salary', 'Status'];
-    const rows = employees.map(e => [e.name, e.phone, e.email, e.designation, e.department, e.join_date, e.salary, e.status]);
+    const headers = canSeeSalary
+      ? ['Name', 'Phone', 'Email', 'Designation', 'Department', 'Join Date', 'Salary', 'Status']
+      : ['Name', 'Phone', 'Email', 'Designation', 'Department', 'Join Date', 'Status'];
+    const rows = employees.map(e => canSeeSalary
+      ? [e.name, e.phone, e.email, e.designation, e.department, e.join_date, e.salary, e.status]
+      : [e.name, e.phone, e.email, e.designation, e.department, e.join_date, e.status]);
     const csv = [headers, ...rows].map(r => r.map(c => `"${(c ?? '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
@@ -142,13 +149,17 @@ export default function Employees() {
 
       {/* Table */}
       <div className="card p-0 overflow-hidden"><table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Designation</th><th>Department</th><th>Join Date</th><th>Salary</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr>
+          <th>Name</th><th>Phone</th><th>Email</th><th>Designation</th><th>Department</th><th>Join Date</th>
+          {canSeeSalary && <th>Salary</th>}
+          <th>Status</th><th>Actions</th>
+        </tr></thead>
         <tbody>
           {filtered.map(e => (
             <tr key={e.id}>
               <td className="font-medium">{e.name}</td><td>{e.phone}</td><td>{e.email}</td>
               <td>{e.designation}</td><td>{e.department}</td><td>{e.join_date}</td>
-              <td className="font-medium">Rs {(e.salary || 0).toLocaleString('en-IN')}</td>
+              {canSeeSalary && <td className="font-medium">Rs {(e.salary || 0).toLocaleString('en-IN')}</td>}
               <td><StatusBadge status={e.status} /></td>
               <td><div className="flex gap-1">
                 <button onClick={() => { setEditing(e); setForm(e); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>
@@ -160,7 +171,7 @@ export default function Employees() {
               </div></td>
             </tr>
           ))}
-          {filtered.length === 0 && <tr><td colSpan="9" className="text-center py-8 text-gray-400">No employees found</td></tr>}
+          {filtered.length === 0 && <tr><td colSpan={canSeeSalary ? 9 : 8} className="text-center py-8 text-gray-400">No employees found</td></tr>}
         </tbody>
       </table></div>
 
@@ -174,7 +185,7 @@ export default function Employees() {
             <div><label className="label">Designation</label><input className="input" value={form.designation || ''} onChange={e => setForm({...form, designation: e.target.value})} /></div>
             <div><label className="label">Department</label><input className="input" value={form.department || ''} onChange={e => setForm({...form, department: e.target.value})} /></div>
             <div><label className="label">Join Date</label><input className="input" type="date" value={form.join_date || ''} onChange={e => setForm({...form, join_date: e.target.value})} /></div>
-            <div><label className="label">Salary (Rs)</label><input className="input" type="number" value={form.salary || 0} onChange={e => setForm({...form, salary: +e.target.value})} /></div>
+            {canSeeSalary && <div><label className="label">Salary (Rs)</label><input className="input" type="number" value={form.salary || 0} onChange={e => setForm({...form, salary: +e.target.value})} /></div>}
             {editing && <div><label className="label">Status</label><select className="select" value={form.status || ''} onChange={e => setForm({...form, status: e.target.value})}>{['active','training','inactive','terminated'].map(s => <option key={s} value={s}>{s}</option>)}</select></div>}
           </div>
           <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'}</button></div>
