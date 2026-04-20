@@ -24,14 +24,15 @@ export default function DPR() {
   const [form, setForm] = useState({});
   // Table A: Installation items from PO
   const [workItems, setWorkItems] = useState([]);
-  // Table B: Costs
+  // Table B: Costs — Skilled @ Rs 800/qty, Helper @ Rs 500/qty (fixed company rates)
   const [costs, setCosts] = useState([
-    { type: 'Skilled Manpower', qty: 0, rate: 0, amount: 0 },
-    { type: 'Helper', qty: 0, rate: 0, amount: 0 },
+    { type: 'Skilled Manpower', qty: 0, rate: 800, amount: 0, fixed: true },
+    { type: 'Helper', qty: 0, rate: 500, amount: 0, fixed: true },
     { type: 'Rental Cost', qty: 0, rate: 0, amount: 0 },
-    { type: 'Staff Cost', qty: 0, rate: 0, amount: 0 },
+    { type: 'Staff Cost', qty: 1, rate: 0, amount: 0, staff_ids: [] },
     { type: 'TA/DA', qty: 0, rate: 0, amount: 0 },
   ]);
+  const [employees, setEmployees] = useState([]);
   const [machinery, setMachinery] = useState([{ equipment: '', quantity: 1, hours_used: 0, condition: 'working' }]);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [poItemsForSite, setPoItemsForSite] = useState([]);
@@ -43,6 +44,7 @@ export default function DPR() {
     api.get('/dpr', { params: { date: filterDate } }).then(r => setDprs(r.data));
     api.get('/dpr/sites').then(r => setSites(r.data));
     api.get('/auth/users').then(r => setUsers(r.data)).catch(() => {});
+    api.get('/hr/employees').then(r => setEmployees((r.data || []).filter(e => !e.status || e.status === 'active'))).catch(() => setEmployees([]));
     api.get('/dpr/progress').then(r => setProgress(r.data)).catch(() => setProgress([]));
   };
   useEffect(() => { load(); }, [filterDate]);
@@ -76,8 +78,22 @@ export default function DPR() {
   };
   const updateCost = (i, field, val) => {
     const n = [...costs];
+    // Block manual rate edits on fixed-rate rows (Skilled 800, Helper 500)
+    if (field === 'rate' && n[i].fixed) return;
     n[i][field] = val;
     if (field === 'qty' || field === 'rate') n[i].amount = (n[i].qty || 0) * (n[i].rate || 0);
+    setCosts(n);
+  };
+
+  // Toggle an employee in/out of Staff Cost selection and recompute rate = sum of per-day salaries
+  const toggleStaff = (costIdx, empId) => {
+    const n = [...costs];
+    const row = { ...n[costIdx] };
+    const ids = row.staff_ids || [];
+    row.staff_ids = ids.includes(empId) ? ids.filter(x => x !== empId) : [...ids, empId];
+    row.rate = row.staff_ids.reduce((s, id) => s + (employees.find(e => e.id === id)?.salary || 0), 0);
+    row.amount = (row.qty || 0) * (row.rate || 0);
+    n[costIdx] = row;
     setCosts(n);
   };
 
@@ -429,14 +445,57 @@ export default function DPR() {
             <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-gray-600 mb-1 px-1 uppercase">
               <div>Type</div><div>Qty</div><div>Rate (Rs)</div><div>Amount (Rs)</div>
             </div>
-            {costs.map((c, i) => (
-              <div key={i} className="grid grid-cols-4 gap-1 mb-1.5 items-center bg-white rounded p-1">
-                <div className="text-sm font-medium">{c.type}</div>
-                <input className="input text-sm text-center" type="number" placeholder="0" value={c.qty || ''} onChange={e => updateCost(i, 'qty', +e.target.value)} />
-                <input className="input text-sm text-center" type="number" placeholder="0" value={c.rate || ''} onChange={e => updateCost(i, 'rate', +e.target.value)} />
-                <div className="text-sm font-bold text-right pr-2">Rs {(c.amount || 0).toLocaleString()}</div>
-              </div>
-            ))}
+            {costs.map((c, i) => {
+              const isStaff = c.type === 'Staff Cost';
+              return (
+                <div key={i} className="bg-white rounded p-1 mb-1.5">
+                  <div className="grid grid-cols-4 gap-1 items-center">
+                    <div className="text-sm font-medium">
+                      {c.type}
+                      {c.fixed && <span className="ml-1 text-[9px] text-gray-400">(fixed)</span>}
+                      {isStaff && <span className="ml-1 text-[9px] text-gray-400">(pick staff)</span>}
+                    </div>
+                    <input className="input text-sm text-center" type="number" placeholder={isStaff ? 'Days' : '0'} value={c.qty || ''} onChange={e => updateCost(i, 'qty', +e.target.value)} />
+                    <input
+                      className={`input text-sm text-center ${(c.fixed || isStaff) ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+                      type="number"
+                      placeholder="0"
+                      value={c.rate || ''}
+                      readOnly={c.fixed || isStaff}
+                      onChange={e => updateCost(i, 'rate', +e.target.value)}
+                      title={c.fixed ? `Fixed company rate: Rs ${c.rate}` : (isStaff ? 'Rate = sum of selected staff per-day salary' : '')}
+                    />
+                    <div className="text-sm font-bold text-right pr-2">Rs {(c.amount || 0).toLocaleString()}</div>
+                  </div>
+                  {isStaff && (
+                    <div className="mt-1.5 pl-1">
+                      {employees.length === 0 ? (
+                        <p className="text-[10px] text-amber-600">No active employees found. Add employees in HR module first.</p>
+                      ) : (
+                        <>
+                          <p className="text-[10px] text-gray-500 mb-1">Select staff for this site (per-day salary auto-sums into rate):</p>
+                          <div className="flex flex-wrap gap-1">
+                            {employees.map(e => {
+                              const selected = (c.staff_ids || []).includes(e.id);
+                              return (
+                                <button key={e.id} type="button" onClick={() => toggleStaff(i, e.id)}
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition ${selected ? 'bg-red-600 text-white border-red-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                                  title={`Per day: Rs ${(e.salary || 0).toLocaleString()}`}>
+                                  {selected && <span className="mr-0.5">✓</span>}{e.name} <span className="opacity-70">(₹{(e.salary || 0).toLocaleString()})</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {(c.staff_ids || []).length > 0 && (
+                            <p className="text-[10px] text-red-700 mt-1">{c.staff_ids.length} staff × {c.qty || 0} day(s) @ Rs {c.rate}/day = Rs {(c.amount || 0).toLocaleString()}</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             <button type="button" onClick={() => setCosts([...costs, { type: '', qty: 0, rate: 0, amount: 0 }])} className="text-xs text-red-700 hover:underline">+ Add Cost Type</button>
             <div className="mt-2 pt-2 border-t-2 border-red-300 text-right">
               <span className="font-bold text-red-800 text-lg">Grand Total (B): Rs {grandTotalB.toLocaleString()}</span>
