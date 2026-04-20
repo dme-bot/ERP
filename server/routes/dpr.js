@@ -79,24 +79,59 @@ router.get('/sites/:site_id/staff-cost', (req, res) => {
   const idList = [...ids];
   const placeholders = idList.map(() => '?').join(',');
   const engUsers = db.prepare(`SELECT id, name, email FROM users WHERE id IN (${placeholders})`).all(...idList);
+  const allEmployees = db.prepare(
+    `SELECT id, user_id, name, email, salary FROM employees
+     WHERE (status IS NULL OR status = 'active')`
+  ).all();
 
-  // For each PO engineer, find their employee record via link → email → name
-  const findEmp = db.prepare(
-    `SELECT id, salary FROM employees
-     WHERE (status IS NULL OR status = 'active')
-       AND (
-         user_id = ?
-         OR (email IS NOT NULL AND email != '' AND LOWER(email) = LOWER(?))
-         OR (name IS NOT NULL AND LOWER(TRIM(name)) = LOWER(TRIM(?)))
-       )
-     LIMIT 1`
-  );
+  // Forgiving matcher — tries, in order, for each site engineer user:
+  //   1) employees.user_id === user.id
+  //   2) employees.email (case insens) === user.email
+  //   3) employees.name exact (case insens, trimmed) === user.name
+  //   4) employees.name first-word === user.name first-word
+  //      so "Vivek" (user) matches "Vivek Kumar" (employee).
+  // Step 4 picks the employee whose full name shares the MOST tokens with the
+  // user's name, to avoid "Ram" incorrectly matching "Ram Kumar" when there is
+  // also a "Ram Singh" in the list.
+  const tokens = (s) => String(s || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const firstWord = (s) => tokens(s)[0] || '';
+
+  const findEmp = (user) => {
+    // 1. Explicit link
+    let hit = allEmployees.find(e => e.user_id === user.id);
+    if (hit) return hit;
+    // 2. Email
+    if (user.email) {
+      const ue = user.email.toLowerCase();
+      hit = allEmployees.find(e => (e.email || '').toLowerCase() === ue);
+      if (hit) return hit;
+    }
+    // 3. Exact name
+    const un = (user.name || '').toLowerCase().trim();
+    if (un) {
+      hit = allEmployees.find(e => (e.name || '').toLowerCase().trim() === un);
+      if (hit) return hit;
+    }
+    // 4. First-word match, pick best overlap
+    const uf = firstWord(user.name);
+    if (!uf) return null;
+    const userSet = new Set(tokens(user.name));
+    const candidates = allEmployees
+      .filter(e => firstWord(e.name) === uf)
+      .map(e => {
+        const empTokens = tokens(e.name);
+        const overlap = empTokens.filter(t => userSet.has(t)).length;
+        return { emp: e, overlap };
+      })
+      .sort((a, b) => b.overlap - a.overlap);
+    return candidates[0]?.emp || null;
+  };
 
   let totalMonthly = 0;
   let matched = 0;
   const seenEmpIds = new Set();
   for (const u of engUsers) {
-    const emp = findEmp.get(u.id, u.email || '', u.name || '');
+    const emp = findEmp(u);
     if (emp && !seenEmpIds.has(emp.id)) {
       seenEmpIds.add(emp.id);
       totalMonthly += emp.salary || 0;
