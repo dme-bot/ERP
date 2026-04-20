@@ -40,7 +40,7 @@ export default function Checklists() {
               <td className="capitalize">{c.frequency}</td><td>{c.due_date}</td><td>{c.assigned_to_name}</td>
               <td><StatusBadge status={c.status} /></td>
               <td><div className="flex gap-1">
-                <button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                <button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>
                 {canDelete('checklists') && <button onClick={async () => {
                   if (!confirm(`Delete checklist "${c.title}"?`)) return;
                   try { await api.delete(`/hr/checklists/${c.id}`); toast.success('Deleted'); load(); }

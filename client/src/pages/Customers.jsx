@@ -9,11 +9,11 @@ const CATEGORIES = ['FF', 'ELE', 'LV', 'Solar', 'HVAC', 'INTERIOR', 'Govt', 'Pri
 const CAT_COLORS = {
   FF: 'bg-red-100 text-red-700',
   ELE: 'bg-amber-100 text-amber-700',
-  LV: 'bg-blue-100 text-blue-700',
+  LV: 'bg-red-100 text-red-700',
   Solar: 'bg-emerald-100 text-emerald-700',
   HVAC: 'bg-cyan-100 text-cyan-700',
   INTERIOR: 'bg-purple-100 text-purple-700',
-  Govt: 'bg-indigo-100 text-indigo-700',
+  Govt: 'bg-red-100 text-red-700',
   Private: 'bg-pink-100 text-pink-700',
 };
 
@@ -106,9 +106,9 @@ export default function Customers() {
 
       {/* Category filter chips */}
       <div className="flex gap-2 flex-wrap">
-        <button onClick={() => setFilterCat('')} className={`px-3 py-1 rounded-full text-xs font-semibold border ${!filterCat ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border-gray-200'}`}>All ({customers.length})</button>
+        <button onClick={() => setFilterCat('')} className={`px-3 py-1 rounded-full text-xs font-semibold border ${!filterCat ? 'bg-red-600 text-white' : 'bg-white text-gray-600 border-gray-200'}`}>All ({customers.length})</button>
         {Object.entries(catCounts).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
-          <button key={cat} onClick={() => setFilterCat(filterCat === cat ? '' : cat)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${filterCat === cat ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border-gray-200'}`}>{cat} ({count})</button>
+          <button key={cat} onClick={() => setFilterCat(filterCat === cat ? '' : cat)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${filterCat === cat ? 'bg-red-600 text-white' : 'bg-white text-gray-600 border-gray-200'}`}>{cat} ({count})</button>
         ))}
       </div>
 
@@ -151,8 +151,8 @@ export default function Customers() {
             </thead>
             <tbody>
               {filtered.map(c => (
-                <tr key={c.id} className="border-b hover:bg-blue-50/30">
-                  <td className="px-2 py-2 font-mono text-[10px] text-blue-600">{c.customer_code || '-'}</td>
+                <tr key={c.id} className="border-b hover:bg-red-50/30">
+                  <td className="px-2 py-2 font-mono text-[10px] text-red-600">{c.customer_code || '-'}</td>
                   <td className="px-2 py-2"><div className="font-semibold">{c.company_name}</div></td>
                   <td className="px-2 py-2 text-[11px]">{c.sub_company_name || '-'}</td>
                   <td className="px-2 py-2 text-center">
@@ -163,7 +163,7 @@ export default function Customers() {
                   <td className="px-2 py-2 text-[11px]">{c.concern_person_name || '-'}</td>
                   <td className="px-2 py-2">
                     <div className="flex gap-1 justify-center">
-                      <button onClick={() => { setViewData(c); setModal('view'); }} className="p-1 text-gray-400 hover:text-blue-600"><FiEye size={14} /></button>
+                      <button onClick={() => { setViewData(c); setModal('view'); }} className="p-1 text-gray-400 hover:text-red-600"><FiEye size={14} /></button>
                       {canEdit('customers') && <button onClick={() => openEdit(c)} className="p-1 text-gray-400 hover:text-amber-600"><FiEdit2 size={14} /></button>}
                       {canDelete('customers') && <button onClick={() => remove(c)} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
                     </div>
@@ -183,7 +183,7 @@ export default function Customers() {
         {viewData && (
           <div className="space-y-3 text-sm">
             <div className="flex gap-2 items-center">
-              <span className="font-mono text-xs text-blue-600">{viewData.customer_code}</span>
+              <span className="font-mono text-xs text-red-600">{viewData.customer_code}</span>
               {viewData.category && <span className={`text-xs px-2 py-0.5 rounded font-medium ${CAT_COLORS[viewData.category] || 'bg-gray-100'}`}>{viewData.category}</span>}
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -83,7 +83,7 @@ export default function UserManagement() {
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="card text-center">
-          <div className="text-3xl font-bold text-blue-600">{users.length}</div>
+          <div className="text-3xl font-bold text-red-600">{users.length}</div>
           <div className="text-sm text-gray-500">Total Users</div>
         </div>
         <div className="card text-center">
@@ -109,7 +109,7 @@ export default function UserManagement() {
             {users.map(u => (
               <tr key={u.id}>
                 <td className="font-medium">{u.name}</td>
-                <td className="font-mono text-xs text-blue-700">{u.username || <span className="text-gray-300">—</span>}</td>
+                <td className="font-mono text-xs text-red-700">{u.username || <span className="text-gray-300">—</span>}</td>
                 <td className="text-gray-600">{u.email}</td>
                 <td>{u.phone}</td>
                 <td><span className={`badge ${u.role === 'admin' ? 'badge-red' : u.role === 'manager' ? 'badge-purple' : 'badge-blue'}`}>{u.role}</span></td>
@@ -124,7 +124,7 @@ export default function UserManagement() {
                 <td>{u.active ? <span className="badge badge-green">Active</span> : <span className="badge badge-red">Inactive</span>}</td>
                 <td>
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><FiEdit2 size={15} /></button>
+                    <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-red-50 rounded text-red-600" title="Edit"><FiEdit2 size={15} /></button>
                     <button onClick={() => toggleActive(u)} className={`p-1.5 rounded ${u.active ? 'hover:bg-red-50 text-red-600' : 'hover:bg-green-50 text-green-600'}`} title={u.active ? 'Deactivate' : 'Activate'}>
                       {u.active ? <FiUserX size={15} /> : <FiUserCheck size={15} />}
                     </button>
@@ -168,12 +168,12 @@ export default function UserManagement() {
             <p className="text-xs text-gray-500 mb-3">Select which roles this user should have. Each role grants specific permissions to modules.</p>
             <div className="grid grid-cols-2 gap-2">
               {roles.map(r => (
-                <label key={r.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${selectedRoles.includes(r.id) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                <label key={r.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${selectedRoles.includes(r.id) ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
                   <input
                     type="checkbox"
                     checked={selectedRoles.includes(r.id)}
                     onChange={() => toggleRole(r.id)}
-                    className="w-4 h-4 text-blue-600"
+                    className="w-4 h-4 text-red-600"
                   />
                   <div>
                     <div className="text-sm font-medium">{r.name}</div>
@@ -201,7 +201,7 @@ export default function UserManagement() {
       {/* Bulk Import Modal */}
       <Modal isOpen={bulkModal} onClose={() => setBulkModal(false)} title="Bulk Import Users" wide>
         <div className="space-y-4">
-          <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+          <div className="bg-red-50 p-3 rounded-lg text-sm text-red-700">
             <p className="font-semibold mb-1">CSV Format: Name, Email, Phone, Department, Role Name</p>
             <p className="text-xs">Default password: <strong>sepl@123</strong> (users can change later)</p>
           </div>
@@ -224,7 +224,7 @@ export default function UserManagement() {
                 }).filter(Boolean));
               };
               reader.readAsText(file); e.target.value = '';
-            }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700" />
+            }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700" />
           </div>
           <div><label className="label">Or Paste CSV</label>
             <textarea className="input font-mono text-xs" rows="5" value={bulkData} onChange={e => {

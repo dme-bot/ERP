@@ -120,7 +120,7 @@ export default function PaymentRequired() {
       {tab === 'dashboard' && stats && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="card p-4 border-l-4 border-blue-500"><p className="text-xs text-gray-500">Total Requests</p><p className="text-2xl font-bold">{stats.total}</p></div>
+            <div className="card p-4 border-l-4 border-red-500"><p className="text-xs text-gray-500">Total Requests</p><p className="text-2xl font-bold">{stats.total}</p></div>
             <div className="card p-4 border-l-4 border-orange-500"><p className="text-xs text-gray-500">Total Amount</p><p className="text-2xl font-bold text-orange-600">{fmt(stats.totalAmount)}</p></div>
             <div className="card p-4 border-l-4 border-amber-500"><p className="text-xs text-gray-500">Pending</p><p className="text-2xl font-bold text-amber-600">{stats.pending}</p></div>
             <div className="card p-4 border-l-4 border-emerald-500"><p className="text-xs text-gray-500">Approved</p><p className="text-2xl font-bold text-emerald-600">{stats.approved}</p></div>
@@ -143,12 +143,12 @@ export default function PaymentRequired() {
               <table><thead><tr><th>Req No</th><th>Employee</th><th>Category</th><th>Amount</th><th>Step</th><th>Actions</th></tr></thead>
                 <tbody>{stats.pendingApprovals.map(r => (
                   <tr key={r.id}>
-                    <td className="font-bold text-blue-600 cursor-pointer" onClick={() => viewRequest(r.id)}>{r.request_no}</td>
+                    <td className="font-bold text-red-600 cursor-pointer" onClick={() => viewRequest(r.id)}>{r.request_no}</td>
                     <td>{r.employee_name}</td><td><span className="badge badge-blue">{r.category}</span></td>
                     <td className="font-semibold">{fmt(r.amount)}</td>
                     <td><span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Step {r.current_step}/2</span></td>
                     <td><div className="flex gap-1">
-                      <button onClick={() => viewRequest(r.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600"><FiEye size={14} /></button>
+                      <button onClick={() => viewRequest(r.id)} className="p-1 hover:bg-red-50 rounded text-red-600"><FiEye size={14} /></button>
                       {canApprove('payment_required') && <>
                         <button onClick={() => viewRequest(r.id)} className="p-1 hover:bg-amber-50 rounded text-amber-600 font-bold text-xs">Review</button>
                       </>}
@@ -181,7 +181,7 @@ export default function PaymentRequired() {
                 return true;
               }).map(r => (
                 <tr key={r.id}>
-                  <td className="font-bold text-blue-600 cursor-pointer" onClick={() => viewRequest(r.id)}>{r.request_no}</td>
+                  <td className="font-bold text-red-600 cursor-pointer" onClick={() => viewRequest(r.id)}>{r.request_no}</td>
                   <td className="font-medium">{r.employee_name}</td>
                   <td className="text-sm">{r.site_display || r.site_name || '-'}</td>
                   <td><span className={`badge ${r.category === 'TA/DA' ? 'badge-purple' : r.category === 'Purchase' ? 'badge-blue' : r.category === 'Labour' ? 'badge-green' : 'badge-gray'}`}>{r.category}</span></td>
@@ -191,7 +191,7 @@ export default function PaymentRequired() {
                   <td><StatusBadge status={r.status} /></td>
                   <td className="text-xs">{r.created_at?.split('T')[0]}</td>
                   <td><div className="flex gap-1">
-                    <button onClick={() => viewRequest(r.id)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><FiEye size={15} /></button>
+                    <button onClick={() => viewRequest(r.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><FiEye size={15} /></button>
                     {canApprove('payment_required') && r.status !== 'final_approved' && r.status !== 'rejected' && <>
                       <button onClick={() => viewRequest(r.id)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded font-bold text-xs" title="Review & Approve/Reject">Review</button>
                     </>}
@@ -253,7 +253,7 @@ export default function PaymentRequired() {
                 </div></div>
             )}
             {viewData.category === 'Purchase' && (
-              <div className="border rounded p-3 bg-blue-50"><h5 className="font-semibold text-sm text-blue-700 mb-2">Purchase Details</h5>
+              <div className="border rounded p-3 bg-red-50"><h5 className="font-semibold text-sm text-red-700 mb-2">Purchase Details</h5>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="text-gray-400">Indent No:</span> {viewData.indent_number}</div>
                   <div><span className="text-gray-400">Vendor:</span> {viewData.vendor_name}</div>
@@ -280,7 +280,7 @@ export default function PaymentRequired() {
             )}
 
             {viewData.rejection_remarks && <div className="bg-red-50 p-3 rounded text-sm"><strong className="text-red-700">Rejected:</strong> {viewData.rejection_remarks}</div>}
-            {viewData.attachment_link && <a href={viewData.attachment_link} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">View Attachment</a>}
+            {viewData.attachment_link && <a href={viewData.attachment_link} target="_blank" rel="noreferrer" className="text-red-600 underline text-sm">View Attachment</a>}
 
             {/* Approval trail */}
             {viewData.approvals?.length > 0 && (
@@ -370,7 +370,7 @@ export default function PaymentRequired() {
                 <div className="mt-3 p-3 bg-white rounded border border-purple-200">
                   <label className="label">Upload Ticket *</label>
                   {form.ticket_upload ? (
-                    <div className="flex items-center gap-2"><a href={form.ticket_upload} className="text-blue-600 text-sm underline" target="_blank" rel="noreferrer">Ticket uploaded</a><button type="button" onClick={() => F('ticket_upload', '')} className="text-red-500 text-xs">Remove</button></div>
+                    <div className="flex items-center gap-2"><a href={form.ticket_upload} className="text-red-600 text-sm underline" target="_blank" rel="noreferrer">Ticket uploaded</a><button type="button" onClick={() => F('ticket_upload', '')} className="text-red-500 text-xs">Remove</button></div>
                   ) : (
                     <input type="file" onChange={async (e) => {
                       const file = e.target.files[0]; if (!file) return;
@@ -385,12 +385,12 @@ export default function PaymentRequired() {
               {['Car','Bike'].includes(form.mode_of_travel) && (
                 <div className="mt-3 p-3 bg-white rounded border border-purple-200 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2 p-2 bg-blue-50 rounded">
+                    <div className="space-y-2 p-2 bg-red-50 rounded">
                       <label className="label">Start KM *</label>
                       <input className="input" type="number" value={form.start_km || ''} onChange={e => F('start_km', +e.target.value)} required />
                       <label className="label text-[10px]">Start KM Meter Photo *</label>
                       {form.km_photo ? (
-                        <div className="flex items-center gap-2"><a href={form.km_photo} className="text-blue-600 text-xs underline truncate" target="_blank" rel="noreferrer">Photo uploaded</a><button type="button" onClick={() => F('km_photo', '')} className="text-red-500 text-[10px]">Remove</button></div>
+                        <div className="flex items-center gap-2"><a href={form.km_photo} className="text-red-600 text-xs underline truncate" target="_blank" rel="noreferrer">Photo uploaded</a><button type="button" onClick={() => F('km_photo', '')} className="text-red-500 text-[10px]">Remove</button></div>
                       ) : (
                         <input type="file" accept="image/*" capture="environment" onChange={async (e) => {
                           const file = e.target.files[0]; if (!file) return;
@@ -404,7 +404,7 @@ export default function PaymentRequired() {
                       <input className="input" type="number" value={form.end_km || ''} onChange={e => F('end_km', +e.target.value)} required />
                       <label className="label text-[10px]">End KM Meter Photo *</label>
                       {form.end_km_photo ? (
-                        <div className="flex items-center gap-2"><a href={form.end_km_photo} className="text-blue-600 text-xs underline truncate" target="_blank" rel="noreferrer">Photo uploaded</a><button type="button" onClick={() => F('end_km_photo', '')} className="text-red-500 text-[10px]">Remove</button></div>
+                        <div className="flex items-center gap-2"><a href={form.end_km_photo} className="text-red-600 text-xs underline truncate" target="_blank" rel="noreferrer">Photo uploaded</a><button type="button" onClick={() => F('end_km_photo', '')} className="text-red-500 text-[10px]">Remove</button></div>
                       ) : (
                         <input type="file" accept="image/*" capture="environment" onChange={async (e) => {
                           const file = e.target.files[0]; if (!file) return;
@@ -427,21 +427,21 @@ export default function PaymentRequired() {
 
           {/* Purchase fields */}
           {form.category === 'Purchase' && (
-            <div className="border rounded-lg p-3 bg-blue-50">
-              <h4 className="font-semibold text-sm text-blue-700 mb-3">Purchase Details</h4>
+            <div className="border rounded-lg p-3 bg-red-50">
+              <h4 className="font-semibold text-sm text-red-700 mb-3">Purchase Details</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label">Indent Number *</label><input className="input" value={form.indent_number} onChange={e => F('indent_number', e.target.value)} required /></div>
                 <div><label className="label">Vendor Name</label><input className="input" value={form.vendor_name} onChange={e => F('vendor_name', e.target.value)} /></div>
                 <div className="col-span-2"><label className="label">Item Description</label><textarea className="input" rows="2" value={form.item_description} onChange={e => F('item_description', e.target.value)} /></div>
                 <div><label className="label">Purchase Order Upload *</label>
                   {form.quotation_link ? (
-                    <div className="flex items-center gap-2"><a href={form.quotation_link} className="text-blue-600 text-sm underline">Quotation uploaded</a><button type="button" onClick={() => F('quotation_link', '')} className="text-red-500 text-xs">Remove</button></div>
+                    <div className="flex items-center gap-2"><a href={form.quotation_link} className="text-red-600 text-sm underline">Quotation uploaded</a><button type="button" onClick={() => F('quotation_link', '')} className="text-red-500 text-xs">Remove</button></div>
                   ) : (
                     <input type="file" onChange={async (e) => {
                       const file = e.target.files[0]; if (!file) return;
                       try { const fd = new FormData(); fd.append('file', file); const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); F('quotation_link', res.data.url); toast.success('Uploaded'); } catch { toast.error('Failed'); }
                       e.target.value = '';
-                    }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700" />
+                    }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700" />
                   )}
                 </div>
               </div>

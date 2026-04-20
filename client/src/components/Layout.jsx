@@ -95,16 +95,16 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed md:relative z-40 h-full bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-transform duration-300 flex-shrink-0 ${isMobile ? 'w-56' : 'w-64'} ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed md:relative z-40 h-full bg-gradient-to-b from-red-800 to-red-900 text-white flex flex-col transition-transform duration-300 flex-shrink-0 ${isMobile ? 'w-56' : 'w-64'} ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-4 border-b border-white/10 flex justify-between items-center">
           <div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <span className="text-white font-extrabold text-xs">SE</span>
+              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-lg shadow-red-900/40">
+                <span className="text-red-700 font-extrabold text-xs">SE</span>
               </div>
               <div>
                 <h1 className="text-sm font-extrabold tracking-tight">SEPL ERP</h1>
-                <p className="text-[9px] text-slate-400 -mt-0.5">Secured Engineers</p>
+                <p className="text-[9px] text-red-200 -mt-0.5">Secured Engineers</p>
               </div>
             </div>
           </div>
@@ -113,17 +113,17 @@ export default function Layout() {
         <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
           {visibleMenu.map(item => (
             <Link key={item.path} to={item.path}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${location.pathname === item.path ? 'bg-white/15 text-white font-medium' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${location.pathname === item.path ? 'bg-white/15 text-white font-medium' : 'text-red-100 hover:bg-white/10 hover:text-white'}`}>
               <item.icon size={16} />
               <span className="truncate">{item.label}</span>
             </Link>
           ))}
           {isAdmin() && (
             <>
-              <div className="pt-3 pb-1 px-3"><span className="text-[10px] font-semibold text-slate-500 uppercase">Admin</span></div>
+              <div className="pt-3 pb-1 px-3"><span className="text-[10px] font-semibold text-red-200 uppercase">Admin</span></div>
               {adminItems.map(item => (
                 <Link key={item.path} to={item.path}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${location.pathname === item.path ? 'bg-white/15 text-white font-medium' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${location.pathname === item.path ? 'bg-white/15 text-white font-medium' : 'text-red-100 hover:bg-white/10 hover:text-white'}`}>
                   <item.icon size={16} />
                   <span className="truncate">{item.label}</span>
                 </Link>
@@ -132,18 +132,18 @@ export default function Layout() {
           )}
         </nav>
         <div className="p-3 border-t border-white/10">
-          <div className="text-sm text-slate-300">{user?.name}</div>
-          {user?.username && <div className="text-[10px] text-blue-300 font-mono">@{user.username}</div>}
-          <div className="text-[10px] text-slate-500 mb-1">{user?.email}</div>
+          <div className="text-sm text-red-50">{user?.name}</div>
+          {user?.username && <div className="text-[10px] text-red-200 font-mono">@{user.username}</div>}
+          <div className="text-[10px] text-red-300 mb-1">{user?.email}</div>
           <div className="flex flex-wrap gap-1 mb-2">
             {userRoles.map((r, i) => (
-              <span key={i} className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded">{r}</span>
+              <span key={i} className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded">{r}</span>
             ))}
           </div>
-          <button onClick={() => setPwdModal(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-white/10 rounded w-full mb-1">
+          <button onClick={() => setPwdModal(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-100 hover:text-white hover:bg-white/10 rounded w-full mb-1">
             <FiKey size={14} /> <span>Change Password</span>
           </button>
-          <button onClick={logout} className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-300 hover:text-red-200 hover:bg-white/10 rounded w-full">
+          <button onClick={logout} className="flex items-center gap-2 px-3 py-1.5 text-sm text-yellow-200 hover:text-white hover:bg-white/10 rounded w-full">
             <FiLogOut size={15} /> <span>Logout</span>
           </button>
         </div>

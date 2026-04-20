@@ -98,7 +98,7 @@ export default function ItemMaster() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><FiPackage className="text-indigo-600" /> Item Master</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><FiPackage className="text-red-600" /> Item Master</h1>
           <p className="text-sm text-gray-500">{items.length} items | From Drive Item-wise Sheet</p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -142,7 +142,7 @@ export default function ItemMaster() {
       {(filterDept || search) && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
           <span>Showing:</span>
-          {filterDept && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">{DEPT_LABELS[filterDept] || filterDept}</span>}
+          {filterDept && <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">{DEPT_LABELS[filterDept] || filterDept}</span>}
           {search && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">"{search}"</span>}
           <span className="text-gray-400">· {items.length} match{items.length === 1 ? '' : 'es'}</span>
         </div>
@@ -164,9 +164,9 @@ export default function ItemMaster() {
           </tr></thead>
           <tbody className="divide-y divide-gray-100">
             {items.map(i => (
-              <tr key={i.id} className="hover:bg-indigo-50/30">
-                <td className="px-3 py-2 font-mono text-xs font-bold text-indigo-600">{i.item_code}</td>
-                <td className="px-3 py-2"><span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${i.department === 'FF' ? 'bg-red-100 text-red-700' : i.department === 'LV' ? 'bg-blue-100 text-blue-700' : i.department === 'ELE' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>{i.department}</span></td>
+              <tr key={i.id} className="hover:bg-red-50/30">
+                <td className="px-3 py-2 font-mono text-xs font-bold text-red-600">{i.item_code}</td>
+                <td className="px-3 py-2"><span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${i.department === 'FF' ? 'bg-red-100 text-red-700' : i.department === 'LV' ? 'bg-red-100 text-red-700' : i.department === 'ELE' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>{i.department}</span></td>
                 <td className="px-3 py-2">
                   <div className="font-medium text-sm">{i.item_name}</div>
                   <div className="text-xs text-gray-500">{[i.specification, i.size].filter(Boolean).join(' | ')}</div>
@@ -216,12 +216,12 @@ export default function ItemMaster() {
       {/* Bulk Import Modal */}
       <Modal isOpen={bulkModal} onClose={() => setBulkModal(false)} title="Bulk Import Items" wide>
         <div className="space-y-4">
-          <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+          <div className="bg-red-50 p-3 rounded-lg text-sm text-red-700">
             <p className="font-semibold mb-1">CSV Format:</p>
             <p className="font-mono text-xs">Item Code, Department, Item Name, Specification, Size, UOM, GST, Type, Make, Price</p>
           </div>
           <button onClick={downloadTemplate} className="btn btn-secondary text-sm flex items-center gap-2"><FiDownload size={14} /> Download Template</button>
-          <div><label className="label">Upload CSV</label><input type="file" accept=".csv" onChange={handleFile} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" /></div>
+          <div><label className="label">Upload CSV</label><input type="file" accept=".csv" onChange={handleFile} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100" /></div>
           <div><label className="label">Or Paste CSV</label><textarea className="input font-mono text-xs" rows="5" value={bulkData} onChange={e => { setBulkData(e.target.value); setBulkPreview(parseCSV(e.target.value)); }} placeholder="Item Code,Dept,Name,Spec,Size,UOM,GST,Type,Make,Price" /></div>
           {bulkPreview.length > 0 && (
             <div><p className="text-sm font-semibold mb-2">{bulkPreview.length} items to import</p>

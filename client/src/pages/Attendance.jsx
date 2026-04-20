@@ -170,10 +170,10 @@ export default function Attendance() {
       {tab === 'punch' && (
         <div className="max-w-md mx-auto space-y-4">
           <div className="card text-center p-6">
-            <FiClock size={40} className="mx-auto text-blue-600 mb-2" />
+            <FiClock size={40} className="mx-auto text-red-600 mb-2" />
             <h2 className="text-3xl font-bold">{timeStr}</h2>
             <p className="text-sm text-gray-500">{dateStr}</p>
-            <p className="text-sm font-medium text-blue-600 mt-1">{user?.name}</p>
+            <p className="text-sm font-medium text-red-600 mt-1">{user?.name}</p>
           </div>
 
           {/* Status */}
@@ -207,7 +207,7 @@ export default function Attendance() {
             ) : photo ? (
               <div className="text-center">
                 <img src={photo} alt="Selfie" className="rounded-lg mx-auto w-40 h-32 object-cover" />
-                <button onClick={() => { setPhoto(null); openCamera(); }} className="text-xs text-blue-600 mt-1 underline">Retake</button>
+                <button onClick={() => { setPhoto(null); openCamera(); }} className="text-xs text-red-600 mt-1 underline">Retake</button>
               </div>
             ) : (
               <button onClick={openCamera} className="btn btn-secondary w-full flex items-center justify-center gap-2 py-3">
@@ -240,7 +240,7 @@ export default function Attendance() {
       {tab === 'dashboard' && dashboard && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="card p-3 border-l-4 border-blue-500"><p className="text-xs text-gray-500">Total</p><p className="text-2xl font-bold">{dashboard.totalUsers}</p></div>
+            <div className="card p-3 border-l-4 border-red-500"><p className="text-xs text-gray-500">Total</p><p className="text-2xl font-bold">{dashboard.totalUsers}</p></div>
             <div className="card p-3 border-l-4 border-emerald-500"><p className="text-xs text-gray-500">Present</p><p className="text-2xl font-bold text-emerald-600">{dashboard.present}</p></div>
             <div className="card p-3 border-l-4 border-red-500"><p className="text-xs text-gray-500">Absent</p><p className="text-2xl font-bold text-red-600">{dashboard.absent}</p></div>
             <div className="card p-3 border-l-4 border-amber-500"><p className="text-xs text-gray-500">Late</p><p className="text-2xl font-bold text-amber-600">{dashboard.late}</p></div>
@@ -332,7 +332,7 @@ export default function Attendance() {
                         key={u.id}
                         type="button"
                         onClick={() => setSelectedUserId(u.id)}
-                        className={`w-full text-left px-3 py-2 text-sm border-b last:border-b-0 hover:bg-blue-50 ${selectedUserId === u.id ? 'bg-blue-100 font-semibold' : ''}`}
+                        className={`w-full text-left px-3 py-2 text-sm border-b last:border-b-0 hover:bg-red-50 ${selectedUserId === u.id ? 'bg-red-100 font-semibold' : ''}`}
                       >
                         {u.name} <span className="text-xs text-gray-400">— {u.department || u.role_names || u.role || 'User'}</span>
                       </button>
@@ -474,7 +474,7 @@ export default function Attendance() {
               <tr key={g.id}>
                 <td className="font-medium">{g.site_name}</td><td className="text-xs">{g.latitude}</td><td className="text-xs">{g.longitude}</td><td>{g.radius_meters}m</td><td>{g.active ? 'Yes' : 'No'}</td>
                 <td className="flex gap-1">
-                  <button onClick={() => { setForm({ ...g }); setModal('edit-geofence'); }} className="text-xs text-blue-600 font-bold">Edit</button>
+                  <button onClick={() => { setForm({ ...g }); setModal('edit-geofence'); }} className="text-xs text-red-600 font-bold">Edit</button>
                   <button onClick={async () => { if (!confirm('Delete this geofence?')) return; await api.delete(`/attendance/geofence/${g.id}`); toast.success('Deleted'); load(); }} className="text-xs text-red-600 font-bold">Delete</button>
                 </td>
               </tr>

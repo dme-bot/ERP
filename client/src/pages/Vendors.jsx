@@ -7,7 +7,7 @@ import { FiPlus, FiEdit2, FiSearch, FiEye, FiTrash2, FiTruck } from 'react-icons
 
 const CATEGORIES = ['FF', 'ELE', 'LV', 'Solar', 'HVAC', 'INTERIOR', 'OTHER'];
 const TYPES = ['Distributor', 'Trader', 'Manufacture', 'Direct Company', 'Stockist'];
-const CAT_COLORS = { FF: 'bg-red-100 text-red-700', ELE: 'bg-amber-100 text-amber-700', LV: 'bg-blue-100 text-blue-700', Solar: 'bg-emerald-100 text-emerald-700', HVAC: 'bg-cyan-100 text-cyan-700', INTERIOR: 'bg-purple-100 text-purple-700' };
+const CAT_COLORS = { FF: 'bg-red-100 text-red-700', ELE: 'bg-amber-100 text-amber-700', LV: 'bg-red-100 text-red-700', Solar: 'bg-emerald-100 text-emerald-700', HVAC: 'bg-cyan-100 text-cyan-700', INTERIOR: 'bg-purple-100 text-purple-700' };
 
 export default function Vendors() {
   const { canCreate, canEdit, canDelete } = useAuth();
@@ -70,9 +70,9 @@ export default function Vendors() {
         <>
           {/* Category filter chips */}
           <div className="flex gap-2 flex-wrap">
-            <button onClick={() => setFilterCat('')} className={`px-3 py-1 rounded-full text-xs font-semibold border ${!filterCat ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border-gray-200'}`}>All ({vendors.length})</button>
+            <button onClick={() => setFilterCat('')} className={`px-3 py-1 rounded-full text-xs font-semibold border ${!filterCat ? 'bg-red-600 text-white' : 'bg-white text-gray-600 border-gray-200'}`}>All ({vendors.length})</button>
             {Object.entries(catCounts).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
-              <button key={cat} onClick={() => setFilterCat(filterCat === cat ? '' : cat)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${filterCat === cat ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border-gray-200'}`}>{cat} ({count})</button>
+              <button key={cat} onClick={() => setFilterCat(filterCat === cat ? '' : cat)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${filterCat === cat ? 'bg-red-600 text-white' : 'bg-white text-gray-600 border-gray-200'}`}>{cat} ({count})</button>
             ))}
           </div>
 
@@ -90,8 +90,8 @@ export default function Vendors() {
               <th className="px-2 py-2">Phone</th><th className="px-2 py-2">Payment</th><th className="px-2 py-2">Credit</th><th className="px-2 py-2">Actions</th>
             </tr></thead>
             <tbody>{filtered.map(v => (
-              <tr key={v.id} className="border-b hover:bg-blue-50/30">
-                <td className="px-2 py-2 font-mono text-[10px] text-blue-600">{v.vendor_code || '-'}</td>
+              <tr key={v.id} className="border-b hover:bg-red-50/30">
+                <td className="px-2 py-2 font-mono text-[10px] text-red-600">{v.vendor_code || '-'}</td>
                 <td className="px-2 py-2"><div className="font-semibold">{v.name}</div>{v.authorized_dealer && <div className="text-[10px] text-gray-400">{v.authorized_dealer}</div>}</td>
                 <td className="px-2 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${CAT_COLORS[v.category] || 'bg-gray-100'}`}>{v.category || '-'}</span></td>
                 <td className="px-2 py-2 text-[11px]">{v.deals_in || '-'}</td>
@@ -102,7 +102,7 @@ export default function Vendors() {
                 <td className="px-2 py-2 text-[10px]">{v.credit_days || '-'}</td>
                 <td className="px-2 py-2">
                   <div className="flex gap-1">
-                    <button onClick={() => { setViewData(v); setModal('view'); }} className="p-1 text-gray-400 hover:text-blue-600"><FiEye size={14} /></button>
+                    <button onClick={() => { setViewData(v); setModal('view'); }} className="p-1 text-gray-400 hover:text-red-600"><FiEye size={14} /></button>
                     {canEdit('vendors') && <button onClick={() => { setEditing(v); setForm(v); setModal('vendor'); }} className="p-1 text-gray-400 hover:text-amber-600"><FiEdit2 size={14} /></button>}
                     {canDelete('vendors') && <button onClick={async () => {
                       if (!confirm(`Delete vendor "${v.name}"?`)) return;
@@ -132,7 +132,7 @@ export default function Vendors() {
                 <td>{r.vendor2_name}</td><td className="font-semibold">Rs {r.vendor2_rate}</td>
                 <td>{r.vendor3_name}</td><td className="font-semibold">Rs {r.vendor3_rate}</td>
                 <td className="font-bold text-emerald-600">Rs {r.final_rate}</td>
-                <td className="font-medium text-blue-600">{r.selected_vendor_name}</td>
+                <td className="font-medium text-red-600">{r.selected_vendor_name}</td>
                 <td><span className={`badge ${r.approval_status === 'approved' ? 'badge-green' : r.approval_status === 'rejected' ? 'badge-red' : 'badge-yellow'}`}>{r.approval_status}</span></td>
                 <td><div className="flex gap-1 items-center">
                   {r.approval_status === 'pending' && (
@@ -160,7 +160,7 @@ export default function Vendors() {
             <div className="flex gap-2 items-center">
               <span className={`text-xs px-2 py-0.5 rounded font-medium ${CAT_COLORS[viewData.category] || 'bg-gray-100'}`}>{viewData.category}</span>
               <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">{viewData.type}</span>
-              <span className="font-mono text-xs text-blue-600">{viewData.vendor_code}</span>
+              <span className="font-mono text-xs text-red-600">{viewData.vendor_code}</span>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div><span className="text-gray-400 text-xs">Deals In:</span><br/><span className="font-medium">{viewData.deals_in || '-'}</span></div>

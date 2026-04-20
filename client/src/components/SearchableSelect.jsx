@@ -50,7 +50,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
             {filtered.length === 0 && <div className="px-3 py-4 text-sm text-gray-400 text-center">No items found</div>}
             {filtered.slice(0, 100).map(o => (
               <button type="button" key={o[valueKey]} onClick={() => { onChange(o); setOpen(false); setSearch(''); }}
-                className={`w-full text-left px-3 py-2 text-sm whitespace-normal break-words leading-snug hover:bg-blue-50 transition-colors ${o[valueKey] === value ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}>
+                className={`w-full text-left px-3 py-2 text-sm whitespace-normal break-words leading-snug hover:bg-red-50 transition-colors ${o[valueKey] === value ? 'bg-red-50 font-medium text-red-700' : 'text-gray-700'}`}>
                 {o[displayKey]}
               </button>
             ))}

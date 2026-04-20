@@ -9,7 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 const STAGES = ['new_lead','qualified','meeting_assigned','mom_uploaded','drawing_uploaded','boq_created','quotation_sent','won','lost'];
 const STAGE_LABELS = { new_lead:'New Leads', qualified:'Qualified', meeting_assigned:'Meetings', mom_uploaded:'MOM Done', drawing_uploaded:'Drawings', boq_created:'BOQ Ready', quotation_sent:'Quotation Sent', won:'Won', lost:'Lost' };
 const STAGE_COLORS = { new_lead:'#3b82f6', qualified:'#6366f1', meeting_assigned:'#8b5cf6', mom_uploaded:'#a855f7', drawing_uploaded:'#f59e0b', boq_created:'#f97316', quotation_sent:'#06b6d4', won:'#10b981', lost:'#ef4444' };
-const TAB_STYLES = { new_lead:'bg-blue-500', qualified:'bg-indigo-500', meeting_assigned:'bg-purple-500', mom_uploaded:'bg-violet-500', drawing_uploaded:'bg-amber-500', boq_created:'bg-orange-500', quotation_sent:'bg-cyan-500', won:'bg-emerald-500', lost:'bg-red-500' };
+const TAB_STYLES = { new_lead:'bg-red-500', qualified:'bg-red-500', meeting_assigned:'bg-purple-500', mom_uploaded:'bg-violet-500', drawing_uploaded:'bg-amber-500', boq_created:'bg-orange-500', quotation_sent:'bg-cyan-500', won:'bg-emerald-500', lost:'bg-red-500' };
 const CATEGORIES = ['MEP','Fire Fighting','Electrical','HVAC','Low Voltage','Solar','Plumbing','CCTV','Access Control'];
 const PIE_COLORS = ['#3b82f6','#6366f1','#8b5cf6','#f59e0b','#f97316','#06b6d4','#10b981','#ef4444','#ec4899'];
 
@@ -81,13 +81,13 @@ export default function Leads() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <h1 className="text-xl font-bold flex items-center gap-2"><FiTarget className="text-blue-600" /> Sales CRM</h1>
+        <h1 className="text-xl font-bold flex items-center gap-2"><FiTarget className="text-red-600" /> Sales CRM</h1>
         {canCreate('leads') && <button onClick={() => { setForm({ client_name:'',company_name:'',phone:'',email:'',category:'',address:'',source:'',assigned_sc:user?.name||'',assigned_asm:'',remarks:'' }); setModal('add'); }} className="btn btn-primary flex items-center gap-2 text-sm"><FiPlus size={15}/> New Lead</button>}
       </div>
 
       {/* CRM Tabs — Jotform Style */}
       <div className="flex overflow-x-auto gap-0 bg-white rounded-xl shadow-sm border">
-        <button onClick={()=>{setTab('dashboard');setStageTab('dashboard');}} className={`px-4 py-3 text-xs font-bold whitespace-nowrap border-b-3 transition-all ${tab==='dashboard'?'border-b-2 border-blue-600 text-blue-600 bg-blue-50':'text-gray-500 hover:bg-gray-50'}`}>
+        <button onClick={()=>{setTab('dashboard');setStageTab('dashboard');}} className={`px-4 py-3 text-xs font-bold whitespace-nowrap border-b-3 transition-all ${tab==='dashboard'?'border-b-2 border-red-600 text-red-600 bg-red-50':'text-gray-500 hover:bg-gray-50'}`}>
           <FiTrendingUp className="inline mr-1" size={14}/>Dashboard
         </button>
         <button onClick={()=>{setTab('list');setStageTab('all');}} className={`px-4 py-3 text-xs font-bold whitespace-nowrap transition-all ${stageTab==='all'&&tab==='list'?'border-b-2 border-gray-800 text-gray-800 bg-gray-50':'text-gray-500 hover:bg-gray-50'}`}>
@@ -110,7 +110,7 @@ export default function Leads() {
         <div className="space-y-4">
           {/* Stats Row */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="card p-4 border-l-4 border-blue-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Total Leads</p><p className="text-3xl font-extrabold text-blue-600">{dashboard.total}</p></div>
+            <div className="card p-4 border-l-4 border-red-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Total Leads</p><p className="text-3xl font-extrabold text-red-600">{dashboard.total}</p></div>
             <div className="card p-4 border-l-4 border-purple-500"><p className="text-[10px] text-gray-500 font-bold uppercase">This Month</p><p className="text-3xl font-extrabold text-purple-600">{dashboard.thisMonth}</p></div>
             <div className="card p-4 border-l-4 border-emerald-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Won Deals</p><p className="text-3xl font-extrabold text-emerald-600">{dashboard.won?.c||0}</p><p className="text-xs text-emerald-500">{dashboard.won?.amount>0?fmt(dashboard.won.amount):''}</p></div>
             <div className="card p-4 border-l-4 border-red-500"><p className="text-[10px] text-gray-500 font-bold uppercase">Lost</p><p className="text-3xl font-extrabold text-red-600">{dashboard.lost?.c||0}</p></div>
@@ -170,8 +170,8 @@ export default function Leads() {
         <div className="relative"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input className="input pl-10" placeholder="Search client, company, lead no, phone..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
         <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="text-xs">
           <thead><tr><th className="px-3 py-2">Lead No</th><th className="px-3 py-2">Client</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">Category</th><th className="px-3 py-2">Location</th><th className="px-3 py-2">SC</th><th className="px-3 py-2">Stage</th><th className="px-3 py-2">Date</th><th className="px-3 py-2">Actions</th></tr></thead>
-          <tbody>{leads.map(l => (<tr key={l.id} className="border-b hover:bg-blue-50/40 cursor-pointer" onClick={()=>viewLead(l)}>
-            <td className="px-3 py-2.5 font-bold text-blue-600">{l.lead_no}</td>
+          <tbody>{leads.map(l => (<tr key={l.id} className="border-b hover:bg-red-50/40 cursor-pointer" onClick={()=>viewLead(l)}>
+            <td className="px-3 py-2.5 font-bold text-red-600">{l.lead_no}</td>
             <td className="px-3 py-2.5"><div className="font-semibold">{l.client_name}</div></td>
             <td className="px-3 py-2.5 text-gray-600">{l.company_name||'-'}</td>
             <td className="px-3 py-2.5"><span className="text-[9px] bg-gray-100 px-2 py-0.5 rounded-full font-medium">{l.category||'-'}</span></td>
@@ -181,7 +181,7 @@ export default function Leads() {
             <td className="px-3 py-2.5 text-[10px] text-gray-400">{l.created_at?.split('T')[0]}</td>
             <td className="px-3 py-2.5" onClick={e=>e.stopPropagation()}>
               <div className="flex gap-1">
-                <button onClick={()=>viewLead(l)} className="p-1 text-blue-600 hover:bg-blue-50 rounded"><FiEye size={14}/></button>
+                <button onClick={()=>viewLead(l)} className="p-1 text-red-600 hover:bg-red-50 rounded"><FiEye size={14}/></button>
                 {canEdit('leads')&&<button onClick={()=>{setForm(l);setModal('edit');}} className="p-1 text-amber-600 hover:bg-amber-50 rounded"><FiEdit2 size={14}/></button>}
                 {canDelete('leads')&&<button onClick={async()=>{if(!confirm('Delete?'))return;await api.delete(`/sales-funnel/${l.id}`);toast.success('Deleted');load();}} className="p-1 text-red-600 hover:bg-red-50 rounded"><FiTrash2 size={14}/></button>}
               </div>
@@ -206,11 +206,11 @@ export default function Leads() {
             <div><span className="text-gray-400 text-[10px]">SC</span><br/>{viewData.assigned_sc||'-'}</div>
             <div><span className="text-gray-400 text-[10px]">ASM</span><br/>{viewData.assigned_asm||'-'}</div>
           </div>
-          {viewData.qualified_remarks&&<div className="bg-indigo-50 p-2 rounded text-xs"><strong>Qualified:</strong> {viewData.qualified_remarks}</div>}
+          {viewData.qualified_remarks&&<div className="bg-red-50 p-2 rounded text-xs"><strong>Qualified:</strong> {viewData.qualified_remarks}</div>}
           {viewData.meeting_date&&<div className="bg-purple-50 p-2 rounded text-xs"><strong>Meeting:</strong> {viewData.meeting_date} - {viewData.meeting_location}</div>}
-          {viewData.mom_notes&&<div className="bg-violet-50 p-2 rounded text-xs"><strong>MOM:</strong> {viewData.mom_notes} {viewData.mom_file_link&&<a href={viewData.mom_file_link} className="text-blue-600 underline" target="_blank" rel="noreferrer">File</a>}</div>}
-          {viewData.drawing_file1&&<div className="bg-amber-50 p-2 rounded text-xs"><strong>Drawings:</strong> <a href={viewData.drawing_file1} className="text-blue-600 underline" target="_blank" rel="noreferrer">1</a> {viewData.drawing_file2&&<a href={viewData.drawing_file2} className="text-blue-600 underline ml-2" target="_blank" rel="noreferrer">2</a>} {viewData.drawing_file3&&<a href={viewData.drawing_file3} className="text-blue-600 underline ml-2" target="_blank" rel="noreferrer">3</a>}</div>}
-          {viewData.boq_file_link&&<div className="bg-orange-50 p-2 rounded text-xs"><strong>BOQ:</strong> Rs {viewData.boq_amount?.toLocaleString()} <a href={viewData.boq_file_link} className="text-blue-600 underline" target="_blank" rel="noreferrer">View</a></div>}
+          {viewData.mom_notes&&<div className="bg-violet-50 p-2 rounded text-xs"><strong>MOM:</strong> {viewData.mom_notes} {viewData.mom_file_link&&<a href={viewData.mom_file_link} className="text-red-600 underline" target="_blank" rel="noreferrer">File</a>}</div>}
+          {viewData.drawing_file1&&<div className="bg-amber-50 p-2 rounded text-xs"><strong>Drawings:</strong> <a href={viewData.drawing_file1} className="text-red-600 underline" target="_blank" rel="noreferrer">1</a> {viewData.drawing_file2&&<a href={viewData.drawing_file2} className="text-red-600 underline ml-2" target="_blank" rel="noreferrer">2</a>} {viewData.drawing_file3&&<a href={viewData.drawing_file3} className="text-red-600 underline ml-2" target="_blank" rel="noreferrer">3</a>}</div>}
+          {viewData.boq_file_link&&<div className="bg-orange-50 p-2 rounded text-xs"><strong>BOQ:</strong> Rs {viewData.boq_amount?.toLocaleString()} <a href={viewData.boq_file_link} className="text-red-600 underline" target="_blank" rel="noreferrer">View</a></div>}
           {viewData.quotation_number&&<div className="bg-cyan-50 p-2 rounded text-xs"><strong>Quotation:</strong> {viewData.quotation_number} - Rs {viewData.quotation_amount?.toLocaleString()}</div>}
           {viewData.result&&<div className={`p-3 rounded font-bold text-center text-lg ${viewData.result==='won'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{viewData.result.toUpperCase()} {viewData.won_amount>0&&`- ${fmt(viewData.won_amount)}`}</div>}
 
@@ -232,7 +232,7 @@ export default function Leads() {
                     <button onClick={()=>logFollowup(f.id,'connected')} className="text-[9px] text-emerald-600 font-bold">Connected</button>
                     <button onClick={()=>logFollowup(f.id,'not_reachable')} className="text-[9px] text-red-600 font-bold">NR</button>
                     <button onClick={()=>logFollowup(f.id,'callback')} className="text-[9px] text-amber-600 font-bold">Callback</button>
-                    <button onClick={()=>logFollowup(f.id,'interested')} className="text-[9px] text-blue-600 font-bold">Interested</button>
+                    <button onClick={()=>logFollowup(f.id,'interested')} className="text-[9px] text-red-600 font-bold">Interested</button>
                   </div>
                 )}</div>
               </div>

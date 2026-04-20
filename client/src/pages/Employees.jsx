@@ -124,7 +124,7 @@ export default function Employees() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h3 className="text-xl font-bold flex items-center gap-2"><FiUsers className="text-blue-600" /> Employee Directory</h3>
+          <h3 className="text-xl font-bold flex items-center gap-2"><FiUsers className="text-red-600" /> Employee Directory</h3>
           <p className="text-sm text-gray-500">{employees.length} total employees</p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -151,7 +151,7 @@ export default function Employees() {
               <td className="font-medium">Rs {(e.salary || 0).toLocaleString('en-IN')}</td>
               <td><StatusBadge status={e.status} /></td>
               <td><div className="flex gap-1">
-                <button onClick={() => { setEditing(e); setForm(e); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                <button onClick={() => { setEditing(e); setForm(e); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>
                 {canDelete('employees') && <button onClick={async () => {
                   if (!confirm(`Delete employee "${e.name}"?`)) return;
                   try { await api.delete(`/hr/employees/${e.id}`); toast.success('Deleted'); load(); }
@@ -184,7 +184,7 @@ export default function Employees() {
       {/* Bulk Import Modal */}
       <Modal isOpen={bulkModal} onClose={() => setBulkModal(false)} title="Bulk Import Employees" wide>
         <div className="space-y-4">
-          <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+          <div className="bg-red-50 p-3 rounded-lg text-sm text-red-700">
             <p className="font-semibold mb-1">How to bulk import:</p>
             <ol className="list-decimal ml-4 space-y-1">
               <li>Download the CSV template below</li>
@@ -199,7 +199,7 @@ export default function Employees() {
           <div>
             <label className="label">Upload CSV File</label>
             <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100" />
           </div>
 
           <div>

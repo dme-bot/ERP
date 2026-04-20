@@ -120,7 +120,7 @@ export default function DPR() {
       {tab === 'dashboard' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="card text-center border-l-4 border-blue-500"><div className="text-3xl font-bold text-blue-600">{summary.activeSites}</div><div className="text-sm text-gray-500">Active Sites</div></div>
+            <div className="card text-center border-l-4 border-red-500"><div className="text-3xl font-bold text-red-600">{summary.activeSites}</div><div className="text-sm text-gray-500">Active Sites</div></div>
             <div className="card text-center border-l-4 border-emerald-500"><div className="text-3xl font-bold text-emerald-600">{summary.todaySubmissions}</div><div className="text-sm text-gray-500">DPR Today</div></div>
             <div className="card text-center border-l-4 border-amber-500"><div className="text-3xl font-bold text-amber-600">{summary.pendingApproval}</div><div className="text-sm text-gray-500">Pending Approval</div></div>
             <div className="card text-center border-l-4 border-purple-500"><div className="text-3xl font-bold text-purple-600">{summary.billingReady}</div><div className="text-sm text-gray-500">Billing Ready</div></div>
@@ -139,9 +139,9 @@ export default function DPR() {
 
           {/* BOQ vs DPR-consumed progress, grouped by engineer → site → item */}
           <div className="card p-0 overflow-hidden">
-            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-4 py-3">
+            <div className="bg-gradient-to-r from-red-600 to-red-600 text-white px-4 py-3">
               <h3 className="font-bold text-base">Engineer Progress — BOQ vs DPR Consumed</h3>
-              <p className="text-xs text-indigo-100">Per engineer, per site, per BOQ item. Incomplete items listed first.{!isAdmin() && ' Showing only your sites.'}</p>
+              <p className="text-xs text-red-100">Per engineer, per site, per BOQ item. Incomplete items listed first.{!isAdmin() && ' Showing only your sites.'}</p>
             </div>
             <div className="p-3 space-y-3">
               {progress.length === 0 && (
@@ -151,11 +151,11 @@ export default function DPR() {
                 const engBoq = eng.sites.reduce((s, x) => s + (x.total_boq_amount || 0), 0);
                 const engDone = eng.sites.reduce((s, x) => s + (x.total_done_amount || 0), 0);
                 const engPct = engBoq > 0 ? Math.round((engDone / engBoq) * 1000) / 10 : 0;
-                const engColor = engPct >= 90 ? 'text-emerald-600' : engPct >= 50 ? 'text-blue-600' : engPct >= 20 ? 'text-amber-600' : 'text-red-500';
-                const engBar = engPct >= 90 ? 'bg-emerald-500' : engPct >= 50 ? 'bg-blue-500' : engPct >= 20 ? 'bg-amber-500' : 'bg-red-400';
+                const engColor = engPct >= 90 ? 'text-emerald-600' : engPct >= 50 ? 'text-red-600' : engPct >= 20 ? 'text-amber-600' : 'text-red-500';
+                const engBar = engPct >= 90 ? 'bg-emerald-500' : engPct >= 50 ? 'bg-red-500' : engPct >= 20 ? 'bg-amber-500' : 'bg-red-400';
                 return (
                 <div key={eng.engineer.id} className="border rounded-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-indigo-50 to-blue-50 px-3 py-2 border-b flex justify-between items-center gap-3">
+                  <div className="bg-gradient-to-r from-red-50 to-red-50 px-3 py-2 border-b flex justify-between items-center gap-3">
                     <div className="min-w-0">
                       <div className="font-bold text-sm text-gray-800">{eng.engineer.name}</div>
                       <div className="text-[11px] text-gray-500 truncate">{eng.engineer.email} · {eng.site_count} site{eng.site_count === 1 ? '' : 's'}</div>
@@ -180,7 +180,7 @@ export default function DPR() {
                       {eng.sites.map(site => {
                         const key = `${eng.engineer.id}-${site.site_id}`;
                         const expanded = !!expandedSite[key];
-                        const barColor = site.overall_pct >= 90 ? 'bg-emerald-500' : site.overall_pct >= 50 ? 'bg-blue-500' : site.overall_pct >= 20 ? 'bg-amber-500' : 'bg-red-400';
+                        const barColor = site.overall_pct >= 90 ? 'bg-emerald-500' : site.overall_pct >= 50 ? 'bg-red-500' : site.overall_pct >= 20 ? 'bg-amber-500' : 'bg-red-400';
                         return (
                           <div key={site.site_id}>
                             <button
@@ -202,7 +202,7 @@ export default function DPR() {
                                 </div>
                               </div>
                               <div className="w-16 text-right">
-                                <span className={`text-base font-bold ${site.overall_pct >= 90 ? 'text-emerald-600' : site.overall_pct >= 50 ? 'text-blue-600' : site.overall_pct >= 20 ? 'text-amber-600' : 'text-red-500'}`}>
+                                <span className={`text-base font-bold ${site.overall_pct >= 90 ? 'text-emerald-600' : site.overall_pct >= 50 ? 'text-red-600' : site.overall_pct >= 20 ? 'text-amber-600' : 'text-red-500'}`}>
                                   {site.overall_pct}%
                                 </span>
                               </div>
@@ -227,7 +227,7 @@ export default function DPR() {
                                       </thead>
                                       <tbody>
                                         {site.items.map(it => {
-                                          const ib = it.pct_complete >= 100 ? 'bg-emerald-500' : it.pct_complete >= 50 ? 'bg-blue-500' : it.pct_complete >= 20 ? 'bg-amber-500' : 'bg-red-400';
+                                          const ib = it.pct_complete >= 100 ? 'bg-emerald-500' : it.pct_complete >= 50 ? 'bg-red-500' : it.pct_complete >= 20 ? 'bg-amber-500' : 'bg-red-400';
                                           return (
                                             <tr key={it.po_item_id} className="border-b last:border-0 hover:bg-white">
                                               <td className="px-2 py-1 whitespace-normal break-words leading-snug max-w-md">{it.description}</td>
@@ -287,7 +287,7 @@ export default function DPR() {
                   <td className={`font-bold text-sm ${(d.profit_loss || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Rs {(d.profit_loss || 0).toLocaleString()}</td>
                   <td><StatusBadge status={d.approval_status} /></td>
                   <td><div className="flex gap-1">
-                    <button onClick={() => viewDpr(d.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600"><FiEye size={14} /></button>
+                    <button onClick={() => viewDpr(d.id)} className="p-1 hover:bg-red-50 rounded text-red-600"><FiEye size={14} /></button>
                     {d.approval_status === 'pending' && canApprove('dpr') && <>
                       <button onClick={() => approveDpr(d.id, 'approved', true)} className="btn btn-success text-[10px] py-0.5 px-1.5">Approve+Bill</button>
                       <button onClick={() => approveDpr(d.id, 'rejected', false)} className="btn btn-danger text-[10px] py-0.5 px-1.5">Reject</button>
@@ -313,7 +313,7 @@ export default function DPR() {
           </div>
           <div className="card p-0 overflow-hidden"><table>
             <thead><tr><th>Lead No</th><th>Site</th><th>Address</th><th>Client</th><th>Engineer</th><th>Supervisor</th><th>Status</th></tr></thead>
-            <tbody>{sites.map(s => (<tr key={s.id}><td className="text-blue-600 font-bold">{s.lead_no || '-'}</td><td className="font-medium">{s.name}</td><td>{s.address}</td><td>{s.client_name}</td><td>{s.engineer_name}</td><td>{s.supervisor}</td><td><StatusBadge status={s.status} /></td></tr>))}
+            <tbody>{sites.map(s => (<tr key={s.id}><td className="text-red-600 font-bold">{s.lead_no || '-'}</td><td className="font-medium">{s.name}</td><td>{s.address}</td><td>{s.client_name}</td><td>{s.engineer_name}</td><td>{s.supervisor}</td><td><StatusBadge status={s.status} /></td></tr>))}
               {sites.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No sites</td></tr>}</tbody>
           </table></div>
         </>
@@ -367,9 +367,9 @@ export default function DPR() {
           </div>
 
           {/* TABLE A: Installation Work from PO */}
-          <div className="border-2 border-blue-300 rounded-lg p-3 bg-blue-50">
+          <div className="border-2 border-red-300 rounded-lg p-3 bg-red-50">
             <div className="flex justify-between items-center mb-3">
-              <h5 className="font-bold text-blue-800">TABLE A: Installation Work (BOQ Items from PO)</h5>
+              <h5 className="font-bold text-red-800">TABLE A: Installation Work (BOQ Items from PO)</h5>
               {poItemsForSite.length > 0 && <button type="button" onClick={addWorkItem} className="btn btn-secondary text-xs flex items-center gap-1"><FiPlus size={12} /> Add Item</button>}
             </div>
             {poItemsForSite.length > 0 ? (
@@ -416,8 +416,8 @@ export default function DPR() {
                   </div>
                 ))}
                 {workItems.length === 0 && <p className="text-xs text-gray-400 text-center py-3">Click "+ Add Item" for items installed today</p>}
-                <div className="mt-2 pt-2 border-t-2 border-blue-300 text-right">
-                  <span className="font-bold text-blue-800 text-lg">Grand Total (A): Rs {grandTotalA.toLocaleString()}</span>
+                <div className="mt-2 pt-2 border-t-2 border-red-300 text-right">
+                  <span className="font-bold text-red-800 text-lg">Grand Total (A): Rs {grandTotalA.toLocaleString()}</span>
                 </div>
               </>
             ) : <p className="text-xs text-amber-600">{form.site_id ? 'No PO items for this site. Add PO items in Orders first.' : 'Select a site to load PO items.'}</p>}
@@ -527,12 +527,12 @@ export default function DPR() {
             </div>
 
             {selectedDpr.work_items?.length > 0 && (
-              <div className="border-2 border-blue-300 rounded-lg p-3">
-                <h5 className="font-bold text-blue-800 mb-2">TABLE A: Installation Work</h5>
+              <div className="border-2 border-red-300 rounded-lg p-3">
+                <h5 className="font-bold text-red-800 mb-2">TABLE A: Installation Work</h5>
                 <table className="text-xs"><thead><tr><th>BOQ Item</th><th>Qty</th><th>Location</th><th>Rate</th><th>Amount</th></tr></thead>
                   <tbody>{selectedDpr.work_items.map(w => (<tr key={w.id}><td>{w.description}</td><td className="font-bold">{w.actual_qty || w.planned_qty}</td><td>{w.floor_zone || '-'}</td><td>Rs {(w.rate || 0).toLocaleString()}</td><td className="font-bold text-emerald-600">Rs {(w.amount || 0).toLocaleString()}</td></tr>))}</tbody>
                 </table>
-                <div className="text-right font-bold text-blue-800 mt-2">Grand Total (A): Rs {selectedDpr.work_items.reduce((s, w) => s + (w.amount || 0), 0).toLocaleString()}</div>
+                <div className="text-right font-bold text-red-800 mt-2">Grand Total (A): Rs {selectedDpr.work_items.reduce((s, w) => s + (w.amount || 0), 0).toLocaleString()}</div>
               </div>
             )}
 

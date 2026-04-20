@@ -8,8 +8,8 @@ import { FiPlus, FiArrowRight, FiPackage } from 'react-icons/fi';
 const STAGES = [
   { key: 'indent_raised', label: 'Indent Raised', color: 'bg-gray-200' },
   { key: 'approval_pending', label: 'Approval Pending', color: 'bg-yellow-200' },
-  { key: 'approved', label: 'Approved', color: 'bg-blue-200' },
-  { key: 'po_created', label: 'PO Created', color: 'bg-indigo-200' },
+  { key: 'approved', label: 'Approved', color: 'bg-red-200' },
+  { key: 'po_created', label: 'PO Created', color: 'bg-red-200' },
   { key: 'dispatched', label: 'Dispatched', color: 'bg-purple-200' },
   { key: 'grn_done', label: 'GRN Done', color: 'bg-teal-200' },
   { key: 'bill_entered', label: 'Bill Entered', color: 'bg-orange-200' },
@@ -91,7 +91,7 @@ export default function IndentFMS() {
                       <td><span className={`badge ${STAGES[stageIdx]?.color} text-gray-800`}>{STAGES[stageIdx]?.label}</span></td>
                       <td>
                         <div className="w-32 bg-gray-200 rounded-full h-2">
-                          <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                          <div className="bg-red-600 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
                         </div>
                         <span className="text-xs text-gray-500">{Math.round(progress)}%</span>
                       </td>

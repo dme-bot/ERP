@@ -134,7 +134,7 @@ export default function Collections() {
                   <td className="text-xs">{r.owner_name}</td>
                   <td>
                     <div className="flex gap-1">
-                      <button onClick={() => openFollowUps(r.id)} className="p-1 hover:bg-blue-50 rounded text-blue-600" title="Follow-up"><FiPhoneCall size={14} /></button>
+                      <button onClick={() => openFollowUps(r.id)} className="p-1 hover:bg-red-50 rounded text-red-600" title="Follow-up"><FiPhoneCall size={14} /></button>
                       <button onClick={() => { setSelectedId(r.id); setForm({ amount: 0, collection_date: new Date().toISOString().split('T')[0], payment_mode: '', transaction_ref: '', notes: '' }); setCollectModal(true); }} className="p-1 hover:bg-emerald-50 rounded text-emerald-600" title="Record Collection"><LuIndianRupee size={14} /></button>
                       {canDelete('collections') && <button onClick={async () => {
                         if (!confirm(`Delete receivable "${r.invoice_number || r.client_name}"?`)) return;
@@ -177,7 +177,7 @@ export default function Collections() {
                 <div key={f.id} className="border-b last:border-0 py-2 text-sm">
                   <span className="font-medium">{f.follow_up_date}</span> via <span className="capitalize">{f.contact_method}</span> by {f.followed_by_name}
                   <br/><span className="text-gray-600">{f.response}</span>
-                  {f.promised_date && <span className="text-blue-600 ml-2">Promised: {f.promised_date} (Rs {f.promised_amount?.toLocaleString()})</span>}
+                  {f.promised_date && <span className="text-red-600 ml-2">Promised: {f.promised_date} (Rs {f.promised_amount?.toLocaleString()})</span>}
                 </div>
               ))}
             </div>
@@ -200,7 +200,7 @@ export default function Collections() {
       {/* Collection Modal */}
       <Modal isOpen={collectModal} onClose={() => setCollectModal(false)} title="Record Collection Payment">
         <form onSubmit={recordCollection} className="space-y-4">
-          <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">This collection will auto-link to Cash Flow System as an inflow entry.</p>
+          <p className="text-xs text-red-600 bg-red-50 p-2 rounded">This collection will auto-link to Cash Flow System as an inflow entry.</p>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="label">Amount *</label><input className="input" type="number" value={form.amount || 0} onChange={e => setForm({...form, amount: +e.target.value})} required /></div>
             <div><label className="label">Date</label><input className="input" type="date" value={form.collection_date || ''} onChange={e => setForm({...form, collection_date: e.target.value})} /></div>

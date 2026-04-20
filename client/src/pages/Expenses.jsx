@@ -39,7 +39,7 @@ export default function Expenses() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Pending', filter: 'pending', color: 'text-amber-600' },
-          { label: 'Approved', filter: 'approved', color: 'text-blue-600' },
+          { label: 'Approved', filter: 'approved', color: 'text-red-600' },
           { label: 'Paid', filter: 'paid', color: 'text-emerald-600' },
           { label: 'Rejected', filter: 'rejected', color: 'text-red-600' },
         ].map(s => (

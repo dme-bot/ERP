@@ -71,7 +71,7 @@ export default function CashFlow() {
         <>
           {summary && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="card p-3 border-l-4 border-blue-500"><p className="text-xs text-gray-500">Total Projects</p><p className="text-2xl font-bold">{summary.projectCount}</p></div>
+              <div className="card p-3 border-l-4 border-red-500"><p className="text-xs text-gray-500">Total Projects</p><p className="text-2xl font-bold">{summary.projectCount}</p></div>
               <div className="card p-3 border-l-4 border-emerald-500"><p className="text-xs text-gray-500">Total Sale Value</p><p className="text-xl font-bold text-emerald-600">{fmtL(summary.totalSale)}</p></div>
               <div className="card p-3 border-l-4 border-amber-500"><p className="text-xs text-gray-500">Total Received</p><p className="text-xl font-bold text-amber-600">{fmtL(summary.totalReceived)}</p></div>
               <div className="card p-3 border-l-4 border-red-500"><p className="text-xs text-gray-500">Total Purchase</p><p className="text-xl font-bold text-red-600">{fmtL(summary.totalPurchase)}</p></div>
@@ -88,7 +88,7 @@ export default function CashFlow() {
           )}
           <div className="relative"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input className="input pl-10" placeholder="Search project..." value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="card p-0 overflow-hidden">
-            <div className="p-3 border-b bg-blue-50"><h4 className="font-bold text-blue-800">ALL NEW PROJECTS - Financial Tracker</h4></div>
+            <div className="p-3 border-b bg-red-50"><h4 className="font-bold text-red-800">ALL NEW PROJECTS - Financial Tracker</h4></div>
             <div className="overflow-x-auto"><table className="min-w-[1200px] text-xs">
               <thead><tr className="bg-gray-100">
                 <th className="px-2 py-2">Sr</th><th className="px-2 py-2 text-left">Project</th><th className="px-2 py-2 text-left">CRM</th>
@@ -98,15 +98,15 @@ export default function CashFlow() {
                 <th className="px-2 py-2 text-right">Invest Days</th><th className="px-2 py-2 text-right">Completion</th><th className="px-2 py-2 text-right">Payment</th><th className="px-2 py-2 text-right">Total</th><th className="px-2 py-2"></th>
               </tr></thead>
               <tbody>{filtered.map(p => (
-                <tr key={p.id} className="border-b hover:bg-blue-50/30">
+                <tr key={p.id} className="border-b hover:bg-red-50/30">
                   <td className="px-2 py-2 font-bold text-gray-500">{p.sr_no}</td>
-                  <td className="px-2 py-2 font-semibold text-blue-700">{p.project_name}</td>
+                  <td className="px-2 py-2 font-semibold text-red-700">{p.project_name}</td>
                   {editRow === p.id ? (
                     <td className="px-1 py-1"><input className="input text-xs w-24" value={editForm.crm_person||''} onChange={e=>setEditForm({...editForm,crm_person:e.target.value})} /></td>
                   ) : (
                     <td className="px-2 py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(p.crm_person||'').toLowerCase().includes('sushila') ? 'bg-gray-800 text-white' : (p.crm_person||'').toLowerCase().includes('lovely') ? 'bg-amber-500 text-white' : 'bg-gray-100'}`}>{p.crm_person || '-'}</span></td>
                   )}
-                  <td className="px-2 py-2 text-right font-semibold text-blue-600">{p.sale_amount > 0 ? fmtL(p.sale_amount) : '-'}</td>
+                  <td className="px-2 py-2 text-right font-semibold text-red-600">{p.sale_amount > 0 ? fmtL(p.sale_amount) : '-'}</td>
                   {editRow === p.id ? (<>
                     <td className="px-1 py-1"><input className="input text-xs w-20" type="number" value={editForm.amount_received||''} onChange={e=>setEditForm({...editForm,amount_received:+e.target.value})} /></td>
                     <td className="px-1 py-1"><select className="input text-xs w-24" value={editForm.milestone_name||''} onChange={e=>setEditForm({...editForm,milestone_name:e.target.value})}><option value="">-</option><option>milestone</option><option>handover</option><option>delivery</option></select></td>
@@ -134,13 +134,13 @@ export default function CashFlow() {
                   <td className="px-1 py-1">{editRow === p.id ? (
                     <div className="flex gap-1"><button onClick={()=>saveManualFields(p.id)} className="text-[10px] text-emerald-600 font-bold">Save</button><button onClick={()=>setEditRow(null)} className="text-[10px] text-gray-400">X</button></div>
                   ) : (
-                    <button onClick={()=>{setEditRow(p.id);setEditForm({crm_person:p.crm_person,amount_received:p.amount_received,milestone_name:p.milestone_name,aanchal_value:p.aanchal_value,payment_investment_days:p.payment_investment_days,payment_days:p.payment_days,manual_purchase_value:p.purchase_value,manual_completion_days:p.completion_days});}} className="text-[10px] text-blue-600 font-bold">Edit</button>
+                    <button onClick={()=>{setEditRow(p.id);setEditForm({crm_person:p.crm_person,amount_received:p.amount_received,milestone_name:p.milestone_name,aanchal_value:p.aanchal_value,payment_investment_days:p.payment_investment_days,payment_days:p.payment_days,manual_purchase_value:p.purchase_value,manual_completion_days:p.completion_days});}} className="text-[10px] text-red-600 font-bold">Edit</button>
                   )}</td>
                 </tr>
               ))}</tbody>
               <tfoot><tr className="bg-gray-100 font-bold text-xs">
                 <td className="px-2 py-2" colSpan="3">TOTAL ({filtered.length})</td>
-                <td className="px-2 py-2 text-right text-blue-700">{fmtL(filtered.reduce((s, p) => s + p.sale_amount, 0))}</td>
+                <td className="px-2 py-2 text-right text-red-700">{fmtL(filtered.reduce((s, p) => s + p.sale_amount, 0))}</td>
                 <td className="px-2 py-2 text-right text-emerald-700">{fmt(filtered.reduce((s, p) => s + p.amount_received, 0))}</td>
                 <td></td><td className="px-2 py-2 text-right">{filtered.reduce((s, p) => s + p.aanchal_value, 0).toFixed(2)}L</td>
                 <td className="px-2 py-2 text-right text-red-700">{fmtL(filtered.reduce((s, p) => s + p.purchase_value, 0))}</td>
@@ -154,7 +154,7 @@ export default function CashFlow() {
       {tab === 'daily' && dailySummary && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="card p-3"><LuIndianRupee className="text-blue-600 inline mr-1" /><span className="text-xs text-gray-500">Opening</span><p className="text-lg font-bold">{fmt(dailySummary.today.opening_balance)}</p></div>
+            <div className="card p-3"><LuIndianRupee className="text-red-600 inline mr-1" /><span className="text-xs text-gray-500">Opening</span><p className="text-lg font-bold">{fmt(dailySummary.today.opening_balance)}</p></div>
             <div className="card p-3"><FiTrendingUp className="text-emerald-600 inline mr-1" /><span className="text-xs text-gray-500">Inflows</span><p className="text-lg font-bold text-emerald-600">+{fmt(dailySummary.today.total_inflows)}</p></div>
             <div className="card p-3"><FiTrendingDown className="text-red-600 inline mr-1" /><span className="text-xs text-gray-500">Outflows</span><p className="text-lg font-bold text-red-600">-{fmt(dailySummary.today.total_outflows)}</p></div>
             <div className="card p-3"><LuIndianRupee className="text-purple-600 inline mr-1" /><span className="text-xs text-gray-500">Closing</span><p className="text-lg font-bold text-purple-600">{fmt(dailySummary.today.closing_balance)}</p></div>
@@ -165,7 +165,7 @@ export default function CashFlow() {
           </div>
           <div className="card p-0 overflow-hidden"><table className="text-sm"><thead><tr><th>Date</th><th>Opening</th><th className="text-emerald-600">Inflows</th><th className="text-red-600">Outflows</th><th className="text-purple-600">Closing</th></tr></thead>
             <tbody>{dailySummary.last7Days.map(d => (
-              <tr key={d.id} className={d.date === selectedDate ? 'bg-blue-50' : ''} onClick={() => setSelectedDate(d.date)} style={{ cursor: 'pointer' }}>
+              <tr key={d.id} className={d.date === selectedDate ? 'bg-red-50' : ''} onClick={() => setSelectedDate(d.date)} style={{ cursor: 'pointer' }}>
                 <td className="font-medium">{d.date}</td><td>{fmt(d.opening_balance)}</td>
                 <td className="text-emerald-600 font-semibold">+{fmt(d.total_inflows)}</td><td className="text-red-600 font-semibold">-{fmt(d.total_outflows)}</td>
                 <td className="font-bold text-purple-600">{fmt(d.closing_balance)}</td>

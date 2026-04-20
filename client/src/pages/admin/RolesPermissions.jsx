@@ -31,7 +31,7 @@ const ALL_MODULES = [
 ];
 
 const ACTIONS = [
-  { key: 'can_view', label: 'View', color: 'text-blue-600' },
+  { key: 'can_view', label: 'View', color: 'text-red-600' },
   { key: 'can_create', label: 'Create', color: 'text-emerald-600' },
   { key: 'can_edit', label: 'Edit', color: 'text-amber-600' },
   { key: 'can_delete', label: 'Delete', color: 'text-red-600' },
@@ -147,25 +147,25 @@ export default function RolesPermissions() {
         <div className="card lg:col-span-1 p-0">
           <div className="p-4 border-b flex items-center justify-between">
             <h4 className="font-semibold text-gray-700">Roles</h4>
-            <button onClick={() => { setEditingRole(null); setRoleForm({ name: '', description: '' }); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiPlus size={18} /></button>
+            <button onClick={() => { setEditingRole(null); setRoleForm({ name: '', description: '' }); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiPlus size={18} /></button>
           </div>
           <div className="divide-y">
             {roles.map(r => (
               <div
                 key={r.id}
-                className={`p-3 cursor-pointer flex items-center justify-between group hover:bg-gray-50 ${selectedRole?.id === r.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}
+                className={`p-3 cursor-pointer flex items-center justify-between group hover:bg-gray-50 ${selectedRole?.id === r.id ? 'bg-red-50 border-l-4 border-red-500' : ''}`}
                 onClick={() => selectRole(r)}
               >
                 <div>
                   <div className="text-sm font-medium flex items-center gap-2">
-                    <FiShield size={14} className={selectedRole?.id === r.id ? 'text-blue-600' : 'text-gray-400'} />
+                    <FiShield size={14} className={selectedRole?.id === r.id ? 'text-red-600' : 'text-gray-400'} />
                     {r.name}
                   </div>
                   <div className="text-xs text-gray-500 mt-0.5">{r.description}</div>
                 </div>
                 {!r.is_system && (
                   <div className="hidden group-hover:flex gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); setEditingRole(r); setRoleForm({ name: r.name, description: r.description }); setModal(true); }} className="p-1 hover:bg-blue-100 rounded text-blue-600"><FiEdit2 size={12} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setEditingRole(r); setRoleForm({ name: r.name, description: r.description }); setModal(true); }} className="p-1 hover:bg-red-100 rounded text-red-600"><FiEdit2 size={12} /></button>
                     <button onClick={(e) => { e.stopPropagation(); deleteRole(r); }} className="p-1 hover:bg-red-100 rounded text-red-600"><FiTrash2 size={12} /></button>
                   </div>
                 )}
@@ -178,9 +178,9 @@ export default function RolesPermissions() {
         <div className="card lg:col-span-3 p-0">
           {selectedRole ? (
             <>
-              <div className="p-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
+              <div className="p-4 border-b flex items-center justify-between bg-gradient-to-r from-red-50 to-white">
                 <div>
-                  <h4 className="font-semibold text-gray-800">Permissions for: <span className="text-blue-600">{selectedRole.name}</span></h4>
+                  <h4 className="font-semibold text-gray-800">Permissions for: <span className="text-red-600">{selectedRole.name}</span></h4>
                   <p className="text-xs text-gray-500 mt-1">Click checkboxes to toggle permissions. Changes are saved when you click "Save Permissions".</p>
                 </div>
                 <button onClick={savePermissions} disabled={saving} className="btn btn-primary flex items-center gap-2">

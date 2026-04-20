@@ -43,13 +43,13 @@ export default function HelpTicket() {
   };
 
   const statusColors = { open: 'bg-red-100 text-red-700', in_progress: 'bg-amber-100 text-amber-700', resolved: 'bg-emerald-100 text-emerald-700', closed: 'bg-gray-100 text-gray-500' };
-  const priorityColors = { low: 'text-gray-500', medium: 'text-blue-600', high: 'text-amber-600', urgent: 'text-red-600' };
+  const priorityColors = { low: 'text-gray-500', medium: 'text-red-600', high: 'text-amber-600', urgent: 'text-red-600' };
 
   return (
     <>
       {/* Floating Help Button */}
       <button onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/40 flex items-center justify-center hover:scale-110 transition-transform"
+        className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-red-600 to-red-600 text-white shadow-xl shadow-red-500/40 flex items-center justify-center hover:scale-110 transition-transform"
         title="Help & Support">
         <FiHelpCircle size={24} />
       </button>
@@ -57,7 +57,7 @@ export default function HelpTicket() {
       {/* Help Panel */}
       {open && (
         <div className="fixed bottom-24 right-6 z-40 w-[420px] max-w-[calc(100vw-2rem)] max-h-[80vh] bg-white rounded-2xl shadow-2xl border flex flex-col">
-          <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-2xl">
+          <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-red-600 to-red-600 text-white rounded-t-2xl">
             <div>
               <h3 className="font-bold">Help & Support</h3>
               <p className="text-xs opacity-80">We're here to help</p>
@@ -66,10 +66,10 @@ export default function HelpTicket() {
           </div>
 
           <div className="flex border-b">
-            <button onClick={() => setTab('tickets')} className={`flex-1 py-2.5 text-xs font-bold ${tab==='tickets' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}>
+            <button onClick={() => setTab('tickets')} className={`flex-1 py-2.5 text-xs font-bold ${tab==='tickets' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>
               <FiHelpCircle className="inline mr-1" size={12}/> Tickets {tickets.length > 0 && `(${tickets.filter(t=>t.status!=='closed'&&t.status!=='resolved').length})`}
             </button>
-            <button onClick={() => setTab('learner')} className={`flex-1 py-2.5 text-xs font-bold ${tab==='learner' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}>
+            <button onClick={() => setTab('learner')} className={`flex-1 py-2.5 text-xs font-bold ${tab==='learner' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>
               <FiBook className="inline mr-1" size={12}/> ERP Learner
             </button>
           </div>
@@ -80,10 +80,10 @@ export default function HelpTicket() {
                 <button onClick={() => setModal('new')} className="w-full btn btn-primary text-xs py-2 flex items-center justify-center gap-1"><FiPlus size={12}/> Raise New Ticket</button>
                 {tickets.length === 0 && <p className="text-xs text-gray-400 text-center py-6">No tickets yet</p>}
                 {tickets.map(t => (
-                  <div key={t.id} onClick={() => { setSelectedTicket(t); setAdminResponse(t.admin_response || ''); setModal('view'); }} className="p-2.5 border rounded-lg hover:bg-blue-50/40 cursor-pointer text-xs">
+                  <div key={t.id} onClick={() => { setSelectedTicket(t); setAdminResponse(t.admin_response || ''); setModal('view'); }} className="p-2.5 border rounded-lg hover:bg-red-50/40 cursor-pointer text-xs">
                     <div className="flex justify-between items-start">
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-blue-600">{t.ticket_no}</p>
+                        <p className="font-bold text-red-600">{t.ticket_no}</p>
                         <p className="font-medium truncate">{t.subject}</p>
                         {isAdmin && <p className="text-[10px] text-gray-400">by {t.user_name}</p>}
                       </div>
@@ -103,7 +103,7 @@ export default function HelpTicket() {
                 <p className="text-xs text-gray-500 mb-2">Quick guides to use the ERP</p>
                 {GUIDES.map((g, i) => (
                   <details key={i} className="border rounded-lg p-2">
-                    <summary className="font-semibold text-xs text-blue-600 cursor-pointer">{g.title}</summary>
+                    <summary className="font-semibold text-xs text-red-600 cursor-pointer">{g.title}</summary>
                     <ol className="text-xs space-y-1 mt-2 ml-4 list-decimal text-gray-600">
                       {g.steps.map((s, j) => <li key={j}>{s}</li>)}
                     </ol>
@@ -142,7 +142,7 @@ export default function HelpTicket() {
             </div>
             <div className="flex gap-2 text-xs">
               <span className="bg-gray-100 px-2 py-1 rounded">{selectedTicket.category}</span>
-              {selectedTicket.module && <span className="bg-blue-100 px-2 py-1 rounded">{selectedTicket.module}</span>}
+              {selectedTicket.module && <span className="bg-red-100 px-2 py-1 rounded">{selectedTicket.module}</span>}
             </div>
             <div className="bg-gray-50 p-3 rounded text-sm whitespace-pre-wrap">{selectedTicket.description}</div>
             {selectedTicket.admin_response && (

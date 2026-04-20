@@ -117,7 +117,7 @@ export default function BusinessBook() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FiBook className="text-blue-600" /> Business Book</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FiBook className="text-red-600" /> Business Book</h1>
           <p className="text-sm text-gray-500 mt-1">Master New Business Booked Sheet</p>
         </div>
         <div className="flex gap-2">
@@ -143,7 +143,7 @@ export default function BusinessBook() {
         <div className="flex gap-2 flex-wrap">
           {stats.byStatus.map(s => (
             <button key={s.status} onClick={() => setFilters(f => ({ ...f, status: f.status === s.status ? '' : s.status }))}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${filters.status === s.status ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${filters.status === s.status ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-200 hover:border-red-300'}`}>
               {s.status.replace(/_/g, ' ')} ({s.count})
             </button>
           ))}
@@ -200,9 +200,9 @@ export default function BusinessBook() {
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {entries.map(b => (
-                <tr key={b.id} className="hover:bg-blue-50/30 transition-colors">
-                  <td className="px-3 py-3"><span className="font-bold text-blue-600 cursor-pointer hover:underline" onClick={() => handleView(b)}>{b.lead_no}</span></td>
-                  <td className="px-3 py-3"><span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${b.lead_type === 'Government' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{b.lead_type}</span></td>
+                <tr key={b.id} className="hover:bg-red-50/30 transition-colors">
+                  <td className="px-3 py-3"><span className="font-bold text-red-600 cursor-pointer hover:underline" onClick={() => handleView(b)}>{b.lead_no}</span></td>
+                  <td className="px-3 py-3"><span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${b.lead_type === 'Government' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`}>{b.lead_type}</span></td>
                   <td className="px-3 py-3"><div className="font-medium text-sm">{b.client_name}</div>{b.company_name && <div className="text-xs text-gray-500">{b.company_name}</div>}</td>
                   <td className="px-3 py-3"><div className="text-sm">{b.project_name || '-'}</div>{b.district && <div className="text-xs text-gray-400">{b.district}, {b.state}</div>}</td>
                   <td className="px-3 py-3 text-sm">{b.category || '-'}</td>
@@ -215,7 +215,7 @@ export default function BusinessBook() {
                   <td className="px-3 py-3"><StatusBadge status={b.status} /></td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-center gap-1">
-                      <button onClick={() => handleView(b)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="View"><FiEye size={15} /></button>
+                      <button onClick={() => handleView(b)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="View"><FiEye size={15} /></button>
                       {canEdit('business_book') && <button onClick={() => handleEdit(b)} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded" title="Edit"><FiEdit2 size={15} /></button>}
                       {canDelete('business_book') && <button onClick={() => handleDelete(b.id, b.lead_no)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete"><FiTrash2 size={15} /></button>}
                     </div>
@@ -232,19 +232,19 @@ export default function BusinessBook() {
       <Modal isOpen={modal === 'view'} onClose={() => { setModal(null); setViewEntry(null); }} title={`${viewEntry?.lead_no || ''} - ${viewEntry?.client_name || ''}`} wide>
         {viewEntry && (
           <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-            <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between bg-gradient-to-r from-red-50 to-red-50 p-4 rounded-lg">
               <div>
-                <h3 className="text-lg font-bold text-blue-800">{viewEntry.lead_no}</h3>
-                <p className="text-sm text-blue-600">{viewEntry.project_name || viewEntry.client_name}</p>
+                <h3 className="text-lg font-bold text-red-800">{viewEntry.lead_no}</h3>
+                <p className="text-sm text-red-600">{viewEntry.project_name || viewEntry.client_name}</p>
               </div>
               <div className="text-right">
                 <StatusBadge status={viewEntry.status} />
-                <span className={`ml-2 inline-flex px-2 py-0.5 rounded text-xs font-medium ${viewEntry.lead_type === 'Government' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{viewEntry.lead_type}</span>
+                <span className={`ml-2 inline-flex px-2 py-0.5 rounded text-xs font-medium ${viewEntry.lead_type === 'Government' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`}>{viewEntry.lead_type}</span>
               </div>
             </div>
             <div className="grid grid-cols-4 gap-3">
               <div className="bg-gray-50 p-3 rounded-lg text-center"><p className="text-xs text-gray-500">Sale Amount</p><p className="font-bold">{fmt(viewEntry.sale_amount_without_gst)}</p></div>
-              <div className="bg-blue-50 p-3 rounded-lg text-center"><p className="text-xs text-gray-500">PO Amount</p><p className="font-bold text-blue-700">{fmt(viewEntry.po_amount)}</p></div>
+              <div className="bg-red-50 p-3 rounded-lg text-center"><p className="text-xs text-gray-500">PO Amount</p><p className="font-bold text-red-700">{fmt(viewEntry.po_amount)}</p></div>
               <div className="bg-emerald-50 p-3 rounded-lg text-center"><p className="text-xs text-gray-500">Advance</p><p className="font-bold text-emerald-600">{fmt(viewEntry.advance_received)}</p></div>
               <div className="bg-red-50 p-3 rounded-lg text-center"><p className="text-xs text-gray-500">Balance</p><p className="font-bold text-red-600">{fmt(viewEntry.balance_amount)}</p></div>
             </div>
@@ -383,7 +383,7 @@ export default function BusinessBook() {
                 <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload Final Drawing</label>
                 {form.final_drawing_link ? (
                   <div className="flex items-center gap-2">
-                    <a href={form.final_drawing_link} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline truncate flex-1">
+                    <a href={form.final_drawing_link} target="_blank" rel="noreferrer" className="text-sm text-red-600 underline truncate flex-1">
                       {form.final_drawing_link.split('/').pop()}
                     </a>
                     <button type="button" onClick={() => F('final_drawing_link', '')} className="text-red-500 text-xs hover:underline">Remove</button>
@@ -400,7 +400,7 @@ export default function BusinessBook() {
                       } catch { toast.error('Upload failed'); }
                       e.target.value = '';
                     }}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100" />
                 )}
               </div>
             </div>
@@ -434,8 +434,8 @@ function StatCard({ icon: Icon, color, label, value, valueColor }) {
 }
 
 function FSection({ title, color, children }) {
-  const bg = { gray: 'bg-gray-50', blue: 'bg-blue-50', emerald: 'bg-emerald-50', amber: 'bg-amber-50', purple: 'bg-purple-50', indigo: 'bg-indigo-50', rose: 'bg-rose-50' };
-  const text = { gray: 'text-gray-700', blue: 'text-blue-700', emerald: 'text-emerald-700', amber: 'text-amber-700', purple: 'text-purple-700', indigo: 'text-indigo-700', rose: 'text-rose-700' };
+  const bg = { gray: 'bg-gray-50', blue: 'bg-red-50', emerald: 'bg-emerald-50', amber: 'bg-amber-50', purple: 'bg-purple-50', indigo: 'bg-red-50', rose: 'bg-rose-50' };
+  const text = { gray: 'text-gray-700', blue: 'text-red-700', emerald: 'text-emerald-700', amber: 'text-amber-700', purple: 'text-purple-700', indigo: 'text-red-700', rose: 'text-rose-700' };
   return (<div className={`border rounded-lg p-3 ${bg[color] || 'bg-gray-50'}`}><h4 className={`font-semibold text-sm ${text[color] || 'text-gray-700'} mb-3`}>{title}</h4>{children}</div>);
 }
 

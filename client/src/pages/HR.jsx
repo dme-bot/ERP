@@ -61,7 +61,7 @@ export default function HR() {
                   <td className="font-medium">{c.name}</td><td>{c.phone}</td><td>{c.position}</td>
                   <td className="capitalize">{c.source}</td><td><StatusBadge status={c.status} /></td>
                   <td><div className="flex gap-1">
-                    <button onClick={() => { setEditing(c); setForm(c); setModal('candidate'); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                    <button onClick={() => { setEditing(c); setForm(c); setModal('candidate'); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>
                     {canDelete('hr') && <button onClick={async () => {
                       if (!confirm(`Delete candidate "${c.name}"?`)) return;
                       try { await api.delete(`/hr/candidates/${c.id}`); toast.success('Deleted'); load(); }
@@ -90,7 +90,7 @@ export default function HR() {
                   <td className="font-medium">{c.name}</td><td>{c.phone}</td><td>{c.specialization}</td>
                   <td>Rs {c.rate}/{c.rate_unit?.replace(/_/g,' ')}</td><td><StatusBadge status={c.status} /></td>
                   <td><div className="flex gap-1">
-                    <button onClick={() => { setEditing(c); setForm(c); setModal('contractor'); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                    <button onClick={() => { setEditing(c); setForm(c); setModal('contractor'); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>
                     {canDelete('hr') && <button onClick={async () => {
                       if (!confirm(`Delete contractor "${c.name}"?`)) return;
                       try { await api.delete(`/hr/sub-contractors/${c.id}`); toast.success('Deleted'); load(); }

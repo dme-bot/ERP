@@ -44,7 +44,7 @@ export default function Installation() {
               <td>{i.po_number}</td><td>{i.site_address}</td><td>{i.start_date}</td><td>{i.end_date}</td>
               <td>{i.assigned_to_name}</td><td><StatusBadge status={i.status} /></td>
               <td><div className="flex gap-1">
-                <button onClick={() => { setEditing(i); setForm(i); setModal(true); }} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><FiEdit2 size={15} /></button>
+                <button onClick={() => { setEditing(i); setForm(i); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>
                 {canDelete('installation') && <button onClick={async () => {
                   if (!confirm(`Delete installation "${i.site_address}"?`)) return;
                   try { await api.delete(`/installation/${i.id}`); toast.success('Deleted'); load(); }

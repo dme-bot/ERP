@@ -135,7 +135,7 @@ export default function Orders() {
               {pos.map(p => (
                 <tr key={p.id}>
                   <td className="font-medium">{p.po_number}</td>
-                  <td className="text-blue-600 font-bold">{p.lead_no || '-'}</td>
+                  <td className="text-red-600 font-bold">{p.lead_no || '-'}</td>
                   <td>{p.bb_client || p.company_name || '-'}</td>
                   <td>{p.bb_project || '-'}</td>
                   <td>{p.bb_category || '-'}</td>
@@ -143,8 +143,8 @@ export default function Orders() {
                   <td className="font-semibold">Rs {p.total_amount?.toLocaleString()}</td>
                   <td className="text-xs">{p.site_engineer_names || p.site_engineer_name || <span className="text-gray-400">-</span>}</td>
                   <td className="text-xs">{p.crm_name || <span className="text-gray-400">-</span>}</td>
-                  <td>{p.po_copy_link ? <a href={p.po_copy_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
-                  <td>{p.boq_file_link ? <a href={p.boq_file_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
+                  <td>{p.po_copy_link ? <a href={p.po_copy_link} target="_blank" rel="noreferrer" className="text-red-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
+                  <td>{p.boq_file_link ? <a href={p.boq_file_link} target="_blank" rel="noreferrer" className="text-red-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a> : <span className="text-gray-400 text-xs">-</span>}</td>
                   <td><StatusBadge status={p.status} /></td>
                   <td>
                     <div className="flex gap-1">
@@ -211,8 +211,8 @@ export default function Orders() {
           </div>
 
           {/* 2. PO Details + Upload PO Copy */}
-          <div className="border rounded-lg p-3 bg-blue-50">
-            <h4 className="font-semibold text-sm text-blue-700 mb-3">Purchase Order Details</h4>
+          <div className="border rounded-lg p-3 bg-red-50">
+            <h4 className="font-semibold text-sm text-red-700 mb-3">Purchase Order Details</h4>
             <div className="grid grid-cols-2 gap-4">
               <div><label className="label">PO Number *</label><input className="input" value={form.po_number || ''} onChange={e => setForm({ ...form, po_number: e.target.value })} required /></div>
               <div><label className="label">PO Date *</label><input className="input" type="date" value={form.po_date || ''} onChange={e => setForm({ ...form, po_date: e.target.value })} required /></div>
@@ -229,7 +229,7 @@ export default function Orders() {
                           const next = selected ? cur.filter(id => id !== u.id) : [...cur, u.id];
                           setForm({ ...form, site_engineer_ids: next });
                         }}
-                        className={`px-2 py-1 rounded-full text-xs font-medium border transition ${selected ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}>
+                        className={`px-2 py-1 rounded-full text-xs font-medium border transition ${selected ? 'bg-red-600 text-white border-red-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}>
                         {selected && <span className="mr-1">✓</span>}{u.name}
                       </button>
                     );
@@ -237,7 +237,7 @@ export default function Orders() {
                   {siteEngineers.length === 0 && <p className="text-[10px] text-amber-600">No users with role "Site Engineer" yet</p>}
                 </div>
                 {(form.site_engineer_ids || []).length > 0 && (
-                  <p className="text-[10px] text-blue-600 mt-0.5">{(form.site_engineer_ids || []).length} selected</p>
+                  <p className="text-[10px] text-red-600 mt-0.5">{(form.site_engineer_ids || []).length} selected</p>
                 )}
               </div>
               <div>
@@ -252,7 +252,7 @@ export default function Orders() {
                 <label className="label flex items-center gap-2"><FiUpload size={14} /> Upload PO Copy</label>
                 {form.po_copy_link ? (
                   <div className="flex items-center gap-2">
-                    <a href={form.po_copy_link} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline truncate flex-1">{form.po_copy_link.split('/').pop()}</a>
+                    <a href={form.po_copy_link} target="_blank" rel="noreferrer" className="text-sm text-red-600 underline truncate flex-1">{form.po_copy_link.split('/').pop()}</a>
                     <button type="button" onClick={() => setForm({ ...form, po_copy_link: '' })} className="text-red-500 text-xs">Remove</button>
                   </div>
                 ) : (
@@ -268,17 +268,17 @@ export default function Orders() {
                       } catch { toast.error('Upload failed'); }
                       setUploading(false); e.target.value = '';
                     }}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100" />
                 )}
-                {uploading && <p className="text-xs text-blue-500 mt-1">Uploading...</p>}
+                {uploading && <p className="text-xs text-red-500 mt-1">Uploading...</p>}
               </div>
             </div>
           </div>
 
           {/* 3. Upload BOQ → Auto-fetch items (Excel) or just attach (PDF/image) */}
-          <div className="border-2 border-dashed border-indigo-400 rounded-lg p-4 bg-indigo-50 text-center">
-            <h4 className="font-bold text-indigo-800 mb-2">Upload BOQ File</h4>
-            <p className="text-xs text-indigo-600 mb-3">Upload Excel (.xlsx/.xls) to auto-fill items below. PDF/Image/Word also accepted — will just attach the file.</p>
+          <div className="border-2 border-dashed border-red-400 rounded-lg p-4 bg-red-50 text-center">
+            <h4 className="font-bold text-red-800 mb-2">Upload BOQ File</h4>
+            <p className="text-xs text-red-600 mb-3">Upload Excel (.xlsx/.xls) to auto-fill items below. PDF/Image/Word also accepted — will just attach the file.</p>
             <label className={`btn btn-primary inline-flex items-center gap-2 cursor-pointer text-base px-6 py-3 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
               <FiUpload size={18} /> {uploading ? 'Uploading...' : 'Upload BOQ & Fetch Items'}
               <input type="file" accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" disabled={uploading} onChange={async (e) => {
@@ -314,7 +314,7 @@ export default function Orders() {
             {form.boq_file_link && (
               <div className="mt-2 flex items-center justify-center gap-2 text-xs">
                 <span className="text-gray-500">BOQ file attached:</span>
-                <a href={form.boq_file_link} target="_blank" rel="noreferrer" className="text-blue-600 underline truncate max-w-[260px]">{form.boq_file_link.split('/').pop()}</a>
+                <a href={form.boq_file_link} target="_blank" rel="noreferrer" className="text-red-600 underline truncate max-w-[260px]">{form.boq_file_link.split('/').pop()}</a>
                 <button type="button" onClick={() => setForm(f => ({ ...f, boq_file_link: '' }))} className="text-red-500 hover:underline">Remove</button>
               </div>
             )}
@@ -335,7 +335,7 @@ export default function Orders() {
                   <div className="text-xs text-center font-bold text-gray-500">{item.sr_no || i + 1}</div>
                   <div className="col-span-3">
                     {item.description && !item.item_master_id ? (
-                      <div className="input text-xs bg-blue-50 font-medium text-blue-800 truncate" title={item.description}>{item.description}</div>
+                      <div className="input text-xs bg-red-50 font-medium text-red-800 truncate" title={item.description}>{item.description}</div>
                     ) : (
                       <SearchableSelect
                         options={masterItems.map(mi => ({ id: mi.id, label: `[${mi.item_code}] ${mi.display_name}`, ...mi }))}
@@ -365,9 +365,9 @@ export default function Orders() {
                 </div>
               ))}
             </div>
-            <div className="mt-3 pt-2 border-t border-indigo-200 flex justify-between text-sm">
-              <span className="text-indigo-600 font-medium">{poItems.filter(i => i.description).length} items</span>
-              <span className="font-bold text-indigo-800">Items Total: Rs {itemsTotal.toLocaleString()}</span>
+            <div className="mt-3 pt-2 border-t border-red-200 flex justify-between text-sm">
+              <span className="text-red-600 font-medium">{poItems.filter(i => i.description).length} items</span>
+              <span className="font-bold text-red-800">Items Total: Rs {itemsTotal.toLocaleString()}</span>
             </div>
           </div>
 

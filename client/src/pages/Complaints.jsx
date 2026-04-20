@@ -46,7 +46,7 @@ export default function Complaints() {
 
   const badge = (s) => ({
     open: 'bg-yellow-100 text-yellow-700',
-    in_progress: 'bg-blue-100 text-blue-700',
+    in_progress: 'bg-red-100 text-red-700',
     resolved: 'bg-green-100 text-green-700',
   }[s] || 'bg-gray-100 text-gray-700');
 
@@ -54,7 +54,7 @@ export default function Complaints() {
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <h1 className="text-xl font-bold text-gray-800">Complaint Register</h1>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm">
           <FiPlus /> New Complaint
         </button>
       </div>
@@ -112,7 +112,7 @@ export default function Complaints() {
                 <td className="px-3 py-2">{c.step1_time_delay ?? '-'} d</td>
                 <td className="px-3 py-2">{c.step2_time_delay ?? '-'} d</td>
                 <td className="px-3 py-2">
-                  <button onClick={() => setViewing({ ...c })} className="text-blue-600 hover:text-blue-800"><FiEye /></button>
+                  <button onClick={() => setViewing({ ...c })} className="text-red-600 hover:text-red-800"><FiEye /></button>
                 </td>
               </tr>
             ))}
@@ -144,7 +144,7 @@ export default function Complaints() {
             </div>
             <div className="md:col-span-2 flex justify-end gap-2">
               <button type="button" onClick={()=>setShowAdd(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Create</button>
+              <button className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm">Create</button>
             </div>
           </form>
         </Modal>
@@ -199,7 +199,7 @@ export default function Complaints() {
 }
 
 function StatCard({ icon, label, value, color }) {
-  const map = { slate:'text-slate-600 bg-slate-100', yellow:'text-yellow-600 bg-yellow-100', blue:'text-blue-600 bg-blue-100', green:'text-green-600 bg-green-100' };
+  const map = { slate:'text-slate-600 bg-slate-100', yellow:'text-yellow-600 bg-yellow-100', blue:'text-red-600 bg-red-100', green:'text-green-600 bg-green-100' };
   return (
     <div className="bg-white rounded-xl p-4 border flex items-center gap-3">
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${map[color]}`}>{icon}</div>
