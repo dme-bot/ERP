@@ -25,14 +25,15 @@ export default function DPR() {
   // Table A: Installation items from PO
   const [workItems, setWorkItems] = useState([]);
   // Table B: Costs — Skilled @ Rs 800/qty, Helper @ Rs 500/qty (fixed company rates)
+  // Staff Cost rate is auto-pulled from the SITE's PO engineers (sum of their
+  // monthly salary / 30). Individual salaries are never exposed to the client.
   const [costs, setCosts] = useState([
     { type: 'Skilled Manpower', qty: 0, rate: 800, amount: 0, fixed: true },
     { type: 'Helper', qty: 0, rate: 500, amount: 0, fixed: true },
     { type: 'Rental Cost', qty: 0, rate: 0, amount: 0 },
-    { type: 'Staff Cost', qty: 1, rate: 0, amount: 0, staff_ids: [] },
+    { type: 'Staff Cost', qty: 1, rate: 0, amount: 0, auto: true, engineer_count: 0 },
     { type: 'TA/DA', qty: 0, rate: 0, amount: 0 },
   ]);
-  const [employees, setEmployees] = useState([]);
   const [machinery, setMachinery] = useState([{ equipment: '', quantity: 1, hours_used: 0, condition: 'working' }]);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [poItemsForSite, setPoItemsForSite] = useState([]);
@@ -44,7 +45,6 @@ export default function DPR() {
     api.get('/dpr', { params: { date: filterDate } }).then(r => setDprs(r.data));
     api.get('/dpr/sites').then(r => setSites(r.data));
     api.get('/auth/users').then(r => setUsers(r.data)).catch(() => {});
-    api.get('/hr/employees').then(r => setEmployees((r.data || []).filter(e => !e.status || e.status === 'active'))).catch(() => setEmployees([]));
     api.get('/dpr/progress').then(r => setProgress(r.data)).catch(() => setProgress([]));
   };
   useEffect(() => { load(); }, [filterDate]);
@@ -54,6 +54,14 @@ export default function DPR() {
     setWorkItems([]);
     if (siteId) {
       api.get(`/dpr/sites/${siteId}/po-items`).then(r => setPoItemsForSite(r.data)).catch(() => setPoItemsForSite([]));
+      // Auto-fill Staff Cost rate from the site's PO engineers (salary/30).
+      // Backend returns only { per_day_cost, engineer_count } — no individual salaries.
+      api.get(`/dpr/sites/${siteId}/staff-cost`).then(r => {
+        const { per_day_cost = 0, engineer_count = 0 } = r.data || {};
+        setCosts(prev => prev.map(c => c.type === 'Staff Cost'
+          ? { ...c, rate: per_day_cost, engineer_count, amount: (c.qty || 0) * per_day_cost }
+          : c));
+      }).catch(() => {});
     } else { setPoItemsForSite([]); }
   };
 
@@ -82,18 +90,6 @@ export default function DPR() {
     if (field === 'rate' && n[i].fixed) return;
     n[i][field] = val;
     if (field === 'qty' || field === 'rate') n[i].amount = (n[i].qty || 0) * (n[i].rate || 0);
-    setCosts(n);
-  };
-
-  // Toggle an employee in/out of Staff Cost selection and recompute rate = sum of per-day salaries
-  const toggleStaff = (costIdx, empId) => {
-    const n = [...costs];
-    const row = { ...n[costIdx] };
-    const ids = row.staff_ids || [];
-    row.staff_ids = ids.includes(empId) ? ids.filter(x => x !== empId) : [...ids, empId];
-    row.rate = row.staff_ids.reduce((s, id) => s + (employees.find(e => e.id === id)?.salary || 0), 0);
-    row.amount = (row.qty || 0) * (row.rate || 0);
-    n[costIdx] = row;
     setCosts(n);
   };
 
@@ -453,7 +449,7 @@ export default function DPR() {
                     <div className="text-sm font-medium">
                       {c.type}
                       {c.fixed && <span className="ml-1 text-[9px] text-gray-400">(fixed)</span>}
-                      {isStaff && <span className="ml-1 text-[9px] text-gray-400">(pick staff)</span>}
+                      {isStaff && <span className="ml-1 text-[9px] text-gray-400">(auto from PO)</span>}
                     </div>
                     <input className="input text-sm text-center" type="number" placeholder={isStaff ? 'Days' : '0'} value={c.qty || ''} onChange={e => updateCost(i, 'qty', +e.target.value)} />
                     <input
@@ -463,35 +459,18 @@ export default function DPR() {
                       value={c.rate || ''}
                       readOnly={c.fixed || isStaff}
                       onChange={e => updateCost(i, 'rate', +e.target.value)}
-                      title={c.fixed ? `Fixed company rate: Rs ${c.rate}` : (isStaff ? 'Rate = sum of selected staff per-day salary' : '')}
+                      title={c.fixed ? `Fixed company rate: Rs ${c.rate}` : (isStaff ? 'Auto: sum of PO site engineers’ monthly salary ÷ 30' : '')}
                     />
                     <div className="text-sm font-bold text-right pr-2">Rs {(c.amount || 0).toLocaleString()}</div>
                   </div>
                   {isStaff && (
-                    <div className="mt-1.5 pl-1">
-                      {employees.length === 0 ? (
-                        <p className="text-[10px] text-amber-600">No active employees found. Add employees in HR module first.</p>
-                      ) : (
-                        <>
-                          <p className="text-[10px] text-gray-500 mb-1">Select staff for this site (per-day salary auto-sums into rate):</p>
-                          <div className="flex flex-wrap gap-1">
-                            {employees.map(e => {
-                              const selected = (c.staff_ids || []).includes(e.id);
-                              return (
-                                <button key={e.id} type="button" onClick={() => toggleStaff(i, e.id)}
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition ${selected ? 'bg-red-600 text-white border-red-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
-                                  title={`Per day: Rs ${(e.salary || 0).toLocaleString()}`}>
-                                  {selected && <span className="mr-0.5">✓</span>}{e.name} <span className="opacity-70">(₹{(e.salary || 0).toLocaleString()})</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {(c.staff_ids || []).length > 0 && (
-                            <p className="text-[10px] text-red-700 mt-1">{c.staff_ids.length} staff × {c.qty || 0} day(s) @ Rs {c.rate}/day = Rs {(c.amount || 0).toLocaleString()}</p>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    <p className="text-[10px] text-gray-500 pl-1 mt-1">
+                      {!form.site_id
+                        ? 'Select a site first — Staff Cost auto-fills from that PO’s site engineers.'
+                        : c.engineer_count > 0
+                          ? `Auto: ${c.engineer_count} site engineer${c.engineer_count > 1 ? 's' : ''} on this PO × Rs ${c.rate}/day (individual salaries not shown)`
+                          : 'No site engineers with salary records linked to this PO. Ask HR to link users → employees.'}
+                    </p>
                   )}
                 </div>
               );

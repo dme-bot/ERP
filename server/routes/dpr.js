@@ -48,6 +48,43 @@ router.put('/sites/:id', (req, res) => {
   res.json({ message: 'Updated' });
 });
 
+// Per-day staff cost for a site = sum of monthly salary / 30 of all site
+// engineers assigned to the PO for this site. IMPORTANT: this endpoint
+// returns ONLY the aggregated number and engineer count — never individual
+// salaries or names — because salaries are confidential.
+router.get('/sites/:site_id/staff-cost', (req, res) => {
+  const db = getDb();
+  const site = db.prepare('SELECT id, name, po_id, business_book_id FROM sites WHERE id=?').get(req.params.site_id);
+  if (!site) return res.json({ per_day_cost: 0, engineer_count: 0 });
+
+  // Gather all POs that cover this site (either directly via po_id, or via business_book_id)
+  const pos = db.prepare(
+    `SELECT DISTINCT site_engineer_id, site_engineer_ids FROM purchase_orders
+     WHERE id = ? OR business_book_id = ?`
+  ).all(site.po_id, site.business_book_id);
+
+  // Build a set of unique engineer user IDs across those POs
+  const ids = new Set();
+  for (const po of pos) {
+    if (po.site_engineer_id) ids.add(po.site_engineer_id);
+    if (po.site_engineer_ids) {
+      String(po.site_engineer_ids).split(',').map(s => parseInt(s, 10)).filter(Boolean).forEach(i => ids.add(i));
+    }
+  }
+  if (ids.size === 0) return res.json({ per_day_cost: 0, engineer_count: 0 });
+
+  const idList = [...ids];
+  const placeholders = idList.map(() => '?').join(',');
+  // salary is treated as monthly; per-day = monthly / 30
+  const row = db.prepare(
+    `SELECT COALESCE(SUM(salary), 0) as total_monthly, COUNT(*) as matched
+     FROM employees WHERE user_id IN (${placeholders}) AND (status IS NULL OR status = 'active')`
+  ).get(...idList);
+
+  const perDay = Math.round(((row.total_monthly || 0) / 30) * 100) / 100;
+  res.json({ per_day_cost: perDay, engineer_count: row.matched || 0 });
+});
+
 // Get PO items for a site - fetches ALL PO items for that company/site name
 router.get('/sites/:site_id/po-items', (req, res) => {
   const db = getDb();
