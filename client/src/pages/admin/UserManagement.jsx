@@ -154,7 +154,7 @@ export default function UserManagement() {
                 <td>
                   <div className="flex gap-1">
                     <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-red-50 rounded text-red-600" title="Edit"><FiEdit2 size={15} /></button>
-                    <button onClick={() => { setResetUser(u); setResetInput(''); }} className="p-1.5 hover:bg-amber-50 rounded text-amber-600" title="Reset password">
+                    <button onClick={() => { setResetUser(u); setResetInput('123'); }} className="p-1.5 hover:bg-amber-50 rounded text-amber-600" title="Reset password">
                       <FiKey size={15} />
                     </button>
                     <button onClick={() => toggleActive(u)} className={`p-1.5 rounded ${u.active ? 'hover:bg-red-50 text-red-600' : 'hover:bg-green-50 text-green-600'}`} title={u.active ? 'Deactivate' : 'Activate'}>

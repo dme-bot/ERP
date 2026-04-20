@@ -140,9 +140,10 @@ router.post('/users/:id/reset-password', authMiddleware, adminOnly, (req, res) =
   const user = db.prepare('SELECT id, name, username, email FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  // If admin passed a password, use it (min 6 chars); else generate a random one
+  // Admin-driven reset: min length relaxed to 3 so short office defaults like
+  // "123" or "sepl" work. If blank, generate a 10-char random password.
   let newPassword = String(req.body?.new_password || '').trim();
-  if (newPassword && newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (newPassword && newPassword.length < 3) return res.status(400).json({ error: 'Password must be at least 3 characters' });
   if (!newPassword) {
     // Random: 10 chars, mixed case + digits, no ambiguous chars (0/O, 1/l)
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
