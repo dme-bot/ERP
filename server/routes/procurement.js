@@ -1,8 +1,76 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const XLSX = require('xlsx');
 const { getDb } = require('../db/schema');
 const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
+
+// Same lenient Excel-BOQ parser the Orders upload uses — kept in sync here
+// so we can fall back to the raw file when po_items is empty.
+const parseBoqExcel = (filePath) => {
+  try {
+    const wb = XLSX.readFile(filePath);
+    const parseNum = (v) => {
+      if (v === null || v === undefined || v === '') return 0;
+      if (typeof v === 'number') return v;
+      const c = String(v).replace(/[,\s]/g, '').match(/-?\d+(\.\d+)?/);
+      return c ? parseFloat(c[0]) : 0;
+    };
+    const HEADER_KW = ['item name', 'description', 'particulars', 'work', 'item', 'qty', 'qnty', 'quantity', 'sitc', 'rate', 'amount', 's/n', 's.no'];
+    const parseSheet = (sn) => {
+      const ws = wb.Sheets[sn];
+      if (!ws) return [];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      let headerIdx = -1;
+      for (let i = 0; i < Math.min(20, data.length); i++) {
+        const row = (data[i] || []).map(c => String(c || '').toLowerCase().trim());
+        const m = HEADER_KW.filter(k => row.some(c => c === k || c.includes(k))).length;
+        if (m >= 2) { headerIdx = i; break; }
+      }
+      if (headerIdx === -1) return [];
+      const headers = (data[headerIdx] || []).map(h => String(h || '').toLowerCase().trim());
+      const colMap = {};
+      headers.forEach((h, i) => {
+        if (colMap.name === undefined && (h.includes('item name') || h.includes('description') || h.includes('particulars') || h === 'work' || h.includes('work description') || h === 'item' || h === 'items')) colMap.name = i;
+        if (colMap.qty === undefined && (h === 'qty' || h === 'quantity' || h === 'qnty' || h.includes('qty') || h.includes('qnty') || h.includes('quantity') || h === 'nos')) colMap.qty = i;
+        if (colMap.unit === undefined && (h === 'unit' || h === 'uom' || h.includes('unit') || h === 'units')) colMap.unit = i;
+      });
+      if (colMap.qty !== undefined && colMap.unit === undefined) {
+        const uc = colMap.qty + 1;
+        const UL = /^(mtr|nos|set|kg|sqm|rft|pair|pcs?|no|lot|unit|ltr|ton|bag|rmt|cum|sft|box|roll|feet|ft|mm|inch)\.?$/i;
+        let matches = 0;
+        for (let i = headerIdx + 1; i < Math.min(headerIdx + 40, data.length); i++) {
+          const v = String((data[i] || [])[uc] || '').trim();
+          if (v && UL.test(v)) matches++;
+        }
+        if (matches >= 2) colMap.unit = uc;
+      }
+      if (colMap.name === undefined) return [];
+      const out = [];
+      let sr = 1;
+      for (let i = headerIdx + 1; i < data.length; i++) {
+        const row = data[i] || [];
+        const name = String(row[colMap.name] || '').trim();
+        if (!name || name.length < 3) continue;
+        const qty = colMap.qty !== undefined ? parseNum(row[colMap.qty]) : 0;
+        if (qty === 0) continue;
+        const unit = colMap.unit !== undefined ? String(row[colMap.unit] || 'Nos').trim() : 'Nos';
+        out.push({ id: `fallback-${sn}-${sr}`, description: name, unit: unit || 'nos', boq_qty: qty, item_master_id: null, item_code: null, item_type: null, item_make: null, indented_qty: 0, remaining_qty: qty, is_foc: false });
+        sr++;
+      }
+      return out;
+    };
+    // Pick the sheet that yields most rows (offer Excels often put BOQ in sheet 2)
+    let best = [];
+    for (const sn of wb.SheetNames) {
+      const rows = parseSheet(sn);
+      if (rows.length > best.length) best = rows;
+    }
+    return best;
+  } catch (e) { return []; }
+};
 
 // Vendors
 router.get('/vendors', (req, res) => {
@@ -127,6 +195,28 @@ router.get('/boq-items', (req, res) => {
      ORDER BY pi.sr_no, pi.id`
   ).all(...idList);
 
+  // Fallback — if no po_items rows but the PO has a BOQ file attached, parse
+  // that Excel on the fly. Lets mam pick BOQ items even when the save-to-DB
+  // step was skipped during PO creation.
+  if (items.length === 0) {
+    const po = db.prepare(
+      `SELECT boq_file_link FROM purchase_orders
+       WHERE business_book_id IN (${placeholders})
+         AND boq_file_link IS NOT NULL AND boq_file_link != ''
+       ORDER BY created_at DESC LIMIT 1`
+    ).get(...idList);
+    if (po && po.boq_file_link) {
+      // boq_file_link looks like '/uploads/<filename>'. Resolve to server disk path.
+      const filename = path.basename(po.boq_file_link);
+      const diskPath = path.join(__dirname, '..', '..', 'data', 'uploads', filename);
+      if (fs.existsSync(diskPath)) {
+        const parsed = parseBoqExcel(diskPath);
+        return res.json(parsed);
+      }
+    }
+    return res.json([]);
+  }
+
   const result = items.map(r => {
     const isFoc = String(r.item_type || '').toUpperCase() === 'FOC';
     return {
@@ -212,8 +302,12 @@ router.post('/indents', (req, res) => {
     let make = i.make || '';
     let masterId = i.item_master_id || null;
 
-    if (i.po_item_id) {
-      const p = getPoItem.get(i.po_item_id);
+    // Only integer po_item_ids correspond to real po_items rows. Strings like
+    // 'fallback-Sheet2-3' come from the on-the-fly BOQ Excel parser and
+    // should NOT be persisted (no FK exists for them).
+    const poItemId = Number.isInteger(+i.po_item_id) && +i.po_item_id > 0 ? +i.po_item_id : null;
+    if (poItemId) {
+      const p = getPoItem.get(poItemId);
       if (p) {
         desc = p.description || desc;
         unit = p.unit || unit;
@@ -234,7 +328,7 @@ router.post('/indents', (req, res) => {
     const foc = String(itemType || '').toUpperCase() === 'FOC' ? 1 : 0;
     const tool = String(itemType || '').toUpperCase() === 'RGP' ? 1 : 0;
     insertItem.run(
-      r.lastInsertRowid, i.po_item_id || null, masterId, desc, make, qty, unit, 0, 0, itemType, foc, tool,
+      r.lastInsertRowid, poItemId, masterId, desc, make, qty, unit, 0, 0, itemType, foc, tool,
     );
   }
   res.status(201).json({ id: r.lastInsertRowid, indent_number: indentNum });
