@@ -84,14 +84,43 @@ router.get('/indents', (req, res) => {
 
 router.post('/indents', (req, res) => {
   const db = getDb();
-  const { planning_id, items, notes } = req.body;
+  const { planning_id, items, notes, client_name, location, lead_no } = req.body;
+  if (!items || items.length === 0 || !items.some(i => i.item_master_id || (i.description && i.description.trim()))) {
+    return res.status(400).json({ error: 'At least one item is required' });
+  }
   const count = db.prepare('SELECT COUNT(*) as c FROM indents').get().c;
   const indentNum = `IND-${String(count + 1).padStart(4, '0')}`;
-  const r = db.prepare('INSERT INTO indents (planning_id, indent_number, notes, created_by) VALUES (?,?,?,?)')
-    .run(planning_id, indentNum, notes, req.user.id);
-  const insertItem = db.prepare('INSERT INTO indent_items (indent_id,description,quantity,unit,rate,amount,vendor_id) VALUES (?,?,?,?,?,?,?)');
+  const r = db.prepare(
+    'INSERT INTO indents (planning_id, indent_number, notes, client_name, location, lead_no, created_by) VALUES (?,?,?,?,?,?,?)'
+  ).run(planning_id || null, indentNum, notes || '', client_name || '', location || '', lead_no || '', req.user.id);
+
+  // If item_master_id provided, fill description/unit from master on the server
+  // so it stays correct even if the client sends stale data.
+  const getMaster = db.prepare('SELECT item_name, specification, size, uom, make, current_price FROM item_master WHERE id=?');
+  const insertItem = db.prepare(
+    `INSERT INTO indent_items
+      (indent_id, item_master_id, description, make, quantity, unit, rate, amount, vendor_id, is_foc, is_tool)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+  );
   for (const i of (items || [])) {
-    insertItem.run(r.lastInsertRowid, i.description, i.quantity, i.unit, i.rate, i.quantity * i.rate, i.vendor_id);
+    let desc = i.description || '';
+    let unit = i.unit || 'nos';
+    let make = i.make || '';
+    let rate = i.rate || 0;
+    if (i.item_master_id) {
+      const m = getMaster.get(i.item_master_id);
+      if (m) {
+        desc = [m.item_name, m.specification, m.size].filter(Boolean).join(' / ');
+        unit = m.uom || unit;
+        make = i.make || m.make || '';
+        if (!rate && m.current_price) rate = m.current_price;
+      }
+    }
+    const qty = +i.quantity || 0;
+    insertItem.run(
+      r.lastInsertRowid, i.item_master_id || null, desc, make, qty, unit, rate, qty * rate,
+      i.vendor_id || null, i.is_foc ? 1 : 0, i.is_tool ? 1 : 0,
+    );
   }
   res.status(201).json({ id: r.lastInsertRowid, indent_number: indentNum });
 });
@@ -115,9 +144,17 @@ router.delete('/indents/:id', (req, res) => {
 });
 
 router.get('/indents/:id', (req, res) => {
-  const indent = getDb().prepare('SELECT * FROM indents WHERE id=?').get(req.params.id);
+  const indent = getDb().prepare(
+    `SELECT i.*, u.name as created_by_name FROM indents i LEFT JOIN users u ON i.created_by=u.id WHERE i.id=?`
+  ).get(req.params.id);
   if (!indent) return res.status(404).json({ error: 'Not found' });
-  indent.items = getDb().prepare('SELECT ii.*, v.name as vendor_name FROM indent_items ii LEFT JOIN vendors v ON ii.vendor_id=v.id WHERE ii.indent_id=?').all(req.params.id);
+  indent.items = getDb().prepare(
+    `SELECT ii.*, v.name as vendor_name, im.item_code, im.item_name as master_name
+     FROM indent_items ii
+     LEFT JOIN vendors v ON ii.vendor_id = v.id
+     LEFT JOIN item_master im ON ii.item_master_id = im.id
+     WHERE ii.indent_id = ?`
+  ).all(req.params.id);
   res.json(indent);
 });
 

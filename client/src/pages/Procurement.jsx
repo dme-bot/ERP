@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 import Modal from '../components/Modal';
+import SearchableSelect from '../components/SearchableSelect';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
+
+const EMPTY_ITEM = { item_master_id: '', description: '', make: '', quantity: 1, unit: 'nos', rate: 0, vendor_id: '', is_foc: false, is_tool: false };
 
 export default function Procurement() {
   const { canDelete } = useAuth();
@@ -14,9 +17,10 @@ export default function Procurement() {
   const [purchaseBills, setPurchaseBills] = useState([]);
   const [deliveryNotes, setDeliveryNotes] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [masterItems, setMasterItems] = useState([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({});
-  const [indentItems, setIndentItems] = useState([{ description: '', quantity: 1, unit: 'nos', rate: 0, vendor_id: '' }]);
+  const [indentItems, setIndentItems] = useState([{ ...EMPTY_ITEM }]);
 
   const load = () => {
     api.get('/procurement/indents').then(r => setIndents(r.data));
@@ -24,14 +28,33 @@ export default function Procurement() {
     api.get('/procurement/purchase-bills').then(r => setPurchaseBills(r.data));
     api.get('/procurement/delivery-notes').then(r => setDeliveryNotes(r.data));
     api.get('/procurement/vendors').then(r => setVendors(r.data));
+    api.get('/item-master/dropdown').then(r => setMasterItems(r.data || [])).catch(() => setMasterItems([]));
   };
   useEffect(() => { load(); }, []);
 
+  // Picking an item from the master auto-fills description / unit / make / rate
+  const pickMasterItem = (i, item) => {
+    const n = [...indentItems];
+    n[i] = {
+      ...n[i],
+      item_master_id: item?.id || '',
+      description: item ? [item.item_name, item.specification, item.size].filter(Boolean).join(' / ') : '',
+      unit: item?.uom?.toLowerCase() || n[i].unit,
+      make: item?.make || n[i].make || '',
+      rate: item?.current_price || n[i].rate,
+    };
+    setIndentItems(n);
+  };
+
   const saveIndent = async (e) => {
     e.preventDefault();
-    await api.post('/procurement/indents', { ...form, items: indentItems });
-    toast.success('Indent created');
-    setModal(false); load();
+    const clean = indentItems.filter(it => it.item_master_id || (it.description && it.description.trim()));
+    if (clean.length === 0) return toast.error('Pick at least one item from Item Master');
+    try {
+      await api.post('/procurement/indents', { ...form, items: clean });
+      toast.success('Indent created — purchase team will take over');
+      setModal(false); load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
 
   const approveIndent = async (id, status) => {
@@ -78,7 +101,7 @@ export default function Procurement() {
         <>
           <div className="flex justify-between items-center">
             <h3 className="font-semibold">Material Indents</h3>
-            <button onClick={() => { setForm({ notes: '' }); setIndentItems([{ description: '', quantity: 1, unit: 'nos', rate: 0, vendor_id: '' }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Indent</button>
+            <button onClick={() => { setForm({ notes: '', client_name: '', location: '', lead_no: '' }); setIndentItems([{ ...EMPTY_ITEM }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Indent</button>
           </div>
           <div className="card p-0 overflow-hidden"><table>
             <thead><tr><th>Indent No</th><th>Date</th><th>Created By</th><th>Status</th><th>Actions</th></tr></thead>
@@ -193,24 +216,56 @@ export default function Procurement() {
       )}
 
       {/* Indent Modal */}
-      <Modal isOpen={modal === 'indent'} onClose={() => setModal(false)} title="Create Indent" wide>
+      <Modal isOpen={modal === 'indent'} onClose={() => setModal(false)} title="Create Purchase Indent" wide>
         <form onSubmit={saveIndent} className="space-y-4">
-          <h4 className="font-semibold text-sm">Items</h4>
-          {indentItems.map((item, i) => (
-            <div key={i} className="grid grid-cols-6 gap-2">
-              <input className="input col-span-2" placeholder="Description" value={item.description} onChange={e => { const n = [...indentItems]; n[i].description = e.target.value; setIndentItems(n); }} />
-              <input className="input" type="number" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
-              <input className="input" placeholder="Unit" value={item.unit} onChange={e => { const n = [...indentItems]; n[i].unit = e.target.value; setIndentItems(n); }} />
-              <input className="input" type="number" placeholder="Rate" value={item.rate} onChange={e => { const n = [...indentItems]; n[i].rate = +e.target.value; setIndentItems(n); }} />
-              <select className="select" value={item.vendor_id} onChange={e => { const n = [...indentItems]; n[i].vendor_id = e.target.value; setIndentItems(n); }}>
-                <option value="">Vendor</option>
-                {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
+          {/* Header — matches the physical indent form */}
+          <div className="grid grid-cols-3 gap-3">
+            <div><label className="label">Client Name</label><input className="input" value={form.client_name || ''} onChange={e => setForm({ ...form, client_name: e.target.value })} placeholder="e.g. Imperial Golf Estate" /></div>
+            <div><label className="label">Location</label><input className="input" value={form.location || ''} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. Ludhiana" /></div>
+            <div><label className="label">Lead No</label><input className="input" value={form.lead_no || ''} onChange={e => setForm({ ...form, lead_no: e.target.value })} placeholder="optional" /></div>
+          </div>
+
+          <h4 className="font-semibold text-sm">Items <span className="text-gray-400 font-normal">(pick from Item Master — "item wise sheet")</span></h4>
+          <div className="space-y-2">
+            <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1">
+              <div className="col-span-4">Item (Item Master)</div>
+              <div className="col-span-2">Make</div>
+              <div>Qty</div>
+              <div>Unit</div>
+              <div className="col-span-2">Flags</div>
+              <div className="col-span-2">Vendor (optional)</div>
             </div>
-          ))}
-          <button type="button" onClick={() => setIndentItems([...indentItems, { description: '', quantity: 1, unit: 'nos', rate: 0, vendor_id: '' }])} className="btn btn-secondary text-xs">+ Add Item</button>
-          <div><label className="label">Notes</label><textarea className="input" rows="2" value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} /></div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
+            {indentItems.map((item, i) => (
+              <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                <div className="col-span-4">
+                  <SearchableSelect
+                    options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}`, ...m }))}
+                    value={item.item_master_id || null}
+                    valueKey="id" displayKey="label"
+                    placeholder="Search item…"
+                    onChange={(m) => pickMasterItem(i, m)}
+                  />
+                </div>
+                <input className="input col-span-2 text-sm" placeholder="Make" value={item.make} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
+                <input className="input text-sm" type="number" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
+                <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly />
+                <div className="col-span-2 flex gap-2 text-[11px] items-center">
+                  <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={!!item.is_foc} onChange={e => { const n = [...indentItems]; n[i].is_foc = e.target.checked; setIndentItems(n); }} /> FOC</label>
+                  <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={!!item.is_tool} onChange={e => { const n = [...indentItems]; n[i].is_tool = e.target.checked; setIndentItems(n); }} /> Tool</label>
+                </div>
+                <select className="select col-span-2 text-sm" value={item.vendor_id} onChange={e => { const n = [...indentItems]; n[i].vendor_id = e.target.value; setIndentItems(n); }}>
+                  <option value="">— Vendor —</option>
+                  {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setIndentItems([...indentItems, { ...EMPTY_ITEM }])} className="btn btn-secondary text-xs">+ Add Item</button>
+            {indentItems.length > 1 && <button type="button" onClick={() => setIndentItems(indentItems.slice(0, -1))} className="text-xs text-red-600">– Remove last</button>}
+          </div>
+          <div><label className="label">Notes</label><textarea className="input" rows="2" value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Any remarks for Purchase…" /></div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create Indent</button></div>
         </form>
       </Modal>
 

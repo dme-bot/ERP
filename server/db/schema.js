@@ -1150,6 +1150,15 @@ function initializeDatabase() {
     ['delegations', 'extension_reviewed_by INTEGER REFERENCES users(id)'],
     // Time-of-day for recurring checklists (daily/weekly/…). Stored as 'HH:MM'.
     ['checklists', 'due_time TEXT'],
+    // Indent items now pick from item_master; keeps backward-compat description too
+    ['indent_items', 'item_master_id INTEGER REFERENCES item_master(id)'],
+    ['indent_items', 'make TEXT'],                 // e.g. "Schneider", "L&T"
+    ['indent_items', 'is_foc INTEGER DEFAULT 0'],  // free-of-cost flag
+    ['indent_items', 'is_tool INTEGER DEFAULT 0'], // tools vs materials flag
+    // Indent-level fields shown on the physical indent form
+    ['indents', 'client_name TEXT'],
+    ['indents', 'location TEXT'],
+    ['indents', 'lead_no TEXT'],
   ];
   // Unique index on username — allows NULLs for legacy rows while enforcing uniqueness on set values
   try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL'); } catch (e) {}
@@ -1275,6 +1284,17 @@ function initializeDatabase() {
       }
     }
   }
+
+  // One-time upgrade: any authenticated user should be able to raise an indent.
+  // Grant can_view + can_create on 'procurement' to every non-Viewer role that
+  // doesn't have it yet. (Viewers stay view-only by design.)
+  try {
+    const viewer = db.prepare("SELECT id FROM roles WHERE name='Viewer'").get();
+    db.prepare(
+      `UPDATE role_permissions SET can_view=1, can_create=1
+       WHERE module='procurement' AND (can_view=0 OR can_create=0) AND role_id != ?`
+    ).run(viewer ? viewer.id : -1);
+  } catch (e) {}
 
   // Seed default admin user
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@erp.com');
