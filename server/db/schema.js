@@ -1148,6 +1148,8 @@ function initializeDatabase() {
     ['delegations', "extension_status TEXT"],
     ['delegations', 'extension_reviewed_at DATETIME'],
     ['delegations', 'extension_reviewed_by INTEGER REFERENCES users(id)'],
+    // Time-of-day for recurring checklists (daily/weekly/…). Stored as 'HH:MM'.
+    ['checklists', 'due_time TEXT'],
   ];
   // Unique index on username — allows NULLs for legacy rows while enforcing uniqueness on set values
   try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL'); } catch (e) {}

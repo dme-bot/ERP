@@ -139,11 +139,12 @@ export default function Dashboard() {
                   <div key={c.id} className={`border rounded-lg p-2.5 ${c.completion_id ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className={`font-semibold text-sm ${c.completion_id ? 'text-emerald-800' : 'text-gray-800'} truncate`}>
-                          {c.completion_id && '✓ '}{c.title}
+                        <p className={`font-semibold text-sm ${c.completion_id ? 'text-emerald-800' : 'text-gray-800'} line-clamp-2`}>
+                          {c.completion_id && '✓ '}{c.description || c.title}
                         </p>
                         <div className="flex flex-wrap gap-2 text-[10px] text-gray-500 mt-0.5">
                           <span className="uppercase">{c.frequency}</span>
+                          {c.due_time && <span className="flex items-center gap-1 font-mono"><FiClock size={10} /> {c.due_time}</span>}
                           {c.completion_id && c.proof_url && <a href={c.proof_url} target="_blank" rel="noreferrer" className="text-red-600 hover:underline flex items-center gap-1"><FiExternalLink size={10} /> proof</a>}
                         </div>
                       </div>

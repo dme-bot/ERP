@@ -197,27 +197,34 @@ const deriveTitle = (title, description) => {
   return d.split(/\r?\n/)[0].slice(0, 80).trim() || 'Checklist';
 };
 
-router.post('/checklists', (req, res) => {
-  const { title, description, frequency, due_date, assigned_to } = req.body;
+// Only admins can create / edit / delete checklists. Regular users can read
+// and complete (upload proof for) the ones assigned to them.
+const adminGuard = (req, res, next) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admins can manage checklists' });
+  next();
+};
+
+router.post('/checklists', adminGuard, (req, res) => {
+  const { title, description, frequency, due_date, due_time, assigned_to } = req.body;
   const t = deriveTitle(title, description);
   const desc = String(description || '').trim();
   if (!desc && !title) return res.status(400).json({ error: 'Description is required' });
   if (!assigned_to) return res.status(400).json({ error: 'Assigned To is required' });
-  const r = getDb().prepare('INSERT INTO checklists (title,description,frequency,due_date,assigned_to,created_by) VALUES (?,?,?,?,?,?)')
-    .run(t, desc, frequency, due_date, assigned_to, req.user.id);
+  const r = getDb().prepare('INSERT INTO checklists (title,description,frequency,due_date,due_time,assigned_to,created_by) VALUES (?,?,?,?,?,?,?)')
+    .run(t, desc, frequency, due_date, due_time || null, assigned_to, req.user.id);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-router.put('/checklists/:id', (req, res) => {
-  const { status, title, description, frequency, due_date, assigned_to } = req.body;
+router.put('/checklists/:id', adminGuard, (req, res) => {
+  const { status, title, description, frequency, due_date, due_time, assigned_to } = req.body;
   const t = deriveTitle(title, description);
   if (!assigned_to) return res.status(400).json({ error: 'Assigned To is required' });
-  getDb().prepare('UPDATE checklists SET status=?,title=?,description=?,frequency=?,due_date=?,assigned_to=? WHERE id=?')
-    .run(status, t, description, frequency, due_date, assigned_to, req.params.id);
+  getDb().prepare('UPDATE checklists SET status=?,title=?,description=?,frequency=?,due_date=?,due_time=?,assigned_to=? WHERE id=?')
+    .run(status, t, description, frequency, due_date, due_time || null, assigned_to, req.params.id);
   res.json({ message: 'Updated' });
 });
 
-router.delete('/checklists/:id', (req, res) => {
+router.delete('/checklists/:id', adminGuard, (req, res) => {
   getDb().prepare('DELETE FROM checklists WHERE id=?').run(req.params.id);
   res.json({ message: 'Deleted' });
 });
