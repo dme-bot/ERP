@@ -65,7 +65,7 @@ export default function Procurement() {
         notes: form.notes || '',
         items: clean.map(it => ({ ...it, make: it.make || '' })),
       });
-      toast.success('Dispatch created — purchase team will take over');
+      toast.success('Indent raised — purchase team will take over');
       setModal(false); load();
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
@@ -106,15 +106,18 @@ export default function Procurement() {
   const saveDeliveryNote = async (e) => {
     e.preventDefault();
     await api.post('/procurement/delivery-notes', form);
-    toast.success('Delivery note created');
+    toast.success('Dispatch recorded');
     setModal(false); load();
   };
 
+  // Order matches the flow: raise an indent first, purchase team turns it
+  // into a vendor PO, books the purchase bill, and finally the goods are
+  // dispatched to site.
   const tabs = [
-    { id: 'indents', label: 'Dispatch' },
+    { id: 'indents', label: 'Raise Indent' },
     { id: 'vendorpo', label: 'Vendor PO' },
     { id: 'bills', label: 'Purchase Bills' },
-    { id: 'delivery', label: 'Delivery Notes' },
+    { id: 'delivery', label: 'Dispatch' },
   ];
 
   return (
@@ -126,16 +129,16 @@ export default function Procurement() {
       {tab === 'indents' && (
         <>
           <div className="flex justify-between items-center flex-wrap gap-2">
-            <h3 className="font-semibold">Material Dispatch</h3>
+            <h3 className="font-semibold">Raise Indent</h3>
             <div className="flex gap-2">
               {user?.role === 'admin' && (
-                <button onClick={wipeData} className="btn btn-danger text-xs flex items-center gap-1" title="Admin: delete all dispatches + POs"><FiTrash2 size={13} /> Wipe All</button>
+                <button onClick={wipeData} className="btn btn-danger text-xs flex items-center gap-1" title="Admin: delete all indents, POs, bills, dispatches"><FiTrash2 size={13} /> Wipe All</button>
               )}
-              <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Dispatch</button>
+              <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Raise Indent</button>
             </div>
           </div>
           <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>Dispatch No</th><th>Date</th><th>Site</th><th>Raised By</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Indent No</th><th>Date</th><th>Site</th><th>Raised By</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {indents.map(i => (
                 <tr key={i.id}>
@@ -154,7 +157,7 @@ export default function Procurement() {
                       )}
                       {i.status === 'draft' && <button onClick={() => approveIndent(i.id, 'submitted')} className="btn btn-primary text-xs py-1 px-2">Submit</button>}
                       {canDelete('procurement') && <button onClick={async () => {
-                        if (!confirm(`Delete dispatch "${i.indent_number}"?`)) return;
+                        if (!confirm(`Delete indent "${i.indent_number}"?`)) return;
                         try { await api.delete(`/procurement/indents/${i.id}`); toast.success('Deleted'); load(); }
                         catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
                       }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}
@@ -162,7 +165,7 @@ export default function Procurement() {
                   </td>
                 </tr>
               ))}
-              {indents.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No dispatches yet</td></tr>}
+              {indents.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No indents yet</td></tr>}
             </tbody>
           </table></div>
         </>
@@ -226,8 +229,8 @@ export default function Procurement() {
       {tab === 'delivery' && (
         <>
           <div className="flex justify-between items-center">
-            <h3 className="font-semibold">Delivery Notes & Receiving</h3>
-            <button onClick={() => { setForm({ vendor_po_id: '', delivery_date: '', notes: '' }); setModal('delivery'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Note</button>
+            <h3 className="font-semibold">Dispatch to Site</h3>
+            <button onClick={() => { setForm({ vendor_po_id: '', delivery_date: '', notes: '' }); setModal('delivery'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Dispatch</button>
           </div>
           <div className="card p-0 overflow-hidden"><table>
             <thead><tr><th>ID</th><th>Date</th><th>Received By</th><th>Status</th><th>Actions</th></tr></thead>
@@ -250,7 +253,7 @@ export default function Procurement() {
       )}
 
       {/* Indent Modal */}
-      <Modal isOpen={modal === 'indent'} onClose={() => setModal(false)} title="Create Dispatch" wide>
+      <Modal isOpen={modal === 'indent'} onClose={() => setModal(false)} title="Raise Purchase Indent" wide>
         <form onSubmit={saveIndent} className="space-y-4">
           {/* Auto timestamp — mirrors the 'Dated' field on the physical form */}
           <div className="text-[11px] text-gray-500 bg-gray-50 rounded px-3 py-1.5 flex justify-between items-center">
@@ -354,8 +357,8 @@ export default function Procurement() {
         </form>
       </Modal>
 
-      {/* Delivery Note Modal */}
-      <Modal isOpen={modal === 'delivery'} onClose={() => setModal(false)} title="Add Delivery Note">
+      {/* Delivery / Dispatch Modal */}
+      <Modal isOpen={modal === 'delivery'} onClose={() => setModal(false)} title="Record Dispatch to Site">
         <form onSubmit={saveDeliveryNote} className="space-y-4">
           <div><label className="label">Vendor PO</label><select className="select" value={form.vendor_po_id} onChange={e => setForm({...form, vendor_po_id: e.target.value})}><option value="">Select</option>{vendorPos.map(v => <option key={v.id} value={v.id}>{v.po_number} - {v.vendor_name}</option>)}</select></div>
           <div><label className="label">Delivery Date</label><input className="input" type="date" value={form.delivery_date} onChange={e => setForm({...form, delivery_date: e.target.value})} /></div>
