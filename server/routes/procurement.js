@@ -90,28 +90,52 @@ router.get('/sites', (req, res) => {
 });
 
 // BOQ items for a given site — the "item wise sheet" mam referred to.
-// Walks sites with this exact name → business_book rows → po_items. Also
-// joins item_master if the po_item row is linked (BOQ items often aren't,
-// so we return the free-text description regardless).
+// Lookup order so BOQs are found even when the sites row isn't explicitly
+// linked to a business_book (DPR can create sites without that FK):
+//   1. sites.business_book_id where sites.name = X
+//   2. business_book rows whose project_name / company_name = X
+// For each BOQ line we compute:
+//   - boq_qty       = po_items.quantity
+//   - indented_qty  = sum of qty already indented against this line
+//   - remaining_qty = boq_qty − indented_qty, but null for FOC items so
+//                     the UI can hide the number (free items don't track)
 router.get('/boq-items', (req, res) => {
   const siteName = String(req.query.site_name || '').trim();
   if (!siteName) return res.status(400).json({ error: 'site_name is required' });
   const db = getDb();
-  const bbIds = db.prepare(
+
+  const bbIds = new Set();
+  db.prepare(
     `SELECT DISTINCT s.business_book_id FROM sites s
      WHERE s.name = ? AND s.business_book_id IS NOT NULL`
-  ).all(siteName).map(r => r.business_book_id);
-  if (bbIds.length === 0) return res.json([]);
-  const placeholders = bbIds.map(() => '?').join(',');
+  ).all(siteName).forEach(r => bbIds.add(r.business_book_id));
+  db.prepare(
+    `SELECT id FROM business_book
+     WHERE project_name = ? OR company_name = ?`
+  ).all(siteName, siteName).forEach(r => bbIds.add(r.id));
+
+  if (bbIds.size === 0) return res.json([]);
+  const idList = [...bbIds];
+  const placeholders = idList.map(() => '?').join(',');
   const items = db.prepare(
     `SELECT pi.id, pi.description, pi.unit, pi.quantity as boq_qty, pi.rate as boq_rate,
-            pi.item_master_id, im.item_code, im.type as item_type, im.make as item_make
+            pi.item_master_id, im.item_code, im.type as item_type, im.make as item_make,
+            COALESCE((SELECT SUM(ii.quantity) FROM indent_items ii WHERE ii.po_item_id = pi.id), 0) as indented_qty
      FROM po_items pi
      LEFT JOIN item_master im ON im.id = pi.item_master_id
      WHERE pi.business_book_id IN (${placeholders})
      ORDER BY pi.sr_no, pi.id`
-  ).all(...bbIds);
-  res.json(items);
+  ).all(...idList);
+
+  const result = items.map(r => {
+    const isFoc = String(r.item_type || '').toUpperCase() === 'FOC';
+    return {
+      ...r,
+      is_foc: isFoc,
+      remaining_qty: isFoc ? null : Math.max(0, (r.boq_qty || 0) - (r.indented_qty || 0)),
+    };
+  });
+  res.json(result);
 });
 
 router.get('/indents', (req, res) => {

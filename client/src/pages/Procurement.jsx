@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
 
-const EMPTY_ITEM = { po_item_id: '', item_master_id: '', description: '', make: '', quantity: 1, unit: 'nos', item_type: '' };
+const EMPTY_ITEM = { po_item_id: '', item_master_id: '', description: '', make: '', quantity: 1, unit: 'nos', item_type: '', boq_qty: 0, remaining_qty: null };
 
 export default function Procurement() {
   const { canDelete, user } = useAuth();
@@ -48,9 +48,9 @@ export default function Procurement() {
       .finally(() => setBoqLoading(false));
   };
 
-  // Picking a BOQ item for this row — fills description / unit / type / make.
-  // Rate and vendor are intentionally NOT captured at indent stage — purchase
-  // team sets those later. Make stays editable so the raiser can override.
+  // Picking a BOQ item for this row — fills description / unit / type / make
+  // and copies BOQ qty + remaining so the UI can show "BOQ 100 · Rem 60"
+  // like DPR does. FOC items have remaining = null (hidden in UI).
   const pickBoqItem = (i, item) => {
     const n = [...indentItems];
     n[i] = {
@@ -61,6 +61,9 @@ export default function Procurement() {
       unit: (item?.unit || n[i].unit || 'nos').toString().toLowerCase(),
       item_type: item?.item_type || '',
       make: item?.item_make || n[i].make || '',
+      boq_qty: item?.boq_qty || 0,
+      remaining_qty: item?.remaining_qty,
+      is_foc: !!item?.is_foc,
     };
     setIndentItems(n);
   };
@@ -330,30 +333,45 @@ export default function Procurement() {
                     : t === 'RGP' ? 'bg-amber-50 text-amber-700 border-amber-200'
                     : t === 'PO' ? 'bg-red-50 text-red-700 border-red-200'
                     : 'bg-gray-50 text-gray-500 border-gray-200';
+                  const rem = item.remaining_qty;
+                  const overRem = !item.is_foc && rem !== null && rem !== undefined && (item.quantity || 0) > rem;
                   return (
-                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-5">
-                        <SearchableSelect
-                          options={boqItems.map(b => ({
-                            id: b.id,
-                            label: `${b.item_code ? '[' + b.item_code + '] ' : ''}${b.description}${b.boq_qty ? ` · BOQ ${b.boq_qty}` : ''}`,
-                            ...b,
-                          }))}
-                          value={item.po_item_id || null}
-                          valueKey="id" displayKey="label"
-                          placeholder="Search BOQ item…"
-                          onChange={(b) => pickBoqItem(i, b)}
-                        />
+                    <div key={i} className="space-y-0.5">
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-5">
+                          <SearchableSelect
+                            options={boqItems.map(b => ({
+                              id: b.id,
+                              label: `${b.item_code ? '[' + b.item_code + '] ' : ''}${b.description}${b.is_foc ? ' · FOC' : ` · BOQ ${b.boq_qty || 0} · Rem ${b.remaining_qty ?? 0}`}`,
+                              ...b,
+                            }))}
+                            value={item.po_item_id || null}
+                            valueKey="id" displayKey="label"
+                            placeholder="Search BOQ item…"
+                            onChange={(b) => pickBoqItem(i, b)}
+                          />
+                        </div>
+                        <input className="input col-span-2 text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
+                        <input className={`input text-sm ${overRem ? 'border-red-400 ring-1 ring-red-300' : ''}`} type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
+                        <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly />
+                        <div className={`col-span-2 text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>
+                          {t || '—'}
+                        </div>
+                        <button type="button" onClick={() => setIndentItems(indentItems.filter((_, x) => x !== i))} className="p-1 text-gray-300 hover:text-red-600 justify-self-center" title="Remove row">
+                          {indentItems.length > 1 && <FiTrash2 size={14} />}
+                        </button>
                       </div>
-                      <input className="input col-span-2 text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
-                      <input className="input text-sm" type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
-                      <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly />
-                      <div className={`col-span-2 text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>
-                        {t || '—'}
-                      </div>
-                      <button type="button" onClick={() => setIndentItems(indentItems.filter((_, x) => x !== i))} className="p-1 text-gray-300 hover:text-red-600 justify-self-center" title="Remove row">
-                        {indentItems.length > 1 && <FiTrash2 size={14} />}
-                      </button>
+                      {item.po_item_id && (
+                        <div className="col-span-12 text-[10px] text-gray-500 pl-1 flex gap-3">
+                          {item.is_foc
+                            ? <span className="text-emerald-700 font-semibold">FOC item — not counted against BOQ consumption</span>
+                            : <>
+                                <span>BOQ total: <b>{item.boq_qty}</b></span>
+                                <span>Remaining: <b className={overRem ? 'text-red-600' : 'text-emerald-700'}>{rem}</b></span>
+                                {overRem && <span className="text-red-600">⚠ Indent qty exceeds remaining</span>}
+                              </>}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
