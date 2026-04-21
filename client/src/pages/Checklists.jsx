@@ -13,9 +13,22 @@ export default function Checklists() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
+  const [personFilter, setPersonFilter] = useState('');
 
   const load = () => api.get('/hr/checklists').then(r => setChecklists(r.data));
   useEffect(() => { load(); api.get('/auth/users').then(r => setUsers(r.data)); }, []);
+
+  // Group checklists by assignee so the admin view shows one section per person.
+  // Sections are ordered alphabetically by assignee name.
+  const visible = personFilter
+    ? checklists.filter(c => String(c.assigned_to) === String(personFilter))
+    : checklists;
+  const byPerson = visible.reduce((acc, c) => {
+    const key = c.assigned_to_name || 'Unassigned';
+    (acc[key] = acc[key] || []).push(c);
+    return acc;
+  }, {});
+  const groupOrder = Object.keys(byPerson).sort((a, b) => a.localeCompare(b));
 
   const save = async (e) => {
     e.preventDefault();
@@ -38,34 +51,59 @@ export default function Checklists() {
           Only admins can create checklists. Upload your daily proof from the Dashboard.
         </p>
       )}
-      <div className="card p-0 overflow-hidden"><table>
-        <thead><tr><th>Task</th><th>Frequency</th><th>Due Date / Time</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>
-          {checklists.map(c => (
-            <tr key={c.id}>
-              <td className="font-medium max-w-md"><div className="line-clamp-2">{c.description || c.title}</div></td>
-              <td className="capitalize">{c.frequency}</td>
-              <td>
-                {c.frequency === 'daily'
-                  ? (c.due_time ? <span className="font-mono">{c.due_time}</span> : <span className="text-gray-400">anytime</span>)
-                  : <span>{c.due_date || '—'}{c.due_time ? ` · ${c.due_time}` : ''}</span>}
-              </td>
-              <td>{c.assigned_to_name || <span className="text-gray-400">—</span>}</td>
-              <td><StatusBadge status={c.status} /></td>
-              <td><div className="flex gap-1">
-                {isAdmin() && <button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>}
-                {isAdmin() && canDelete('checklists') && <button onClick={async () => {
-                  if (!confirm(`Delete this checklist?`)) return;
-                  try { await api.delete(`/hr/checklists/${c.id}`); toast.success('Deleted'); load(); }
-                  catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
-                }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
-                {!isAdmin() && <span className="text-[10px] text-gray-400">view only</span>}
-              </div></td>
-            </tr>
-          ))}
-          {checklists.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No checklists yet</td></tr>}
-        </tbody>
-      </table></div>
+
+      {/* Admin-only filter by assignee (regular users only see their own anyway) */}
+      {isAdmin() && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500 font-semibold uppercase">Filter by person:</label>
+          <select className="select text-sm max-w-xs" value={personFilter} onChange={e => setPersonFilter(e.target.value)}>
+            <option value="">All people</option>
+            {users.filter(u => u.active !== 0).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          <span className="text-xs text-gray-400">{visible.length} task{visible.length === 1 ? '' : 's'}</span>
+        </div>
+      )}
+
+      {groupOrder.length === 0 && (
+        <div className="card text-center py-8 text-gray-400">No checklists yet</div>
+      )}
+      {groupOrder.map(personName => (
+        <div key={personName} className="card p-0 overflow-hidden">
+          <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <h4 className="font-bold text-gray-700 text-sm flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-700 text-[10px] font-extrabold">{personName.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase()}</span>
+              {personName}
+              <span className="text-xs font-normal text-gray-400">({byPerson[personName].length})</span>
+            </h4>
+          </div>
+          <table>
+            <thead><tr><th>Task</th><th>Frequency</th><th>Due Date / Time</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              {byPerson[personName].map(c => (
+                <tr key={c.id}>
+                  <td className="font-medium max-w-md"><div className="line-clamp-2">{c.description || c.title}</div></td>
+                  <td className="capitalize">{c.frequency}</td>
+                  <td>
+                    {c.frequency === 'daily'
+                      ? (c.due_time ? <span className="font-mono">{c.due_time}</span> : <span className="text-gray-400">anytime</span>)
+                      : <span>{c.due_date || '—'}{c.due_time ? ` · ${c.due_time}` : ''}</span>}
+                  </td>
+                  <td><StatusBadge status={c.status} /></td>
+                  <td><div className="flex gap-1">
+                    {isAdmin() && <button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>}
+                    {isAdmin() && canDelete('checklists') && <button onClick={async () => {
+                      if (!confirm(`Delete this checklist?`)) return;
+                      try { await api.delete(`/hr/checklists/${c.id}`); toast.success('Deleted'); load(); }
+                      catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
+                    }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
+                    {!isAdmin() && <span className="text-[10px] text-gray-400">view only</span>}
+                  </div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title={editing ? 'Edit Checklist' : 'Add Checklist'}>
         <form onSubmit={save} className="space-y-4">

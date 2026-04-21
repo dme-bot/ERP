@@ -184,9 +184,22 @@ router.delete('/expenses/:id', (req, res) => {
 });
 
 // Checklists
+// List checklists. Admin sees all; regular users see only the ones assigned
+// to them so they don't read each other's tasks. Ordered by assignee name
+// so the frontend can group the rows under each person.
 router.get('/checklists', (req, res) => {
-  res.json(getDb().prepare(`SELECT c.*, u1.name as assigned_to_name, u2.name as created_by_name FROM checklists c
-    LEFT JOIN users u1 ON c.assigned_to=u1.id LEFT JOIN users u2 ON c.created_by=u2.id ORDER BY c.created_at DESC`).all());
+  const db = getDb();
+  const isAdmin = req.user.role === 'admin';
+  const base = `SELECT c.*, u1.name as assigned_to_name, u2.name as created_by_name
+    FROM checklists c
+    LEFT JOIN users u1 ON c.assigned_to=u1.id
+    LEFT JOIN users u2 ON c.created_by=u2.id`;
+  const order = ` ORDER BY u1.name COLLATE NOCASE, c.frequency, c.due_time, c.created_at DESC`;
+  if (isAdmin) {
+    res.json(db.prepare(base + order).all());
+  } else {
+    res.json(db.prepare(base + ' WHERE c.assigned_to=?' + order).all(req.user.id));
+  }
 });
 
 // Title is derived from the first line (80 chars) of the description since
