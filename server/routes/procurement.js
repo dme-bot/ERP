@@ -507,4 +507,91 @@ router.post('/admin/wipe-indents-pos', (req, res) => {
   res.json({ message: 'Wiped', counts });
 });
 
+// Upload / replace the BOQ for the currently-selected site directly from
+// the Raise Indent modal. Creates a stub PO if none exists yet, so a user
+// can start indenting immediately without bouncing to Orders. Replaces
+// existing po_items for that business_book and saves the file link to the
+// PO's boq_file_link.
+const multer = require('multer');
+const uploadDir = path.join(__dirname, '..', '..', 'data', 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const bulkUpload = multer({ dest: uploadDir, limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.post('/upload-boq-for-site', bulkUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const siteName = String(req.body?.site_name || '').trim();
+  if (!siteName) {
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
+    return res.status(400).json({ error: 'site_name is required' });
+  }
+
+  const db = getDb();
+  // Resolve business_book id (case-insensitive, tolerant)
+  let bbId = null;
+  const viaSite = db.prepare(
+    `SELECT DISTINCT s.business_book_id FROM sites s
+     WHERE LOWER(TRIM(s.name)) = LOWER(TRIM(?)) AND s.business_book_id IS NOT NULL LIMIT 1`
+  ).get(siteName);
+  if (viaSite?.business_book_id) bbId = viaSite.business_book_id;
+  if (!bbId) {
+    const viaBB = db.prepare(
+      `SELECT id FROM business_book
+       WHERE LOWER(TRIM(project_name)) = LOWER(TRIM(?))
+          OR LOWER(TRIM(company_name)) = LOWER(TRIM(?))
+          OR LOWER(TRIM(client_name))  = LOWER(TRIM(?))
+       LIMIT 1`
+    ).get(siteName, siteName, siteName);
+    if (viaBB?.id) bbId = viaBB.id;
+  }
+  if (!bbId) {
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
+    return res.status(404).json({ error: `No Business Book entry found matching "${siteName}"` });
+  }
+
+  // Rename file to something readable + served from /uploads
+  const safeName = (req.file.originalname || 'boq.xlsx').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const newName = `${Date.now()}-${safeName}`;
+  const newPath = path.join(uploadDir, newName);
+  try { fs.renameSync(req.file.path, newPath); } catch (e) { /* fall through */ }
+  const fileUrl = `/uploads/${newName}`;
+
+  // Parse items — only meaningful for Excel; PDFs just attach the link.
+  const isExcel = /\.(xlsx|xls)$/i.test(req.file.originalname || '');
+  let parsedItems = [];
+  if (isExcel) parsedItems = parseBoqExcel(fs.existsSync(newPath) ? newPath : req.file.path);
+
+  // Ensure a PO exists for this business_book so boq_file_link can be stored
+  let po = db.prepare(
+    'SELECT id, boq_file_link FROM purchase_orders WHERE business_book_id=? ORDER BY created_at DESC LIMIT 1'
+  ).get(bbId);
+  if (!po) {
+    const stubNum = `AUTO-${bbId}-${Date.now().toString().slice(-6)}`;
+    const r = db.prepare(
+      `INSERT INTO purchase_orders (business_book_id, po_number, po_date, boq_file_link, site_engineer_id, site_engineer_ids, crm_name, created_by)
+       VALUES (?, ?, DATE('now'), ?, ?, ?, ?, ?)`
+    ).run(bbId, stubNum, fileUrl, req.user.id, String(req.user.id), 'Auto', req.user.id);
+    po = { id: r.lastInsertRowid, boq_file_link: fileUrl };
+  } else {
+    db.prepare('UPDATE purchase_orders SET boq_file_link=? WHERE id=?').run(fileUrl, po.id);
+  }
+
+  // Replace po_items for this business_book with the parsed set
+  let savedCount = 0;
+  if (parsedItems.length > 0) {
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM po_items WHERE business_book_id=?').run(bbId);
+      const ins = db.prepare(
+        'INSERT INTO po_items (business_book_id, description, quantity, unit, rate, amount) VALUES (?,?,?,?,?,?)'
+      );
+      for (const it of parsedItems) {
+        ins.run(bbId, it.description, it.boq_qty, it.unit || 'nos', 0, 0);
+        savedCount++;
+      }
+    });
+    tx();
+  }
+
+  res.json({ message: 'BOQ saved', file_url: fileUrl, items_saved: savedCount, parsed_items_count: parsedItems.length, business_book_id: bbId, po_id: po.id });
+});
+
 module.exports = router;

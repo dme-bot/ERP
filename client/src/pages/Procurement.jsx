@@ -20,6 +20,7 @@ export default function Procurement() {
   const [boqItems, setBoqItems] = useState([]); // BOQ items for the currently-selected site
   const [boqLoading, setBoqLoading] = useState(false);
   const [boqDiag, setBoqDiag] = useState(null); // backend diagnostic when BOQ is empty/partial
+  const [uploadingBoq, setUploadingBoq] = useState(false);
   const [sites, setSites] = useState([]);         // unique site names (Business Book)
   const [employees, setEmployees] = useState([]); // for "Raised By" dropdown
   const [modal, setModal] = useState(false);
@@ -40,11 +41,8 @@ export default function Procurement() {
   // When the site changes, pull BOQ items for that site and reset any picked items.
   // Response shape: { items: [...], diagnostic?: {reason, message} }. We surface
   // the diagnostic message in the UI so the raiser sees exactly what to fix.
-  const handleSiteChange = (siteName) => {
-    setForm(f => ({ ...f, site_name: siteName || '' }));
-    setIndentItems([{ ...EMPTY_ITEM }]);
-    setBoqDiag(null);
-    if (!siteName) { setBoqItems([]); return; }
+  const reloadBoq = (siteName) => {
+    if (!siteName) { setBoqItems([]); setBoqDiag(null); return; }
     setBoqLoading(true);
     api.get('/procurement/boq-items', { params: { site_name: siteName } })
       .then(r => {
@@ -56,6 +54,29 @@ export default function Procurement() {
       })
       .catch(() => { setBoqItems([]); setBoqDiag(null); })
       .finally(() => setBoqLoading(false));
+  };
+  const handleSiteChange = (siteName) => {
+    setForm(f => ({ ...f, site_name: siteName || '' }));
+    setIndentItems([{ ...EMPTY_ITEM }]);
+    setBoqDiag(null);
+    reloadBoq(siteName);
+  };
+
+  // Inline BOQ upload — lets mam attach / replace the BOQ for the chosen
+  // site without leaving the Raise Indent modal. Works for all 23+ projects
+  // that might be missing items in the DB.
+  const uploadBoqForSite = async (file) => {
+    if (!form.site_name) return toast.error('Pick a site first');
+    setUploadingBoq(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('site_name', form.site_name);
+      const r = await api.post('/procurement/upload-boq-for-site', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success(`BOQ saved — ${r.data.items_saved} items`);
+      reloadBoq(form.site_name);
+    } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
+    setUploadingBoq(false);
   };
 
   // Picking a BOQ item for this row — fills description / unit / type / make
@@ -331,8 +352,14 @@ export default function Procurement() {
             <div className="border-2 border-dashed border-amber-300 rounded-lg p-4 text-sm text-amber-700 bg-amber-50">
               <p className="font-semibold mb-1">No BOQ items found for <b>{form.site_name}</b>.</p>
               {boqDiag
-                ? <p className="text-xs">{boqDiag.message}</p>
-                : <p className="text-xs">Ensure the site has a PO with a BOQ uploaded in Orders first.</p>}
+                ? <p className="text-xs mb-3">{boqDiag.message}</p>
+                : <p className="text-xs mb-3">Upload the BOQ for this site below to continue.</p>}
+              <label className={`btn btn-primary inline-flex items-center gap-2 cursor-pointer text-xs ${uploadingBoq ? 'opacity-60 pointer-events-none' : ''}`}>
+                📎 {uploadingBoq ? 'Uploading…' : 'Upload BOQ Here'}
+                <input type="file" accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" disabled={uploadingBoq}
+                  onChange={e => { const f = e.target.files[0]; if (f) uploadBoqForSite(f); e.target.value = ''; }} />
+              </label>
+              <p className="text-[10px] text-amber-600 mt-2">Excel will auto-fill items; PDF/image just attaches the file.</p>
             </div>
           ) : (
             <>
