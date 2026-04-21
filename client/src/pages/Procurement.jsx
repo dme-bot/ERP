@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
 
-const EMPTY_ITEM = { item_master_id: '', description: '', make: '', quantity: 1, unit: 'nos', item_type: '' };
+const EMPTY_ITEM = { po_item_id: '', item_master_id: '', description: '', make: '', quantity: 1, unit: 'nos', item_type: '' };
 
 export default function Procurement() {
   const { canDelete, user } = useAuth();
@@ -17,7 +17,8 @@ export default function Procurement() {
   const [purchaseBills, setPurchaseBills] = useState([]);
   const [deliveryNotes, setDeliveryNotes] = useState([]);
   const [vendors, setVendors] = useState([]);
-  const [masterItems, setMasterItems] = useState([]);
+  const [boqItems, setBoqItems] = useState([]); // BOQ items for the currently-selected site
+  const [boqLoading, setBoqLoading] = useState(false);
   const [sites, setSites] = useState([]);         // unique site names (Business Book)
   const [employees, setEmployees] = useState([]); // for "Raised By" dropdown
   const [modal, setModal] = useState(false);
@@ -30,24 +31,36 @@ export default function Procurement() {
     api.get('/procurement/purchase-bills').then(r => setPurchaseBills(r.data));
     api.get('/procurement/delivery-notes').then(r => setDeliveryNotes(r.data));
     api.get('/procurement/vendors').then(r => setVendors(r.data));
-    api.get('/item-master/dropdown').then(r => setMasterItems(r.data || [])).catch(() => setMasterItems([]));
     api.get('/procurement/sites').then(r => setSites(r.data || [])).catch(() => setSites([]));
     api.get('/hr/employees').then(r => setEmployees((r.data || []).filter(e => !e.status || e.status === 'active'))).catch(() => setEmployees([]));
   };
   useEffect(() => { load(); }, []);
 
-  // Picking an item from the master auto-fills description / unit / type / make.
+  // When the site changes, pull BOQ items for that site and reset any picked items
+  const handleSiteChange = (siteName) => {
+    setForm(f => ({ ...f, site_name: siteName || '' }));
+    setIndentItems([{ ...EMPTY_ITEM }]);
+    if (!siteName) { setBoqItems([]); return; }
+    setBoqLoading(true);
+    api.get('/procurement/boq-items', { params: { site_name: siteName } })
+      .then(r => setBoqItems(r.data || []))
+      .catch(() => setBoqItems([]))
+      .finally(() => setBoqLoading(false));
+  };
+
+  // Picking a BOQ item for this row — fills description / unit / type / make.
   // Rate and vendor are intentionally NOT captured at indent stage — purchase
-  // team sets those later. Make is pre-filled from the master but stays editable.
-  const pickMasterItem = (i, item) => {
+  // team sets those later. Make stays editable so the raiser can override.
+  const pickBoqItem = (i, item) => {
     const n = [...indentItems];
     n[i] = {
       ...n[i],
-      item_master_id: item?.id || '',
-      description: item ? [item.item_name, item.specification, item.size].filter(Boolean).join(' / ') : '',
-      unit: item?.uom?.toLowerCase() || n[i].unit,
-      item_type: item?.type || '',
-      make: item?.make || n[i].make || '',
+      po_item_id: item?.id || '',
+      item_master_id: item?.item_master_id || '',
+      description: item?.description || '',
+      unit: (item?.unit || n[i].unit || 'nos').toString().toLowerCase(),
+      item_type: item?.item_type || '',
+      make: item?.item_make || n[i].make || '',
     };
     setIndentItems(n);
   };
@@ -56,8 +69,8 @@ export default function Procurement() {
     e.preventDefault();
     if (!form.site_name) return toast.error('Site Name is required');
     if (!form.raised_by_name) return toast.error('Raised By is required');
-    const clean = indentItems.filter(it => it.item_master_id);
-    if (clean.length === 0) return toast.error('Pick at least one item from Item Master');
+    const clean = indentItems.filter(it => it.po_item_id || it.item_master_id);
+    if (clean.length === 0) return toast.error('Pick at least one BOQ item for this site');
     try {
       await api.post('/procurement/indents', {
         site_name: form.site_name,
@@ -134,7 +147,7 @@ export default function Procurement() {
               {user?.role === 'admin' && (
                 <button onClick={wipeData} className="btn btn-danger text-xs flex items-center gap-1" title="Admin: delete all indents, POs, bills, dispatches"><FiTrash2 size={13} /> Wipe All</button>
               )}
-              <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Raise Indent</button>
+              <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setBoqItems([]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Raise Indent</button>
             </div>
           </div>
           <div className="card p-0 overflow-hidden"><table>
@@ -269,9 +282,13 @@ export default function Procurement() {
                 value={form.site_name || null}
                 valueKey="id" displayKey="label"
                 placeholder="Search site from Business Book…"
-                onChange={(s) => setForm({ ...form, site_name: s?.id || '' })}
+                onChange={(s) => handleSiteChange(s?.id || '')}
               />
-              <p className="text-[10px] text-gray-400 mt-0.5">Unique sites pulled from the Business Book master.</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                {form.site_name
+                  ? (boqLoading ? 'Loading BOQ…' : `${boqItems.length} BOQ item${boqItems.length === 1 ? '' : 's'} available for this site`)
+                  : 'Pick a site first — its BOQ items will load below.'}
+              </p>
             </div>
             <div>
               <label className="label">Raised By *</label>
@@ -285,47 +302,65 @@ export default function Procurement() {
             </div>
           </div>
 
-          <h4 className="font-semibold text-sm">Items <span className="text-gray-400 font-normal">(pick from Item Master — "item wise sheet")</span></h4>
-          <div className="space-y-2">
-            <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1">
-              <div className="col-span-5">Item (Item Master)</div>
-              <div className="col-span-2">Make</div>
-              <div>Qty</div>
-              <div>Unit</div>
-              <div className="col-span-2">Type</div>
-              <div></div>
+          <h4 className="font-semibold text-sm">
+            Items <span className="text-gray-400 font-normal">(pick from this site's BOQ — "item wise sheet")</span>
+          </h4>
+          {!form.site_name ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center text-sm text-gray-500 bg-gray-50">
+              Pick a site above to load its BOQ items.
             </div>
-            {indentItems.map((item, i) => {
-              const t = String(item.item_type || '').toUpperCase();
-              const typeClass = t === 'FOC' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : t === 'RGP' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                : t === 'PO' ? 'bg-red-50 text-red-700 border-red-200'
-                : 'bg-gray-50 text-gray-500 border-gray-200';
-              return (
-                <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                  <div className="col-span-5">
-                    <SearchableSelect
-                      options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}`, ...m }))}
-                      value={item.item_master_id || null}
-                      valueKey="id" displayKey="label"
-                      placeholder="Search item…"
-                      onChange={(m) => pickMasterItem(i, m)}
-                    />
-                  </div>
-                  <input className="input col-span-2 text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
-                  <input className="input text-sm" type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
-                  <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly />
-                  <div className={`col-span-2 text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>
-                    {t || '—'}
-                  </div>
-                  <button type="button" onClick={() => setIndentItems(indentItems.filter((_, x) => x !== i))} className="p-1 text-gray-300 hover:text-red-600 justify-self-center" title="Remove row">
-                    {indentItems.length > 1 && <FiTrash2 size={14} />}
-                  </button>
+          ) : boqItems.length === 0 && !boqLoading ? (
+            <div className="border-2 border-dashed border-amber-300 rounded-lg p-4 text-center text-sm text-amber-700 bg-amber-50">
+              No BOQ items found for <b>{form.site_name}</b>. Ensure the site has a PO with a BOQ uploaded in Orders first.
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1">
+                  <div className="col-span-5">BOQ Item</div>
+                  <div className="col-span-2">Make</div>
+                  <div>Qty</div>
+                  <div>Unit</div>
+                  <div className="col-span-2">Type</div>
+                  <div></div>
                 </div>
-              );
-            })}
-          </div>
-          <button type="button" onClick={() => setIndentItems([...indentItems, { ...EMPTY_ITEM }])} className="btn btn-secondary text-xs">+ Add Item</button>
+                {indentItems.map((item, i) => {
+                  const t = String(item.item_type || '').toUpperCase();
+                  const typeClass = t === 'FOC' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : t === 'RGP' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : t === 'PO' ? 'bg-red-50 text-red-700 border-red-200'
+                    : 'bg-gray-50 text-gray-500 border-gray-200';
+                  return (
+                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                      <div className="col-span-5">
+                        <SearchableSelect
+                          options={boqItems.map(b => ({
+                            id: b.id,
+                            label: `${b.item_code ? '[' + b.item_code + '] ' : ''}${b.description}${b.boq_qty ? ` · BOQ ${b.boq_qty}` : ''}`,
+                            ...b,
+                          }))}
+                          value={item.po_item_id || null}
+                          valueKey="id" displayKey="label"
+                          placeholder="Search BOQ item…"
+                          onChange={(b) => pickBoqItem(i, b)}
+                        />
+                      </div>
+                      <input className="input col-span-2 text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
+                      <input className="input text-sm" type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
+                      <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly />
+                      <div className={`col-span-2 text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>
+                        {t || '—'}
+                      </div>
+                      <button type="button" onClick={() => setIndentItems(indentItems.filter((_, x) => x !== i))} className="p-1 text-gray-300 hover:text-red-600 justify-self-center" title="Remove row">
+                        {indentItems.length > 1 && <FiTrash2 size={14} />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <button type="button" onClick={() => setIndentItems([...indentItems, { ...EMPTY_ITEM }])} className="btn btn-secondary text-xs">+ Add Item</button>
+            </>
+          )}
           <div><label className="label">Notes</label><textarea className="input" rows="2" value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Any remarks for Purchase…" /></div>
           <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create Indent</button></div>
         </form>

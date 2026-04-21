@@ -1163,6 +1163,8 @@ function initializeDatabase() {
     ['indents', 'raised_by_name TEXT'],// employee who raised the indent
     // Item classification mirrored from item_master.type (PO / FOC / RGP)
     ['indent_items', 'item_type TEXT'],
+    // Links this indent line back to the site BOQ row it was picked from
+    ['indent_items', 'po_item_id INTEGER REFERENCES po_items(id)'],
   ];
   // Unique index on username — allows NULLs for legacy rows while enforcing uniqueness on set values
   try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL'); } catch (e) {}

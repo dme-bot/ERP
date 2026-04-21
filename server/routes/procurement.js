@@ -89,6 +89,31 @@ router.get('/sites', (req, res) => {
   res.json(rows.map(r => r.name));
 });
 
+// BOQ items for a given site — the "item wise sheet" mam referred to.
+// Walks sites with this exact name → business_book rows → po_items. Also
+// joins item_master if the po_item row is linked (BOQ items often aren't,
+// so we return the free-text description regardless).
+router.get('/boq-items', (req, res) => {
+  const siteName = String(req.query.site_name || '').trim();
+  if (!siteName) return res.status(400).json({ error: 'site_name is required' });
+  const db = getDb();
+  const bbIds = db.prepare(
+    `SELECT DISTINCT s.business_book_id FROM sites s
+     WHERE s.name = ? AND s.business_book_id IS NOT NULL`
+  ).all(siteName).map(r => r.business_book_id);
+  if (bbIds.length === 0) return res.json([]);
+  const placeholders = bbIds.map(() => '?').join(',');
+  const items = db.prepare(
+    `SELECT pi.id, pi.description, pi.unit, pi.quantity as boq_qty, pi.rate as boq_rate,
+            pi.item_master_id, im.item_code, im.type as item_type, im.make as item_make
+     FROM po_items pi
+     LEFT JOIN item_master im ON im.id = pi.item_master_id
+     WHERE pi.business_book_id IN (${placeholders})
+     ORDER BY pi.sr_no, pi.id`
+  ).all(...bbIds);
+  res.json(items);
+});
+
 router.get('/indents', (req, res) => {
   res.json(getDb().prepare(`SELECT i.*, u.name as created_by_name, au.name as approved_by_name FROM indents i
     LEFT JOIN users u ON i.created_by=u.id LEFT JOIN users au ON i.approved_by=au.id ORDER BY i.created_at DESC`).all());
@@ -111,33 +136,46 @@ router.post('/indents', (req, res) => {
   // classification flags (PO / FOC / RGP) are authoritative and can't be
   // forged by the client. Vendor/make/rate are NOT captured at indent stage
   // — the purchase team sets them later via vendor-rates.
+  // Indent items are now picked from the site BOQ (po_items). We look that
+  // row up on the server to derive authoritative description/unit, and fall
+  // back to item_master if the BOQ row was linked to the catalogue.
+  const getPoItem = db.prepare('SELECT description, unit, quantity as boq_qty, item_master_id FROM po_items WHERE id=?');
   const getMaster = db.prepare('SELECT item_name, specification, size, uom, type, make FROM item_master WHERE id=?');
   const insertItem = db.prepare(
     `INSERT INTO indent_items
-      (indent_id, item_master_id, description, make, quantity, unit, rate, amount, item_type, is_foc, is_tool)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+      (indent_id, po_item_id, item_master_id, description, make, quantity, unit, rate, amount, item_type, is_foc, is_tool)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
   );
   for (const i of (items || [])) {
     let desc = i.description || '';
     let unit = i.unit || 'nos';
     let itemType = null;
     let make = i.make || '';
-    if (i.item_master_id) {
-      const m = getMaster.get(i.item_master_id);
+    let masterId = i.item_master_id || null;
+
+    if (i.po_item_id) {
+      const p = getPoItem.get(i.po_item_id);
+      if (p) {
+        desc = p.description || desc;
+        unit = p.unit || unit;
+        if (!masterId && p.item_master_id) masterId = p.item_master_id;
+      }
+    }
+    if (masterId) {
+      const m = getMaster.get(masterId);
       if (m) {
-        desc = [m.item_name, m.specification, m.size].filter(Boolean).join(' / ');
-        unit = m.uom || unit;
-        itemType = m.type || null;
+        itemType = m.type || itemType;
         if (!make && m.make) make = m.make;
       }
     }
+
     const qty = +i.quantity || 0;
     // Keep legacy is_foc / is_tool in sync with the new item_type so older
     // reports still work.
     const foc = String(itemType || '').toUpperCase() === 'FOC' ? 1 : 0;
     const tool = String(itemType || '').toUpperCase() === 'RGP' ? 1 : 0;
     insertItem.run(
-      r.lastInsertRowid, i.item_master_id || null, desc, make, qty, unit, 0, 0, itemType, foc, tool,
+      r.lastInsertRowid, i.po_item_id || null, masterId, desc, make, qty, unit, 0, 0, itemType, foc, tool,
     );
   }
   res.status(201).json({ id: r.lastInsertRowid, indent_number: indentNum });
