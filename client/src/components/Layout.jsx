@@ -19,7 +19,6 @@ const menuItems = [
   { path: '/payment-required', label: 'Payment Required', icon: LuIndianRupee, module: 'payment_required' },
   { path: '/attendance', label: 'Attendance', icon: FiCheckSquare, module: 'attendance' },
   { path: '/collections', label: 'Collection Engine', icon: FiCreditCard, module: 'collections' },
-  { path: '/indent-fms', label: 'Indent to Payment', icon: FiLayers, module: 'indent_fms' },
   { path: '/dpr', label: 'DPR', icon: FiBarChart2, module: 'dpr' },
   { path: '/delegations', label: 'Delegations', icon: FiCheckSquare, module: 'delegations' },
   { path: '/leads', label: 'Leads / CRM', icon: FiTarget, module: 'leads' },
