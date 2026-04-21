@@ -189,17 +189,29 @@ router.get('/checklists', (req, res) => {
     LEFT JOIN users u1 ON c.assigned_to=u1.id LEFT JOIN users u2 ON c.created_by=u2.id ORDER BY c.created_at DESC`).all());
 });
 
+// Title is derived from the first line (80 chars) of the description since
+// the UI no longer asks for it separately.
+const deriveTitle = (title, description) => {
+  if (title && title.trim()) return title.trim();
+  const d = String(description || '').trim();
+  return d.split(/\r?\n/)[0].slice(0, 80).trim() || 'Checklist';
+};
+
 router.post('/checklists', (req, res) => {
   const { title, description, frequency, due_date, assigned_to } = req.body;
+  const t = deriveTitle(title, description);
+  const desc = String(description || '').trim();
+  if (!desc && !title) return res.status(400).json({ error: 'Description is required' });
   const r = getDb().prepare('INSERT INTO checklists (title,description,frequency,due_date,assigned_to,created_by) VALUES (?,?,?,?,?,?)')
-    .run(title, description, frequency, due_date, assigned_to, req.user.id);
+    .run(t, desc, frequency, due_date, assigned_to || null, req.user.id);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
 router.put('/checklists/:id', (req, res) => {
   const { status, title, description, frequency, due_date, assigned_to } = req.body;
+  const t = deriveTitle(title, description);
   getDb().prepare('UPDATE checklists SET status=?,title=?,description=?,frequency=?,due_date=?,assigned_to=? WHERE id=?')
-    .run(status, title, description, frequency, due_date, assigned_to, req.params.id);
+    .run(status, t, description, frequency, due_date, assigned_to || null, req.params.id);
   res.json({ message: 'Updated' });
 });
 

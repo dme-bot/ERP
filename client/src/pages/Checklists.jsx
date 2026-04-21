@@ -29,34 +29,33 @@ export default function Checklists() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold">Checklists & Recurring Tasks</h3>
-        <button onClick={() => { setEditing(null); setForm({ title: '', description: '', frequency: 'monthly', due_date: '', assigned_to: '' }); setModal(true); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Checklist</button>
+        <button onClick={() => { setEditing(null); setForm({ description: '', frequency: 'monthly', due_date: '', assigned_to: '' }); setModal(true); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Checklist</button>
       </div>
       <div className="card p-0 overflow-hidden"><table>
-        <thead><tr><th>Title</th><th>Description</th><th>Frequency</th><th>Due Date</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Task</th><th>Frequency</th><th>Due Date</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           {checklists.map(c => (
             <tr key={c.id}>
-              <td className="font-medium">{c.title}</td><td className="max-w-xs truncate">{c.description}</td>
-              <td className="capitalize">{c.frequency}</td><td>{c.due_date}</td><td>{c.assigned_to_name}</td>
+              <td className="font-medium max-w-md"><div className="line-clamp-2">{c.description || c.title}</div></td>
+              <td className="capitalize">{c.frequency}</td><td>{c.due_date}</td><td>{c.assigned_to_name || <span className="text-gray-400">Everyone</span>}</td>
               <td><StatusBadge status={c.status} /></td>
               <td><div className="flex gap-1">
                 <button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>
                 {canDelete('checklists') && <button onClick={async () => {
-                  if (!confirm(`Delete checklist "${c.title}"?`)) return;
+                  if (!confirm(`Delete this checklist?`)) return;
                   try { await api.delete(`/hr/checklists/${c.id}`); toast.success('Deleted'); load(); }
                   catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
                 }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
               </div></td>
             </tr>
           ))}
-          {checklists.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No checklists yet</td></tr>}
+          {checklists.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No checklists yet</td></tr>}
         </tbody>
       </table></div>
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title={editing ? 'Edit Checklist' : 'Add Checklist'}>
         <form onSubmit={save} className="space-y-4">
-          <div><label className="label">Title *</label><input className="input" value={form.title || ''} onChange={e => setForm({...form, title: e.target.value})} required /></div>
-          <div><label className="label">Description</label><textarea className="input" rows="2" value={form.description || ''} onChange={e => setForm({...form, description: e.target.value})} /></div>
+          <div><label className="label">Task Description *</label><textarea className="input" rows="3" required value={form.description || ''} onChange={e => setForm({...form, description: e.target.value})} placeholder="What needs to be done…" /></div>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="label">Frequency</label><select className="select" value={form.frequency || 'monthly'} onChange={e => setForm({...form, frequency: e.target.value})}>{['daily','weekly','monthly','quarterly','yearly','once'].map(f => <option key={f} value={f}>{f}</option>)}</select></div>
             <div><label className="label">Due Date</label><input className="input" type="date" value={form.due_date || ''} onChange={e => setForm({...form, due_date: e.target.value})} /></div>
