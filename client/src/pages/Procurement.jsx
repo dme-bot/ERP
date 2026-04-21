@@ -33,7 +33,11 @@ export default function Procurement() {
     api.get('/procurement/purchase-bills').then(r => setPurchaseBills(r.data));
     api.get('/procurement/delivery-notes').then(r => setDeliveryNotes(r.data));
     api.get('/procurement/vendors').then(r => setVendors(r.data));
-    api.get('/procurement/sites').then(r => setSites(r.data || [])).catch(() => setSites([]));
+    api.get('/procurement/sites').then(r => {
+      // Response may be legacy array of strings, or new [{name, lead_no}]
+      const list = (r.data || []).map(x => typeof x === 'string' ? { name: x } : x);
+      setSites(list);
+    }).catch(() => setSites([]));
     api.get('/hr/employees').then(r => setEmployees((r.data || []).filter(e => !e.status || e.status === 'active'))).catch(() => setEmployees([]));
   };
   useEffect(() => { load(); }, []);
@@ -41,19 +45,30 @@ export default function Procurement() {
   // When the site changes, pull BOQ items for that site and reset any picked items.
   // Response shape: { items: [...], diagnostic?: {reason, message} }. We surface
   // the diagnostic message in the UI so the raiser sees exactly what to fix.
-  const reloadBoq = (siteName) => {
+  const loadBoq = (siteName) => api.get('/procurement/boq-items', { params: { site_name: siteName } })
+    .then(r => {
+      const payload = r.data;
+      const list = Array.isArray(payload) ? payload : (payload?.items || []);
+      const diag = Array.isArray(payload) ? null : (payload?.diagnostic || null);
+      setBoqItems(list); setBoqDiag(diag);
+      return { list, diag };
+    });
+  const reloadBoq = async (siteName) => {
     if (!siteName) { setBoqItems([]); setBoqDiag(null); return; }
     setBoqLoading(true);
-    api.get('/procurement/boq-items', { params: { site_name: siteName } })
-      .then(r => {
-        const payload = r.data;
-        // Handle both legacy array response and new { items, diagnostic } shape
-        const list = Array.isArray(payload) ? payload : (payload?.items || []);
-        setBoqItems(list);
-        setBoqDiag(Array.isArray(payload) ? null : (payload?.diagnostic || null));
-      })
-      .catch(() => { setBoqItems([]); setBoqDiag(null); })
-      .finally(() => setBoqLoading(false));
+    try {
+      const { list, diag } = await loadBoq(siteName);
+      // Auto-fetch silently if empty and the reason looks recoverable — so
+      // mam doesn't even need to click 'Fetch Items'. Matches DPR UX where
+      // picking a site just populates its items.
+      if (list.length === 0 && (!diag || diag.reason === 'fallback_parsed' || diag.reason === 'no_boq_file' || diag.reason === 'boq_parse_empty' || diag.reason === 'boq_file_missing')) {
+        try {
+          await api.post('/procurement/fetch-existing-boq', { site_name: siteName });
+          await loadBoq(siteName);
+        } catch (e) { /* stay on the empty-state banner */ }
+      }
+    } catch { setBoqItems([]); setBoqDiag(null); }
+    setBoqLoading(false);
   };
   const handleSiteChange = (siteName) => {
     setForm(f => ({ ...f, site_name: siteName || '' }));
@@ -330,7 +345,7 @@ export default function Procurement() {
             <div>
               <label className="label">Site Name *</label>
               <SearchableSelect
-                options={sites.map(s => ({ id: s, label: s }))}
+                options={sites.map(s => ({ id: s.name, label: `${s.lead_no ? '[' + s.lead_no + '] ' : ''}${s.name}` }))}
                 value={form.site_name || null}
                 valueKey="id" displayKey="label"
                 placeholder="Search site from Business Book…"

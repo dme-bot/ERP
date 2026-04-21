@@ -145,16 +145,18 @@ router.put('/vendor-rates/:id/approve', (req, res) => {
 });
 
 // Indents
-// Unique site names from Business Book — used for the indent "Site Name"
-// dropdown so the raiser picks from the master instead of free-typing.
+// Unique sites for the indent "Site Name" dropdown. Returns name +
+// lead_no so the UI can show '[SEPL20001] CONSERN PHARMA' like DPR does.
 router.get('/sites', (req, res) => {
   const rows = getDb().prepare(
-    `SELECT DISTINCT s.name
+    `SELECT s.name, MAX(bb.lead_no) as lead_no
      FROM sites s
+     LEFT JOIN business_book bb ON s.business_book_id = bb.id
      WHERE s.name IS NOT NULL AND TRIM(s.name) != ''
+     GROUP BY s.name
      ORDER BY s.name COLLATE NOCASE`
   ).all();
-  res.json(rows.map(r => r.name));
+  res.json(rows);
 });
 
 // BOQ items for a given site — the "item wise sheet" mam referred to.
