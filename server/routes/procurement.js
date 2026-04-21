@@ -138,9 +138,44 @@ router.get('/boq-items', (req, res) => {
   res.json(result);
 });
 
+// List indents with a BOQ file link derived from the site's Client PO.
+// The mapping is: indent.site_name → sites.business_book_id → purchase_orders.
+// boq_file_link (pick the most recent PO for that business_book).
 router.get('/indents', (req, res) => {
-  res.json(getDb().prepare(`SELECT i.*, u.name as created_by_name, au.name as approved_by_name FROM indents i
-    LEFT JOIN users u ON i.created_by=u.id LEFT JOIN users au ON i.approved_by=au.id ORDER BY i.created_at DESC`).all());
+  const db = getDb();
+  const indents = db.prepare(
+    `SELECT i.*, u.name as created_by_name, au.name as approved_by_name
+     FROM indents i
+     LEFT JOIN users u ON i.created_by = u.id
+     LEFT JOIN users au ON i.approved_by = au.id
+     ORDER BY i.created_at DESC`
+  ).all();
+
+  // One BOQ-link lookup per unique site_name — cached in the loop so we
+  // don't hit the DB once per indent when many share the same site.
+  const boqCache = new Map();
+  const findBoq = (siteName) => {
+    if (!siteName) return null;
+    if (boqCache.has(siteName)) return boqCache.get(siteName);
+    const row = db.prepare(
+      `SELECT po.boq_file_link
+       FROM purchase_orders po
+       WHERE po.boq_file_link IS NOT NULL AND po.boq_file_link != ''
+         AND po.business_book_id IN (
+           SELECT DISTINCT s.business_book_id FROM sites s
+             WHERE s.name = ? AND s.business_book_id IS NOT NULL
+           UNION
+           SELECT id FROM business_book
+             WHERE project_name = ? OR company_name = ?
+         )
+       ORDER BY po.created_at DESC LIMIT 1`
+    ).get(siteName, siteName, siteName);
+    const link = row?.boq_file_link || null;
+    boqCache.set(siteName, link);
+    return link;
+  };
+
+  res.json(indents.map(i => ({ ...i, boq_file_link: findBoq(i.site_name || i.client_name) })));
 });
 
 router.post('/indents', (req, res) => {

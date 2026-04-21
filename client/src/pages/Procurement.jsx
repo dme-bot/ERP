@@ -5,7 +5,7 @@ import SearchableSelect from '../components/SearchableSelect';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiPlus, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiCheck, FiX, FiTrash2, FiExternalLink } from 'react-icons/fi';
 
 const EMPTY_ITEM = { po_item_id: '', item_master_id: '', description: '', make: '', quantity: 1, unit: 'nos', item_type: '', boq_qty: 0, remaining_qty: null };
 
@@ -154,7 +154,7 @@ export default function Procurement() {
             </div>
           </div>
           <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>Indent No</th><th>Date</th><th>Site</th><th>Raised By</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Indent No</th><th>Date</th><th>Site</th><th>Raised By</th><th>BOQ</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {indents.map(i => (
                 <tr key={i.id}>
@@ -162,6 +162,11 @@ export default function Procurement() {
                   <td className="text-xs text-gray-600">{i.created_at ? new Date(i.created_at).toLocaleString() : (i.indent_date || '—')}</td>
                   <td>{i.site_name || i.client_name || <span className="text-gray-400">—</span>}</td>
                   <td>{i.raised_by_name || i.created_by_name}</td>
+                  <td>
+                    {i.boq_file_link
+                      ? <a href={i.boq_file_link} target="_blank" rel="noreferrer" className="text-red-600 hover:underline flex items-center gap-1 text-xs"><FiExternalLink size={12} /> View</a>
+                      : <span className="text-gray-400 text-xs">—</span>}
+                  </td>
                   <td><StatusBadge status={i.status} /></td>
                   <td>
                     <div className="flex gap-1 items-center">
@@ -181,7 +186,7 @@ export default function Procurement() {
                   </td>
                 </tr>
               ))}
-              {indents.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No indents yet</td></tr>}
+              {indents.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No indents yet</td></tr>}
             </tbody>
           </table></div>
         </>
