@@ -84,8 +84,9 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* My Tasks & Today's Checklists — personal widgets */}
-      {(myPendingTasks.length > 0 || todayChecklists.length > 0) && (
+      {/* My Tasks & Today's Checklists — always visible so users know where
+          to upload proof even when nothing is pending. */}
+      {(
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* My pending delegations */}
           <div className="card">
@@ -163,6 +164,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* (Widget block now always rendered — the matching ) closes here) */}
 
       {/* Recent Data */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

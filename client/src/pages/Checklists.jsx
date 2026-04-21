@@ -4,19 +4,45 @@ import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiUpload, FiExternalLink } from 'react-icons/fi';
 
 export default function Checklists() {
-  const { canDelete, isAdmin } = useAuth();
+  const { user, canDelete, isAdmin } = useAuth();
   const [checklists, setChecklists] = useState([]);
   const [users, setUsers] = useState([]);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [personFilter, setPersonFilter] = useState('');
+  // Today's completions keyed by checklist_id — lets us mark rows green + show proof link inline
+  const [todayDone, setTodayDone] = useState({});
+  const [uploadingId, setUploadingId] = useState(null);
 
-  const load = () => api.get('/hr/checklists').then(r => setChecklists(r.data));
+  const load = () => {
+    api.get('/hr/checklists').then(r => setChecklists(r.data));
+    // Whether each of my own checklists is already done today (used for the inline upload button)
+    api.get('/hr/checklists/my-today').then(r => {
+      const map = {};
+      (r.data || []).forEach(c => { if (c.completion_id) map[c.id] = { proof_url: c.proof_url, submitted_at: c.submitted_at }; });
+      setTodayDone(map);
+    }).catch(() => setTodayDone({}));
+  };
   useEffect(() => { load(); api.get('/auth/users').then(r => setUsers(r.data)); }, []);
+
+  // Inline "Upload Proof" — picks a file, uploads to /upload, then marks the
+  // checklist complete for today with that URL. Appears only on rows assigned
+  // to the logged-in user.
+  const uploadProof = async (c, file) => {
+    setUploadingId(c.id);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const up = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await api.post(`/hr/checklists/${c.id}/complete`, { proof_url: up.data.url });
+      toast.success(`Proof uploaded for "${c.description || c.title}"`);
+      load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
+    setUploadingId(null);
+  };
 
   // Group checklists by assignee so the admin view shows one section per person.
   // Sections are ordered alphabetically by assignee name.
@@ -89,14 +115,27 @@ export default function Checklists() {
                       : <span>{c.due_date || '—'}{c.due_time ? ` · ${c.due_time}` : ''}</span>}
                   </td>
                   <td><StatusBadge status={c.status} /></td>
-                  <td><div className="flex gap-1">
+                  <td><div className="flex gap-1 flex-wrap items-center">
+                    {/* Inline upload-proof for the assignee. Green badge when already done today. */}
+                    {c.assigned_to === user?.id && (
+                      todayDone[c.id] ? (
+                        <span className="text-[10px] text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded">
+                          ✓ Done today {todayDone[c.id].proof_url && <a href={todayDone[c.id].proof_url} target="_blank" rel="noreferrer" className="text-emerald-800 hover:underline flex items-center gap-0.5"><FiExternalLink size={10} /> proof</a>}
+                        </span>
+                      ) : (
+                        <label className={`btn btn-success text-[11px] px-2 py-1 flex items-center gap-1 cursor-pointer ${uploadingId === c.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                          <FiUpload size={11} /> {uploadingId === c.id ? '...' : 'Upload Proof'}
+                          <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="hidden"
+                            onChange={e => { const f = e.target.files[0]; if (f) uploadProof(c, f); e.target.value = ''; }} />
+                        </label>
+                      )
+                    )}
                     {isAdmin() && <button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>}
                     {isAdmin() && canDelete('checklists') && <button onClick={async () => {
                       if (!confirm(`Delete this checklist?`)) return;
                       try { await api.delete(`/hr/checklists/${c.id}`); toast.success('Deleted'); load(); }
                       catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
                     }} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={14} /></button>}
-                    {!isAdmin() && <span className="text-[10px] text-gray-400">view only</span>}
                   </div></td>
                 </tr>
               ))}
