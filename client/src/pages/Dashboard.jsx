@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../api';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
-import { FiTarget, FiShoppingCart, FiTool, FiAlertCircle, FiUsers, FiCheckSquare, FiUpload, FiClock, FiAlertTriangle, FiExternalLink } from 'react-icons/fi';
+import { FiTarget, FiShoppingCart, FiTool, FiAlertCircle, FiUsers, FiCheckSquare, FiUpload, FiClock, FiAlertTriangle, FiExternalLink, FiCalendar } from 'react-icons/fi';
 import { LuIndianRupee } from 'react-icons/lu';
 
 export default function Dashboard() {
@@ -101,13 +101,16 @@ export default function Dashboard() {
                   <div key={t.id} className={`border rounded-lg p-2.5 ${t.status === 'rejected' ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}`}>
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-gray-800 truncate">{t.title}</p>
+                        <p className="font-semibold text-sm text-gray-800 line-clamp-2">{t.description || t.title}</p>
                         <div className="flex flex-wrap gap-2 text-[10px] text-gray-500 mt-0.5">
                           <span>by {t.assigned_by_name}</span>
                           {t.due_date && <span className="flex items-center gap-1"><FiClock size={10} /> {t.due_date}</span>}
                         </div>
                         {t.status === 'rejected' && t.reject_reason && (
                           <p className="text-[11px] text-red-700 mt-1 flex items-start gap-1"><FiAlertTriangle size={11} className="mt-0.5 flex-shrink-0" /> {t.reject_reason}</p>
+                        )}
+                        {t.extension_status === 'pending' && (
+                          <p className="text-[11px] text-amber-700 mt-1 flex items-start gap-1"><FiCalendar size={11} className="mt-0.5 flex-shrink-0" /> Extension to {t.requested_due_date} — awaiting admin</p>
                         )}
                       </div>
                       <label className={`btn btn-primary text-[11px] px-2 py-1 flex items-center gap-1 cursor-pointer ${uploadingFor === 'del-' + t.id ? 'opacity-60 pointer-events-none' : ''}`}>

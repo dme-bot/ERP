@@ -43,16 +43,72 @@ router.get('/', (req, res) => {
 });
 
 // Create a new delegation. Anyone can create; assigned_by = logged-in user.
+// Title is derived from the first line of the description (first 80 chars)
+// since the UI no longer asks for it separately.
 router.post('/', (req, res) => {
   const { title, description, assigned_to, due_date } = req.body;
-  if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required' });
+  const desc = String(description || '').trim();
+  if (!desc) return res.status(400).json({ error: 'Description is required' });
   if (!assigned_to) return res.status(400).json({ error: 'Assignee is required' });
+  const derivedTitle = (title && title.trim()) || desc.split(/\r?\n/)[0].slice(0, 80).trim() || 'Task';
   const db = getDb();
   const r = db.prepare(
     `INSERT INTO delegations (title, description, assigned_by, assigned_to, due_date)
      VALUES (?, ?, ?, ?, ?)`
-  ).run(title.trim(), description || '', req.user.id, assigned_to, due_date || null);
+  ).run(derivedTitle, desc, req.user.id, assigned_to, due_date || null);
   res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// Assignee requests a due-date extension. Admin (not the assigner) approves.
+router.post('/:id/request-extension', (req, res) => {
+  const { requested_due_date, reason } = req.body;
+  if (!requested_due_date) return res.status(400).json({ error: 'New due date is required' });
+  if (!reason || !reason.trim()) return res.status(400).json({ error: 'Reason is required' });
+  const db = getDb();
+  const d = db.prepare('SELECT * FROM delegations WHERE id=?').get(req.params.id);
+  if (!d) return res.status(404).json({ error: 'Task not found' });
+  if (d.assigned_to !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only the assignee can request an extension' });
+  }
+  if (d.status === 'approved') return res.status(400).json({ error: 'Task already approved — no extension needed' });
+  db.prepare(
+    `UPDATE delegations SET requested_due_date=?, extension_reason=?, extension_status='pending',
+       extension_reviewed_at=NULL, extension_reviewed_by=NULL
+     WHERE id=?`
+  ).run(requested_due_date, reason.trim(), req.params.id);
+  res.json({ message: 'Extension requested — admin will review' });
+});
+
+// Admin-only: approve the pending extension — updates due_date, clears request.
+router.post('/:id/approve-extension', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admin can approve extensions' });
+  const db = getDb();
+  const d = db.prepare('SELECT * FROM delegations WHERE id=?').get(req.params.id);
+  if (!d) return res.status(404).json({ error: 'Task not found' });
+  if (d.extension_status !== 'pending' || !d.requested_due_date) {
+    return res.status(400).json({ error: 'No pending extension to approve' });
+  }
+  db.prepare(
+    `UPDATE delegations SET due_date = requested_due_date,
+       extension_status='approved', extension_reviewed_at=CURRENT_TIMESTAMP, extension_reviewed_by=?
+     WHERE id=?`
+  ).run(req.user.id, req.params.id);
+  res.json({ message: 'Extension approved — due date updated' });
+});
+
+// Admin-only: reject the pending extension.
+router.post('/:id/reject-extension', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admin can reject extensions' });
+  const db = getDb();
+  const d = db.prepare('SELECT * FROM delegations WHERE id=?').get(req.params.id);
+  if (!d) return res.status(404).json({ error: 'Task not found' });
+  if (d.extension_status !== 'pending') return res.status(400).json({ error: 'No pending extension' });
+  db.prepare(
+    `UPDATE delegations SET extension_status='rejected',
+       extension_reviewed_at=CURRENT_TIMESTAMP, extension_reviewed_by=?
+     WHERE id=?`
+  ).run(req.user.id, req.params.id);
+  res.json({ message: 'Extension rejected' });
 });
 
 // Assignee submits proof. Moves status from pending/rejected → submitted.

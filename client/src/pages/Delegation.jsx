@@ -4,7 +4,7 @@ import Modal from '../components/Modal';
 import SearchableSelect from '../components/SearchableSelect';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FiPlus, FiMic, FiMicOff, FiUpload, FiCheck, FiX, FiTrash2, FiExternalLink, FiAlertTriangle, FiClock } from 'react-icons/fi';
+import { FiPlus, FiMic, FiMicOff, FiUpload, FiCheck, FiX, FiTrash2, FiExternalLink, FiAlertTriangle, FiClock, FiCalendar } from 'react-icons/fi';
 
 // Web Speech API — available as SpeechRecognition in Chromium-based browsers
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
@@ -18,9 +18,11 @@ export default function Delegation() {
   const [createModal, setCreateModal] = useState(false);
   const [submitModal, setSubmitModal] = useState(null); // task being submitted
   const [rejectModal, setRejectModal] = useState(null); // task being rejected
+  const [extendModal, setExtendModal] = useState(null); // task: assignee requests more time
   const [form, setForm] = useState({});
   const [submitForm, setSubmitForm] = useState({ proof_url: '', uploading: false });
   const [rejectReason, setRejectReason] = useState('');
+  const [extendForm, setExtendForm] = useState({ requested_due_date: '', reason: '' });
   // Voice input
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
@@ -69,17 +71,40 @@ export default function Delegation() {
   };
 
   const openCreate = () => {
-    setForm({ title: '', description: '', assigned_to: '', due_date: new Date().toISOString().split('T')[0] });
+    setForm({ description: '', assigned_to: '', due_date: new Date().toISOString().split('T')[0] });
     setCreateModal(true);
   };
 
   const save = async (e) => {
     e.preventDefault();
+    if (!String(form.description || '').trim()) return toast.error('Description is required');
     try {
-      await api.post('/delegations', { title: form.title, description: form.description, assigned_to: form.assigned_to, due_date: form.due_date });
+      await api.post('/delegations', { description: form.description, assigned_to: form.assigned_to, due_date: form.due_date });
       toast.success('Task assigned');
       setCreateModal(false); load();
     } catch (err) { toast.error(err.response?.data?.error || 'Failed to create'); }
+  };
+
+  // Extension request / approval (admin)
+  const requestExtension = async (e) => {
+    e.preventDefault();
+    if (!extendForm.requested_due_date) return toast.error('Pick a new date');
+    if (!extendForm.reason.trim()) return toast.error('Reason is required');
+    try {
+      await api.post(`/delegations/${extendModal.id}/request-extension`, extendForm);
+      toast.success('Extension requested — admin will review');
+      setExtendModal(null); setExtendForm({ requested_due_date: '', reason: '' }); load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  };
+  const approveExtension = async (task) => {
+    if (!confirm(`Approve extension to ${task.requested_due_date}?`)) return;
+    try { await api.post(`/delegations/${task.id}/approve-extension`); toast.success('Extension approved'); load(); }
+    catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  };
+  const rejectExtension = async (task) => {
+    if (!confirm(`Reject extension request for "${task.title}"?`)) return;
+    try { await api.post(`/delegations/${task.id}/reject-extension`); toast.success('Extension rejected'); load(); }
+    catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
 
   // Upload proof file then submit
@@ -148,7 +173,6 @@ export default function Delegation() {
       <div className="flex flex-wrap gap-2 text-sm">
         {[
           { id: 'mine', label: 'Assigned to me' },
-          { id: 'given', label: 'I assigned' },
           ...(isAdmin() ? [{ id: 'all', label: 'All (admin)' }] : []),
         ].map(t => (
           <button key={t.id} onClick={() => setScope(t.id)}
@@ -176,11 +200,10 @@ export default function Delegation() {
               <div className="flex flex-wrap justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-bold text-gray-800">{t.title}</h4>
                     {statusBadge(t.status)}
-                    {t.due_date && <span className="text-[11px] text-gray-500 flex items-center gap-1"><FiClock size={11} /> {t.due_date}</span>}
+                    {t.due_date && <span className="text-[11px] text-gray-500 flex items-center gap-1"><FiClock size={11} /> Due {t.due_date}</span>}
                   </div>
-                  {t.description && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{t.description}</p>}
+                  {t.description && <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap font-medium">{t.description}</p>}
                   <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-gray-500">
                     <span>Assigned by <b>{t.assigned_by_name}</b></span>
                     <span>to <b>{t.assigned_to_name}</b></span>
@@ -192,15 +215,36 @@ export default function Delegation() {
                       <span><b>Rejected:</b> {t.reject_reason}</span>
                     </div>
                   )}
+                  {t.extension_status === 'pending' && t.requested_due_date && (
+                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 text-[11px] text-amber-800 flex items-start gap-1.5">
+                      <FiCalendar size={12} className="mt-0.5 flex-shrink-0" />
+                      <span><b>Extension requested:</b> new date {t.requested_due_date}{t.extension_reason ? ` — ${t.extension_reason}` : ''}. Awaiting admin review.</span>
+                    </div>
+                  )}
+                  {t.extension_status === 'rejected' && (
+                    <div className="mt-2 bg-gray-50 border border-gray-200 rounded px-2 py-1.5 text-[11px] text-gray-600 flex items-start gap-1.5">
+                      <FiX size={12} className="mt-0.5 flex-shrink-0" />
+                      <span>Previous extension request was rejected by admin.</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-1 flex-shrink-0">
+                <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
                   {isAssignee && (t.status === 'pending' || t.status === 'rejected') && (
                     <button onClick={() => { setSubmitModal(t); setSubmitForm({ proof_url: '', uploading: false }); }} className="btn btn-success text-xs px-3 py-1 flex items-center gap-1"><FiUpload size={12} /> Submit Proof</button>
+                  )}
+                  {isAssignee && t.status !== 'approved' && t.extension_status !== 'pending' && (
+                    <button onClick={() => { setExtendModal(t); setExtendForm({ requested_due_date: t.due_date || '', reason: '' }); }} className="btn btn-secondary text-xs px-3 py-1 flex items-center gap-1"><FiCalendar size={12} /> Request Extension</button>
                   )}
                   {isAssigner && t.status === 'submitted' && (
                     <>
                       <button onClick={() => approve(t)} className="btn btn-success text-xs px-3 py-1 flex items-center gap-1"><FiCheck size={12} /> Approve</button>
                       <button onClick={() => { setRejectModal(t); setRejectReason(''); }} className="btn btn-danger text-xs px-3 py-1 flex items-center gap-1"><FiX size={12} /> Reject</button>
+                    </>
+                  )}
+                  {isAdmin() && t.extension_status === 'pending' && (
+                    <>
+                      <button onClick={() => approveExtension(t)} className="btn btn-success text-xs px-3 py-1 flex items-center gap-1" title={`Approve extension to ${t.requested_due_date}`}><FiCheck size={12} /> Approve Ext</button>
+                      <button onClick={() => rejectExtension(t)} className="btn btn-danger text-xs px-3 py-1 flex items-center gap-1"><FiX size={12} /> Reject Ext</button>
                     </>
                   )}
                   {(isAssigner || isAdmin()) && <button onClick={() => del(t)} className="p-1.5 text-gray-400 hover:text-red-600"><FiTrash2 size={13} /></button>}
@@ -215,17 +259,13 @@ export default function Delegation() {
       <Modal isOpen={createModal} onClose={() => setCreateModal(false)} title="Assign New Task">
         <form onSubmit={save} className="space-y-3">
           <div>
-            <label className="label">Title *</label>
-            <input className="input" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} required placeholder="Short title" />
-          </div>
-          <div>
             <label className="label flex items-center justify-between">
-              <span>Description {listening && <span className="ml-2 text-[10px] text-red-600 animate-pulse">● Listening…</span>}</span>
+              <span>Task Description * {listening && <span className="ml-2 text-[10px] text-red-600 animate-pulse">● Listening…</span>}</span>
               <button type="button" onClick={toggleVoice} className={`text-[11px] px-2 py-1 rounded-full flex items-center gap-1 ${listening ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 {listening ? <><FiMicOff size={12} /> Stop</> : <><FiMic size={12} /> Voice</>}
               </button>
             </label>
-            <textarea className="input" rows="3" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value, _base: undefined })} placeholder="Type or speak the task details…" />
+            <textarea className="input" rows="4" required value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value, _base: undefined })} placeholder="Type or speak the task details…" />
             {!SR && <p className="text-[10px] text-amber-600 mt-0.5">Voice input needs Chrome or Edge browser.</p>}
           </div>
           <div>
@@ -283,6 +323,27 @@ export default function Delegation() {
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setRejectModal(null)} className="btn btn-secondary">Cancel</button>
             <button type="submit" className="btn btn-danger">Reject & Send Back</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Request Extension Modal (assignee) — routed to admin for approval */}
+      <Modal isOpen={!!extendModal} onClose={() => setExtendModal(null)} title="Request Due-Date Extension">
+        <form onSubmit={requestExtension} className="space-y-3">
+          <p className="text-xs text-gray-500">Ask admin for more time on this task. They will see your request and approve or reject it.</p>
+          <div>
+            <label className="label">New requested date *</label>
+            <input className="input" type="date" required min={extendModal?.due_date || undefined}
+              value={extendForm.requested_due_date} onChange={e => setExtendForm(s => ({ ...s, requested_due_date: e.target.value }))} />
+            {extendModal?.due_date && <p className="text-[10px] text-gray-400 mt-0.5">Current due date: {extendModal.due_date}</p>}
+          </div>
+          <div>
+            <label className="label">Reason *</label>
+            <textarea className="input" rows="3" required value={extendForm.reason} onChange={e => setExtendForm(s => ({ ...s, reason: e.target.value }))} placeholder="Why do you need more time?" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setExtendModal(null)} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary">Send Request</button>
           </div>
         </form>
       </Modal>

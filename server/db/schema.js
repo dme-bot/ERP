@@ -1142,6 +1142,12 @@ function initializeDatabase() {
     ['attendance', 'auto_punched_in INTEGER DEFAULT 0'],
     ['attendance', 'auto_punched_out INTEGER DEFAULT 0'],
     ['users', 'username TEXT'],
+    // Delegations — due-date extension request (assignee asks admin for more time)
+    ['delegations', 'requested_due_date DATE'],
+    ['delegations', 'extension_reason TEXT'],
+    ['delegations', "extension_status TEXT"],
+    ['delegations', 'extension_reviewed_at DATETIME'],
+    ['delegations', 'extension_reviewed_by INTEGER REFERENCES users(id)'],
   ];
   // Unique index on username — allows NULLs for legacy rows while enforcing uniqueness on set values
   try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL'); } catch (e) {}
