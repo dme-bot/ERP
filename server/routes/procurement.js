@@ -145,18 +145,74 @@ router.put('/vendor-rates/:id/approve', (req, res) => {
 });
 
 // Indents
-// Unique sites for the indent "Site Name" dropdown. Returns name +
-// lead_no so the UI can show '[SEPL20001] CONSERN PHARMA' like DPR does.
+// Sites for the indent "Site Name" dropdown — one row per Business Book
+// entry (not grouped by name) so mam sees '[SEPL20227] CONSERN PHARMA' and
+// '[SEPL20228] CONSERN PHARMA' as separate projects even though their name
+// is identical.
 router.get('/sites', (req, res) => {
   const rows = getDb().prepare(
-    `SELECT s.name, MAX(bb.lead_no) as lead_no
-     FROM sites s
-     LEFT JOIN business_book bb ON s.business_book_id = bb.id
-     WHERE s.name IS NOT NULL AND TRIM(s.name) != ''
-     GROUP BY s.name
-     ORDER BY s.name COLLATE NOCASE`
+    `SELECT bb.id as bb_id, bb.lead_no,
+            COALESCE(s.name, bb.project_name, bb.company_name) as name
+     FROM business_book bb
+     LEFT JOIN sites s ON s.business_book_id = bb.id
+     WHERE COALESCE(s.name, bb.project_name, bb.company_name) IS NOT NULL
+       AND TRIM(COALESCE(s.name, bb.project_name, bb.company_name)) != ''
+     GROUP BY bb.id
+     ORDER BY bb.lead_no DESC, name COLLATE NOCASE`
   ).all();
   res.json(rows);
+});
+
+// BOQ items by business_book_id — used when the indent raiser picks a
+// specific project row (preferred over site_name because names collide
+// when mam has multiple projects for the same client).
+router.get('/boq-items-by-bb', (req, res) => {
+  const bbId = parseInt(req.query.bb_id, 10);
+  if (!bbId) return res.status(400).json({ error: 'bb_id is required' });
+  const db = getDb();
+  const items = db.prepare(
+    `SELECT pi.id, pi.description, pi.unit, pi.quantity as boq_qty, pi.rate as boq_rate,
+            pi.item_master_id, im.item_code, im.type as item_type, im.make as item_make,
+            COALESCE((SELECT SUM(ii.quantity) FROM indent_items ii WHERE ii.po_item_id = pi.id), 0) as indented_qty
+     FROM po_items pi
+     LEFT JOIN item_master im ON im.id = pi.item_master_id
+     WHERE pi.business_book_id = ?
+     ORDER BY pi.id`
+  ).all(bbId);
+
+  if (items.length === 0) {
+    // Fallback parse from PO's boq_file_link
+    const po = db.prepare(
+      `SELECT id, po_number, boq_file_link FROM purchase_orders
+       WHERE business_book_id = ? ORDER BY created_at DESC LIMIT 1`
+    ).get(bbId);
+    if (po?.boq_file_link) {
+      const filename = path.basename(po.boq_file_link);
+      const diskPath = path.join(__dirname, '..', '..', 'data', 'uploads', filename);
+      if (fs.existsSync(diskPath)) {
+        const parsed = parseBoqExcel(diskPath);
+        if (parsed.length > 0) return res.json({ items: parsed, diagnostic: { reason: 'fallback_parsed', po_number: po.po_number, message: 'Items loaded from BOQ file' } });
+      }
+    }
+    return res.json({
+      items: [],
+      diagnostic: {
+        reason: po ? (po.boq_file_link ? 'boq_parse_empty' : 'no_boq_file') : 'no_po',
+        po_number: po?.po_number,
+        message: po
+          ? (po.boq_file_link
+            ? `PO ${po.po_number} has a BOQ file but parsing returned no items.`
+            : `PO ${po.po_number} has no BOQ file attached. Upload the BOQ in Orders first.`)
+          : 'This project has no PO yet. Create a PO in Orders first.',
+      },
+    });
+  }
+
+  const result = items.map(r => {
+    const isFoc = String(r.item_type || '').toUpperCase() === 'FOC';
+    return { ...r, is_foc: isFoc, remaining_qty: isFoc ? null : Math.max(0, (r.boq_qty || 0) - (r.indented_qty || 0)) };
+  });
+  res.json({ items: result });
 });
 
 // BOQ items for a given site — the "item wise sheet" mam referred to.
@@ -203,7 +259,7 @@ router.get('/boq-items', (req, res) => {
      FROM po_items pi
      LEFT JOIN item_master im ON im.id = pi.item_master_id
      WHERE pi.business_book_id IN (${placeholders})
-     ORDER BY pi.sr_no, pi.id`
+     ORDER BY pi.id`
   ).all(...idList);
 
   // Fallback — if no po_items rows but the PO has a BOQ file attached, parse
@@ -286,16 +342,23 @@ router.get('/indents', (req, res) => {
 
 router.post('/indents', (req, res) => {
   const db = getDb();
-  const { planning_id, items, notes, site_name, raised_by_name } = req.body;
+  const { planning_id, items, notes, site_name, raised_by_name, business_book_id } = req.body;
   if (!items || items.length === 0 || !items.some(i => i.item_master_id || (i.description && i.description.trim()))) {
     return res.status(400).json({ error: 'At least one item is required' });
   }
   const count = db.prepare('SELECT COUNT(*) as c FROM indents').get().c;
   const indentNum = `IND-${String(count + 1).padStart(4, '0')}`;
+  // Resolve planning_id from business_book_id if one exists (for downstream
+  // vendor-PO / GRN flows that key off planning rows).
+  let resolvedPlanningId = planning_id || null;
+  if (!resolvedPlanningId && business_book_id) {
+    const plan = db.prepare('SELECT id FROM order_planning WHERE business_book_id=? ORDER BY id DESC LIMIT 1').get(business_book_id);
+    if (plan) resolvedPlanningId = plan.id;
+  }
   const r = db.prepare(
     `INSERT INTO indents (planning_id, indent_number, notes, site_name, raised_by_name, client_name, created_by)
      VALUES (?,?,?,?,?,?,?)`
-  ).run(planning_id || null, indentNum, notes || '', site_name || '', raised_by_name || '', site_name || '', req.user.id);
+  ).run(resolvedPlanningId, indentNum, notes || '', site_name || '', raised_by_name || '', site_name || '', req.user.id);
 
   // Pull description/unit/type from item_master on the server so the
   // classification flags (PO / FOC / RGP) are authoritative and can't be
