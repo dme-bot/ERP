@@ -166,11 +166,26 @@ router.get('/sites', (req, res) => {
 // BOQ items by business_book_id — used when the indent raiser picks a
 // specific project row (preferred over site_name because names collide
 // when mam has multiple projects for the same client).
+// BOQ items for a specific project (business_book). Tries, in order:
+//   1. po_items saved for this exact bb_id
+//   2. Parse boq_file_link of this project's PO from disk
+//   3. po_items saved for another project with the SAME company name / project
+//      (mam has 10+ CONSERN PHARMA projects and often uploads BOQ once,
+//       uses it for all — so we auto-borrow from a sibling project)
+//   4. Parse boq_file_link of any sibling project's PO
+// Returns { items, diagnostic } — diagnostic is optional when items load
+// from the happy path, and informational (e.g. 'borrowed_from') when
+// items come from a sibling so the UI can show it clearly.
 router.get('/boq-items-by-bb', (req, res) => {
   const bbId = parseInt(req.query.bb_id, 10);
   if (!bbId) return res.status(400).json({ error: 'bb_id is required' });
   const db = getDb();
-  const items = db.prepare(
+
+  const decorate = (rows) => rows.map(r => {
+    const isFoc = String(r.item_type || '').toUpperCase() === 'FOC';
+    return { ...r, is_foc: isFoc, remaining_qty: isFoc ? null : Math.max(0, (r.boq_qty || 0) - (r.indented_qty || 0)) };
+  });
+  const fetchPoItems = (bb) => db.prepare(
     `SELECT pi.id, pi.description, pi.unit, pi.quantity as boq_qty, pi.rate as boq_rate,
             pi.item_master_id, im.item_code, im.type as item_type, im.make as item_make,
             COALESCE((SELECT SUM(ii.quantity) FROM indent_items ii WHERE ii.po_item_id = pi.id), 0) as indented_qty
@@ -178,41 +193,94 @@ router.get('/boq-items-by-bb', (req, res) => {
      LEFT JOIN item_master im ON im.id = pi.item_master_id
      WHERE pi.business_book_id = ?
      ORDER BY pi.id`
-  ).all(bbId);
+  ).all(bb);
+  const latestPoFor = (bb) => db.prepare(
+    `SELECT id, po_number, boq_file_link FROM purchase_orders
+     WHERE business_book_id = ? ORDER BY created_at DESC LIMIT 1`
+  ).get(bb);
+  const tryFileParse = (po) => {
+    if (!po?.boq_file_link) return null;
+    const filename = path.basename(po.boq_file_link);
+    const diskPath = path.join(__dirname, '..', '..', 'data', 'uploads', filename);
+    if (!fs.existsSync(diskPath)) return null;
+    const parsed = parseBoqExcel(diskPath);
+    return parsed.length > 0 ? parsed : null;
+  };
 
-  if (items.length === 0) {
-    // Fallback parse from PO's boq_file_link
-    const po = db.prepare(
-      `SELECT id, po_number, boq_file_link FROM purchase_orders
-       WHERE business_book_id = ? ORDER BY created_at DESC LIMIT 1`
-    ).get(bbId);
-    if (po?.boq_file_link) {
-      const filename = path.basename(po.boq_file_link);
-      const diskPath = path.join(__dirname, '..', '..', 'data', 'uploads', filename);
-      if (fs.existsSync(diskPath)) {
-        const parsed = parseBoqExcel(diskPath);
-        if (parsed.length > 0) return res.json({ items: parsed, diagnostic: { reason: 'fallback_parsed', po_number: po.po_number, message: 'Items loaded from BOQ file' } });
-      }
+  // 1. This project's po_items
+  const own = fetchPoItems(bbId);
+  if (own.length > 0) return res.json({ items: decorate(own) });
+
+  // 2. This project's BOQ Excel on disk
+  const ownPo = latestPoFor(bbId);
+  const ownParsed = tryFileParse(ownPo);
+  if (ownParsed) return res.json({ items: ownParsed, diagnostic: { reason: 'fallback_parsed', po_number: ownPo.po_number, message: 'Items loaded from this project\'s BOQ file.' } });
+
+  // 3. Sibling project's po_items (same company/project name)
+  const meta = db.prepare('SELECT company_name, project_name, lead_no FROM business_book WHERE id=?').get(bbId);
+  if (meta) {
+    const sibling = db.prepare(
+      `SELECT bb.id, bb.lead_no, bb.project_name, bb.company_name, COUNT(pi.id) as item_count
+       FROM business_book bb
+       JOIN po_items pi ON pi.business_book_id = bb.id
+       WHERE bb.id != ?
+         AND (LOWER(TRIM(bb.company_name)) = LOWER(TRIM(?))
+           OR LOWER(TRIM(bb.project_name)) = LOWER(TRIM(?)))
+       GROUP BY bb.id
+       ORDER BY item_count DESC
+       LIMIT 1`
+    ).get(bbId, meta.company_name || '', meta.project_name || '');
+    if (sibling) {
+      const borrowed = fetchPoItems(sibling.id);
+      return res.json({
+        items: decorate(borrowed),
+        diagnostic: {
+          reason: 'borrowed_from_sibling',
+          source_lead_no: sibling.lead_no,
+          source_project: sibling.project_name || sibling.company_name,
+          message: `No BOQ uploaded for this project yet — showing ${borrowed.length} items from sibling project [${sibling.lead_no}] ${sibling.project_name || sibling.company_name}. Upload this project's own BOQ to override.`,
+        },
+      });
     }
-    return res.json({
-      items: [],
-      diagnostic: {
-        reason: po ? (po.boq_file_link ? 'boq_parse_empty' : 'no_boq_file') : 'no_po',
-        po_number: po?.po_number,
-        message: po
-          ? (po.boq_file_link
-            ? `PO ${po.po_number} has a BOQ file but parsing returned no items.`
-            : `PO ${po.po_number} has no BOQ file attached. Upload the BOQ in Orders first.`)
-          : 'This project has no PO yet. Create a PO in Orders first.',
-      },
-    });
+
+    // 4. Sibling project's BOQ Excel on disk
+    const siblingWithFile = db.prepare(
+      `SELECT bb.id, bb.lead_no, bb.project_name, bb.company_name, po.po_number, po.boq_file_link
+       FROM business_book bb
+       JOIN purchase_orders po ON po.business_book_id = bb.id
+       WHERE bb.id != ?
+         AND po.boq_file_link IS NOT NULL AND po.boq_file_link != ''
+         AND (LOWER(TRIM(bb.company_name)) = LOWER(TRIM(?))
+           OR LOWER(TRIM(bb.project_name)) = LOWER(TRIM(?)))
+       ORDER BY po.created_at DESC LIMIT 1`
+    ).get(bbId, meta.company_name || '', meta.project_name || '');
+    const siblingParsed = tryFileParse(siblingWithFile);
+    if (siblingParsed) {
+      return res.json({
+        items: siblingParsed,
+        diagnostic: {
+          reason: 'borrowed_from_sibling_file',
+          source_lead_no: siblingWithFile.lead_no,
+          source_project: siblingWithFile.project_name || siblingWithFile.company_name,
+          message: `Items loaded from sibling project [${siblingWithFile.lead_no}] ${siblingWithFile.project_name || siblingWithFile.company_name}'s BOQ file.`,
+        },
+      });
+    }
   }
 
-  const result = items.map(r => {
-    const isFoc = String(r.item_type || '').toUpperCase() === 'FOC';
-    return { ...r, is_foc: isFoc, remaining_qty: isFoc ? null : Math.max(0, (r.boq_qty || 0) - (r.indented_qty || 0)) };
+  // Nothing found anywhere
+  return res.json({
+    items: [],
+    diagnostic: {
+      reason: ownPo ? (ownPo.boq_file_link ? 'boq_parse_empty' : 'no_boq_file') : 'no_po',
+      po_number: ownPo?.po_number,
+      message: ownPo
+        ? (ownPo.boq_file_link
+          ? `PO ${ownPo.po_number} has a BOQ file but parsing returned no items.`
+          : `No BOQ uploaded yet for this project or any sibling project with the same name.`)
+        : 'No BOQ uploaded yet for this project or any sibling project with the same name.',
+    },
   });
-  res.json({ items: result });
 });
 
 // BOQ items for a given site — the "item wise sheet" mam referred to.

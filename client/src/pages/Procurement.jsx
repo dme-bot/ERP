@@ -385,7 +385,12 @@ export default function Procurement() {
             <>
               {boqDiag?.reason === 'fallback_parsed' && (
                 <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-[11px] text-blue-800">
-                  ℹ Items loaded from the BOQ Excel file ({boqDiag.po_number}). For accurate 'Remaining' tracking, open that PO in Orders and click <b>Update Purchase Order</b> to save items to the database.
+                  ℹ Items loaded from this project's BOQ file ({boqDiag.po_number}).
+                </div>
+              )}
+              {(boqDiag?.reason === 'borrowed_from_sibling' || boqDiag?.reason === 'borrowed_from_sibling_file') && (
+                <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-[11px] text-amber-800">
+                  📋 {boqDiag.message}
                 </div>
               )}
               <div className="space-y-2">
