@@ -349,8 +349,8 @@ export default function Procurement() {
             <span>Dated: <b className="text-gray-700">{new Date().toLocaleString()}</b></span>
             <span className="text-gray-400">(auto-recorded on create)</span>
           </div>
-          {/* Header — Site from Business Book, Raised By from Employees */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Header — Site from Business Book, Raised By from Employees. Stacks on mobile. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="label">Site Name *</label>
               <SearchableSelect
@@ -416,15 +416,17 @@ export default function Procurement() {
                   📋 {boqDiag.message}
                 </div>
               )}
-              <div className="space-y-2">
-                <div className="grid grid-cols-14 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
-                  <div className="col-span-4">BOQ Item</div>
-                  <div className="col-span-4">Item (Item Master)</div>
-                  <div className="col-span-2">Make</div>
-                  <div>Qty</div>
-                  <div>Unit</div>
-                  <div className="col-span-2">Type</div>
-                </div>
+              {/* Desktop column headers — hidden on mobile, where each row is a stacked card */}
+              <div className="hidden md:grid gap-2 text-[10px] font-bold text-gray-500 uppercase px-1" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr)) auto' }}>
+                <div className="col-span-4">BOQ Item</div>
+                <div className="col-span-4">Item (Item Master)</div>
+                <div className="col-span-2">Make</div>
+                <div>Qty</div>
+                <div>Unit</div>
+                <div className="col-span-2">Type</div>
+                <div></div>
+              </div>
+              <div className="space-y-3 md:space-y-2">
                 {indentItems.map((item, i) => {
                   const t = String(item.item_type || '').toUpperCase();
                   const typeClass = t === 'FOC' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -434,58 +436,117 @@ export default function Procurement() {
                   const rem = item.remaining_qty;
                   const overRem = !item.is_foc && rem !== null && rem !== undefined && (item.quantity || 0) > rem;
                   const inManual = manualMode || item.manual;
+
+                  const boqPicker = inManual ? (
+                    <input className="input text-sm" placeholder="Type item description…" value={item.description || ''}
+                      onChange={e => { const n = [...indentItems]; n[i].description = e.target.value; n[i].manual = true; setIndentItems(n); }} />
+                  ) : (
+                    <SearchableSelect
+                      options={boqItems.map(b => ({
+                        id: b.id,
+                        label: `${b.item_code ? '[' + b.item_code + '] ' : ''}${b.description}${b.is_foc ? ' · FOC' : ` · BOQ ${b.boq_qty || 0} · Rem ${b.remaining_qty ?? 0}`}`,
+                        ...b,
+                      }))}
+                      value={item.po_item_id || null} valueKey="id" displayKey="label"
+                      placeholder="Search BOQ item…"
+                      onChange={(b) => pickBoqItem(i, b)}
+                    />
+                  );
+                  const masterPicker = (
+                    <SearchableSelect
+                      options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}${m.type ? ' · ' + m.type : ''}`, ...m }))}
+                      value={item.item_master_id || null} valueKey="id" displayKey="label"
+                      placeholder="Pick Item Master SKU…"
+                      onChange={(m) => pickMasterItem(i, m)}
+                    />
+                  );
+                  const makeInput = <input className="input text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />;
+                  const qtyInput = <input className={`input text-sm ${overRem ? 'border-red-400 ring-1 ring-red-300' : ''}`} type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />;
+                  const unitInput = <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly={!inManual}
+                    onChange={e => { if (!inManual) return; const n = [...indentItems]; n[i].unit = e.target.value; setIndentItems(n); }} />;
+                  const typeBox = (
+                    <div className={`text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>
+                      {inManual
+                        ? <select className="bg-transparent w-full outline-none text-[11px]" value={item.item_type || ''} onChange={e => { const n = [...indentItems]; n[i].item_type = e.target.value; setIndentItems(n); }}><option value="">—</option><option value="PO">PO</option><option value="FOC">FOC</option><option value="RGP">RGP</option></select>
+                        : (t || '—')}
+                    </div>
+                  );
+                  const removeBtn = (
+                    <button type="button" onClick={() => setIndentItems(indentItems.filter((_, x) => x !== i))} className="p-1 text-gray-300 hover:text-red-600" title="Remove row">
+                      {indentItems.length > 1 && <FiTrash2 size={14} />}
+                    </button>
+                  );
+
                   return (
-                    <div key={i} className="space-y-0.5">
-                      <div className="grid gap-2 items-center" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr)) auto' }}>
-                        <div className="col-span-4">
-                          {inManual ? (
-                            <input className="input text-sm" placeholder="Type item description…" value={item.description || ''}
-                              onChange={e => { const n = [...indentItems]; n[i].description = e.target.value; n[i].manual = true; setIndentItems(n); }} />
-                          ) : (
-                            <SearchableSelect
-                              options={boqItems.map(b => ({
-                                id: b.id,
-                                label: `${b.item_code ? '[' + b.item_code + '] ' : ''}${b.description}${b.is_foc ? ' · FOC' : ` · BOQ ${b.boq_qty || 0} · Rem ${b.remaining_qty ?? 0}`}`,
-                                ...b,
-                              }))}
-                              value={item.po_item_id || null}
-                              valueKey="id" displayKey="label"
-                              placeholder="Search BOQ item…"
-                              onChange={(b) => pickBoqItem(i, b)}
-                            />
-                          )}
+                    <div key={i}>
+                      {/* MOBILE: stacked card with labeled fields */}
+                      <div className="md:hidden border rounded-lg p-2.5 bg-white space-y-2 relative">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase">Row {i + 1}</span>
+                          {indentItems.length > 1 && removeBtn}
                         </div>
-                        <div className="col-span-4">
-                          <SearchableSelect
-                            options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}${m.type ? ' · ' + m.type : ''}`, ...m }))}
-                            value={item.item_master_id || null}
-                            valueKey="id" displayKey="label"
-                            placeholder="Pick Item Master SKU (one PO + FOC items)…"
-                            onChange={(m) => pickMasterItem(i, m)}
-                          />
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">BOQ Item</label>
+                          {boqPicker}
                         </div>
-                        <input className="input col-span-2 text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
-                        <input className={`input text-sm ${overRem ? 'border-red-400 ring-1 ring-red-300' : ''}`} type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
-                        <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly={!inManual}
-                          onChange={e => { if (!inManual) return; const n = [...indentItems]; n[i].unit = e.target.value; setIndentItems(n); }} />
-                        <div className={`col-span-2 text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>
-                          {inManual ? <select className="bg-transparent w-full outline-none text-[11px]" value={item.item_type || ''} onChange={e => { const n = [...indentItems]; n[i].item_type = e.target.value; setIndentItems(n); }}><option value="">—</option><option value="PO">PO</option><option value="FOC">FOC</option><option value="RGP">RGP</option></select> : (t || '—')}
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Item (Item Master)</label>
+                          {masterPicker}
                         </div>
-                        <button type="button" onClick={() => setIndentItems(indentItems.filter((_, x) => x !== i))} className="p-1 text-gray-300 hover:text-red-600 justify-self-center" title="Remove row">
-                          {indentItems.length > 1 && <FiTrash2 size={14} />}
-                        </button>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Qty</label>
+                            {qtyInput}
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Unit</label>
+                            {unitInput}
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Type</label>
+                            {typeBox}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Make</label>
+                          {makeInput}
+                        </div>
+                        {item.po_item_id && !inManual && (
+                          <div className="text-[10px] text-gray-500 flex flex-wrap gap-3 pt-1 border-t">
+                            {item.is_foc
+                              ? <span className="text-emerald-700 font-semibold">FOC — not counted in BOQ</span>
+                              : <>
+                                  <span>BOQ: <b>{item.boq_qty}</b></span>
+                                  <span>Rem: <b className={overRem ? 'text-red-600' : 'text-emerald-700'}>{rem}</b></span>
+                                  {overRem && <span className="text-red-600">⚠ Exceeds remaining</span>}
+                                </>}
+                          </div>
+                        )}
                       </div>
-                      {item.po_item_id && !inManual && (
-                        <div className="col-span-12 text-[10px] text-gray-500 pl-1 flex gap-3">
-                          {item.is_foc
-                            ? <span className="text-emerald-700 font-semibold">FOC item — not counted against BOQ consumption</span>
-                            : <>
-                                <span>BOQ total: <b>{item.boq_qty}</b></span>
-                                <span>Remaining: <b className={overRem ? 'text-red-600' : 'text-emerald-700'}>{rem}</b></span>
-                                {overRem && <span className="text-red-600">⚠ Indent qty exceeds remaining</span>}
-                              </>}
+
+                      {/* DESKTOP: wide grid row */}
+                      <div className="hidden md:block space-y-0.5">
+                        <div className="grid gap-2 items-center" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr)) auto' }}>
+                          <div className="col-span-4">{boqPicker}</div>
+                          <div className="col-span-4">{masterPicker}</div>
+                          <div className="col-span-2">{makeInput}</div>
+                          {qtyInput}
+                          {unitInput}
+                          <div className="col-span-2">{typeBox}</div>
+                          {removeBtn}
                         </div>
-                      )}
+                        {item.po_item_id && !inManual && (
+                          <div className="text-[10px] text-gray-500 pl-1 flex gap-3">
+                            {item.is_foc
+                              ? <span className="text-emerald-700 font-semibold">FOC item — not counted against BOQ consumption</span>
+                              : <>
+                                  <span>BOQ total: <b>{item.boq_qty}</b></span>
+                                  <span>Remaining: <b className={overRem ? 'text-red-600' : 'text-emerald-700'}>{rem}</b></span>
+                                  {overRem && <span className="text-red-600">⚠ Indent qty exceeds remaining</span>}
+                                </>}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -497,7 +558,10 @@ export default function Procurement() {
             </>
           )}
           <div><label className="label">Notes</label><textarea className="input" rows="2" value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Any remarks for Purchase…" /></div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create Indent</button></div>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+            <button type="button" onClick={() => setModal(false)} className="btn btn-secondary w-full sm:w-auto">Cancel</button>
+            <button type="submit" className="btn btn-primary w-full sm:w-auto">Create Indent</button>
+          </div>
         </form>
       </Modal>
 
