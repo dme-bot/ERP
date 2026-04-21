@@ -37,7 +37,7 @@ export default function Checklists() {
           {checklists.map(c => (
             <tr key={c.id}>
               <td className="font-medium max-w-md"><div className="line-clamp-2">{c.description || c.title}</div></td>
-              <td className="capitalize">{c.frequency}</td><td>{c.due_date}</td><td>{c.assigned_to_name || <span className="text-gray-400">Everyone</span>}</td>
+              <td className="capitalize">{c.frequency}</td><td>{c.due_date}</td><td>{c.assigned_to_name || <span className="text-gray-400">—</span>}</td>
               <td><StatusBadge status={c.status} /></td>
               <td><div className="flex gap-1">
                 <button onClick={() => { setEditing(c); setForm(c); setModal(true); }} className="p-1.5 hover:bg-red-50 rounded text-red-600"><FiEdit2 size={15} /></button>
@@ -59,7 +59,7 @@ export default function Checklists() {
           <div className="grid grid-cols-2 gap-4">
             <div><label className="label">Frequency</label><select className="select" value={form.frequency || 'monthly'} onChange={e => setForm({...form, frequency: e.target.value})}>{['daily','weekly','monthly','quarterly','yearly','once'].map(f => <option key={f} value={f}>{f}</option>)}</select></div>
             <div><label className="label">Due Date</label><input className="input" type="date" value={form.due_date || ''} onChange={e => setForm({...form, due_date: e.target.value})} /></div>
-            <div><label className="label">Assigned To</label><select className="select" value={form.assigned_to || ''} onChange={e => setForm({...form, assigned_to: e.target.value})}><option value="">Select</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+            <div><label className="label">Assigned To *</label><select className="select" required value={form.assigned_to || ''} onChange={e => setForm({...form, assigned_to: e.target.value})}><option value="">Select a user…</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
             {editing && <div><label className="label">Status</label><select className="select" value={form.status || ''} onChange={e => setForm({...form, status: e.target.value})}>{['pending','in_progress','completed','overdue'].map(s => <option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}</select></div>}
           </div>
           <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'}</button></div>
