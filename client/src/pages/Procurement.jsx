@@ -17,6 +17,7 @@ export default function Procurement() {
   const [purchaseBills, setPurchaseBills] = useState([]);
   const [deliveryNotes, setDeliveryNotes] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [masterItems, setMasterItems] = useState([]); // Item Master dropdown source
   const [boqItems, setBoqItems] = useState([]); // BOQ items for the currently-selected site
   const [boqLoading, setBoqLoading] = useState(false);
   const [boqDiag, setBoqDiag] = useState(null); // backend diagnostic when BOQ is empty/partial
@@ -34,6 +35,7 @@ export default function Procurement() {
     api.get('/procurement/purchase-bills').then(r => setPurchaseBills(r.data));
     api.get('/procurement/delivery-notes').then(r => setDeliveryNotes(r.data));
     api.get('/procurement/vendors').then(r => setVendors(r.data));
+    api.get('/item-master/dropdown').then(r => setMasterItems(r.data || [])).catch(() => setMasterItems([]));
     api.get('/procurement/sites').then(r => {
       // Response is one row per business_book: [{ bb_id, name, lead_no }]
       setSites(r.data || []);
@@ -95,6 +97,22 @@ export default function Procurement() {
       reloadBoq(form.site_name);
     } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
     setUploadingBoq(false);
+  };
+
+  // Picking an actual SKU from Item Master for this row. One BOQ line often
+  // maps to one PO item plus a few FOC accessories — each gets its own row
+  // that references the same BOQ item but a different Item Master entry.
+  const pickMasterItem = (i, master) => {
+    const n = [...indentItems];
+    n[i] = {
+      ...n[i],
+      item_master_id: master?.id || '',
+      description: master ? [master.item_name, master.specification, master.size].filter(Boolean).join(' / ') : n[i].description,
+      unit: master?.uom?.toLowerCase() || n[i].unit || 'nos',
+      item_type: master?.type || n[i].item_type || '',
+      make: master?.make || n[i].make || '',
+    };
+    setIndentItems(n);
   };
 
   // Picking a BOQ item for this row — fills description / unit / type / make
@@ -399,13 +417,13 @@ export default function Procurement() {
                 </div>
               )}
               <div className="space-y-2">
-                <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1">
-                  <div className="col-span-5">BOQ Item</div>
+                <div className="grid grid-cols-14 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
+                  <div className="col-span-4">BOQ Item</div>
+                  <div className="col-span-4">Item (Item Master)</div>
                   <div className="col-span-2">Make</div>
                   <div>Qty</div>
                   <div>Unit</div>
                   <div className="col-span-2">Type</div>
-                  <div></div>
                 </div>
                 {indentItems.map((item, i) => {
                   const t = String(item.item_type || '').toUpperCase();
@@ -418,8 +436,8 @@ export default function Procurement() {
                   const inManual = manualMode || item.manual;
                   return (
                     <div key={i} className="space-y-0.5">
-                      <div className="grid grid-cols-12 gap-2 items-center">
-                        <div className="col-span-5">
+                      <div className="grid gap-2 items-center" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr)) auto' }}>
+                        <div className="col-span-4">
                           {inManual ? (
                             <input className="input text-sm" placeholder="Type item description…" value={item.description || ''}
                               onChange={e => { const n = [...indentItems]; n[i].description = e.target.value; n[i].manual = true; setIndentItems(n); }} />
@@ -436,6 +454,15 @@ export default function Procurement() {
                               onChange={(b) => pickBoqItem(i, b)}
                             />
                           )}
+                        </div>
+                        <div className="col-span-4">
+                          <SearchableSelect
+                            options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}${m.type ? ' · ' + m.type : ''}`, ...m }))}
+                            value={item.item_master_id || null}
+                            valueKey="id" displayKey="label"
+                            placeholder="Pick Item Master SKU (one PO + FOC items)…"
+                            onChange={(m) => pickMasterItem(i, m)}
+                          />
                         </div>
                         <input className="input col-span-2 text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
                         <input className={`input text-sm ${overRem ? 'border-red-400 ring-1 ring-red-300' : ''}`} type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
