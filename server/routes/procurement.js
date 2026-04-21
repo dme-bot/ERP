@@ -172,17 +172,26 @@ router.get('/boq-items', (req, res) => {
   if (!siteName) return res.status(400).json({ error: 'site_name is required' });
   const db = getDb();
 
+  // Case-insensitive, whitespace-tolerant matching — mam's names often differ
+  // by case ('CONSERN PHARMA' in sites vs 'Consern Pharma' in business_book).
   const bbIds = new Set();
   db.prepare(
     `SELECT DISTINCT s.business_book_id FROM sites s
-     WHERE s.name = ? AND s.business_book_id IS NOT NULL`
+     WHERE LOWER(TRIM(s.name)) = LOWER(TRIM(?)) AND s.business_book_id IS NOT NULL`
   ).all(siteName).forEach(r => bbIds.add(r.business_book_id));
   db.prepare(
     `SELECT id FROM business_book
-     WHERE project_name = ? OR company_name = ?`
-  ).all(siteName, siteName).forEach(r => bbIds.add(r.id));
+     WHERE LOWER(TRIM(project_name)) = LOWER(TRIM(?))
+        OR LOWER(TRIM(company_name)) = LOWER(TRIM(?))
+        OR LOWER(TRIM(client_name))  = LOWER(TRIM(?))`
+  ).all(siteName, siteName, siteName).forEach(r => bbIds.add(r.id));
 
-  if (bbIds.size === 0) return res.json([]);
+  if (bbIds.size === 0) {
+    return res.json({
+      items: [],
+      diagnostic: { site_name: siteName, reason: 'no_business_book', message: `No Business Book entry matches "${siteName}". Check the site name in Business Book.` },
+    });
+  }
   const idList = [...bbIds];
   const placeholders = idList.map(() => '?').join(',');
   const items = db.prepare(
@@ -200,21 +209,26 @@ router.get('/boq-items', (req, res) => {
   // step was skipped during PO creation.
   if (items.length === 0) {
     const po = db.prepare(
-      `SELECT boq_file_link FROM purchase_orders
+      `SELECT id, po_number, boq_file_link FROM purchase_orders
        WHERE business_book_id IN (${placeholders})
-         AND boq_file_link IS NOT NULL AND boq_file_link != ''
        ORDER BY created_at DESC LIMIT 1`
     ).get(...idList);
-    if (po && po.boq_file_link) {
-      // boq_file_link looks like '/uploads/<filename>'. Resolve to server disk path.
-      const filename = path.basename(po.boq_file_link);
-      const diskPath = path.join(__dirname, '..', '..', 'data', 'uploads', filename);
-      if (fs.existsSync(diskPath)) {
-        const parsed = parseBoqExcel(diskPath);
-        return res.json(parsed);
-      }
+    if (!po) {
+      return res.json({ items: [], diagnostic: { site_name: siteName, reason: 'no_po', message: `Business Book entry matched but no PO exists yet. Create a PO in Orders first.` } });
     }
-    return res.json([]);
+    if (!po.boq_file_link) {
+      return res.json({ items: [], diagnostic: { site_name: siteName, reason: 'no_boq_file', po_number: po.po_number, message: `PO ${po.po_number} found but no BOQ file was attached. Open that PO in Orders and upload a BOQ.` } });
+    }
+    const filename = path.basename(po.boq_file_link);
+    const diskPath = path.join(__dirname, '..', '..', 'data', 'uploads', filename);
+    if (!fs.existsSync(diskPath)) {
+      return res.json({ items: [], diagnostic: { site_name: siteName, reason: 'boq_file_missing', po_number: po.po_number, path: po.boq_file_link, message: `PO ${po.po_number} references ${po.boq_file_link} but the file is missing on the server. Re-upload the BOQ on that PO.` } });
+    }
+    const parsed = parseBoqExcel(diskPath);
+    if (parsed.length === 0) {
+      return res.json({ items: [], diagnostic: { site_name: siteName, reason: 'boq_parse_empty', po_number: po.po_number, message: `BOQ file was read but no items could be parsed. Re-open the PO, click "Upload BOQ & Fetch Items" and save.` } });
+    }
+    return res.json({ items: parsed, diagnostic: { site_name: siteName, reason: 'fallback_parsed', po_number: po.po_number, message: `Items loaded from BOQ file (not yet saved to DB).` } });
   }
 
   const result = items.map(r => {
@@ -225,7 +239,7 @@ router.get('/boq-items', (req, res) => {
       remaining_qty: isFoc ? null : Math.max(0, (r.boq_qty || 0) - (r.indented_qty || 0)),
     };
   });
-  res.json(result);
+  res.json({ items: result });
 });
 
 // List indents with a BOQ file link derived from the site's Client PO.

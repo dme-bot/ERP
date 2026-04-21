@@ -19,6 +19,7 @@ export default function Procurement() {
   const [vendors, setVendors] = useState([]);
   const [boqItems, setBoqItems] = useState([]); // BOQ items for the currently-selected site
   const [boqLoading, setBoqLoading] = useState(false);
+  const [boqDiag, setBoqDiag] = useState(null); // backend diagnostic when BOQ is empty/partial
   const [sites, setSites] = useState([]);         // unique site names (Business Book)
   const [employees, setEmployees] = useState([]); // for "Raised By" dropdown
   const [modal, setModal] = useState(false);
@@ -36,15 +37,24 @@ export default function Procurement() {
   };
   useEffect(() => { load(); }, []);
 
-  // When the site changes, pull BOQ items for that site and reset any picked items
+  // When the site changes, pull BOQ items for that site and reset any picked items.
+  // Response shape: { items: [...], diagnostic?: {reason, message} }. We surface
+  // the diagnostic message in the UI so the raiser sees exactly what to fix.
   const handleSiteChange = (siteName) => {
     setForm(f => ({ ...f, site_name: siteName || '' }));
     setIndentItems([{ ...EMPTY_ITEM }]);
+    setBoqDiag(null);
     if (!siteName) { setBoqItems([]); return; }
     setBoqLoading(true);
     api.get('/procurement/boq-items', { params: { site_name: siteName } })
-      .then(r => setBoqItems(r.data || []))
-      .catch(() => setBoqItems([]))
+      .then(r => {
+        const payload = r.data;
+        // Handle both legacy array response and new { items, diagnostic } shape
+        const list = Array.isArray(payload) ? payload : (payload?.items || []);
+        setBoqItems(list);
+        setBoqDiag(Array.isArray(payload) ? null : (payload?.diagnostic || null));
+      })
+      .catch(() => { setBoqItems([]); setBoqDiag(null); })
       .finally(() => setBoqLoading(false));
   };
 
@@ -318,11 +328,19 @@ export default function Procurement() {
               Pick a site above to load its BOQ items.
             </div>
           ) : boqItems.length === 0 && !boqLoading ? (
-            <div className="border-2 border-dashed border-amber-300 rounded-lg p-4 text-center text-sm text-amber-700 bg-amber-50">
-              No BOQ items found for <b>{form.site_name}</b>. Ensure the site has a PO with a BOQ uploaded in Orders first.
+            <div className="border-2 border-dashed border-amber-300 rounded-lg p-4 text-sm text-amber-700 bg-amber-50">
+              <p className="font-semibold mb-1">No BOQ items found for <b>{form.site_name}</b>.</p>
+              {boqDiag
+                ? <p className="text-xs">{boqDiag.message}</p>
+                : <p className="text-xs">Ensure the site has a PO with a BOQ uploaded in Orders first.</p>}
             </div>
           ) : (
             <>
+              {boqDiag?.reason === 'fallback_parsed' && (
+                <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-[11px] text-blue-800">
+                  ℹ Items loaded from the BOQ Excel file ({boqDiag.po_number}). For accurate 'Remaining' tracking, open that PO in Orders and click <b>Update Purchase Order</b> to save items to the database.
+                </div>
+              )}
               <div className="space-y-2">
                 <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1">
                   <div className="col-span-5">BOQ Item</div>
