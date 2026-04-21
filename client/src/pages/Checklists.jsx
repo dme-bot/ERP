@@ -74,43 +74,10 @@ export default function Checklists() {
       </div>
       {!isAdmin() && (
         <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Only admins can create checklists. Upload your daily proof below or from the Dashboard.
+          Only admins can create checklists. Tap <span className="font-semibold text-emerald-700">Upload Proof</span> next to each of your tasks below to submit.
         </p>
       )}
 
-      {/* My Today's Tasks — prominent mobile-friendly upload cards. Always
-          shown for any user who has at least one checklist assigned to them
-          today (whether pending or already done). */}
-      {checklists.filter(c => c.assigned_to === user?.id).length > 0 && (
-        <div className="card p-3 bg-gradient-to-br from-red-50 to-white border-l-4 border-red-500">
-          <h4 className="font-bold text-red-800 mb-2 flex items-center gap-2"><FiUpload size={15} /> My Tasks — Upload Proof</h4>
-          <div className="space-y-2">
-            {checklists.filter(c => c.assigned_to === user?.id).map(c => (
-              <div key={c.id} className={`rounded-lg p-2.5 flex items-center justify-between gap-2 ${todayDone[c.id] ? 'bg-emerald-50 border border-emerald-200' : 'bg-white border border-gray-200'}`}>
-                <div className="flex-1 min-w-0">
-                  <p className={`font-semibold text-sm ${todayDone[c.id] ? 'text-emerald-800' : 'text-gray-800'} line-clamp-2`}>
-                    {todayDone[c.id] && '✓ '}{c.description || c.title}
-                  </p>
-                  <p className="text-[10px] text-gray-500 mt-0.5 uppercase">
-                    {c.frequency}{c.frequency === 'daily' && c.due_time ? ` · ${c.due_time}` : ''}{c.frequency !== 'daily' && c.due_date ? ` · due ${c.due_date}` : ''}
-                  </p>
-                </div>
-                {todayDone[c.id] ? (
-                  todayDone[c.id].proof_url ? (
-                    <a href={todayDone[c.id].proof_url} target="_blank" rel="noreferrer" className="btn btn-secondary text-xs px-3 py-1.5 flex items-center gap-1 flex-shrink-0"><FiExternalLink size={12} /> View</a>
-                  ) : <span className="text-[10px] text-emerald-700 flex-shrink-0">Done</span>
-                ) : (
-                  <label className={`btn btn-primary text-xs px-3 py-2 flex items-center gap-1 cursor-pointer flex-shrink-0 ${uploadingId === c.id ? 'opacity-60 pointer-events-none' : ''}`}>
-                    <FiUpload size={12} /> {uploadingId === c.id ? 'Uploading…' : 'Upload Proof'}
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="hidden"
-                      onChange={e => { const f = e.target.files[0]; if (f) uploadProof(c, f); e.target.value = ''; }} />
-                  </label>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Admin-only filter by assignee (regular users only see their own anyway) */}
       {isAdmin() && (
