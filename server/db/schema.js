@@ -1098,6 +1098,39 @@ function initializeDatabase() {
       remarks TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Delegations — a user assigns a task to another user; assignee uploads
+    -- proof; assigner approves or rejects with a reason. Rejected tasks
+    -- reappear on the assignee's dashboard with the reason, so they can redo.
+    CREATE TABLE IF NOT EXISTS delegations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      assigned_by INTEGER REFERENCES users(id),
+      assigned_to INTEGER REFERENCES users(id),
+      due_date DATE,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','submitted','approved','rejected')),
+      proof_url TEXT,
+      submitted_at DATETIME,
+      reviewed_at DATETIME,
+      reviewer_id INTEGER REFERENCES users(id),
+      reject_reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Checklist completions — one row per (checklist, user, date). Used to
+    -- show the daily checklist widget on dashboard and track whether the user
+    -- uploaded proof today. Unique per-day so users can't double-complete.
+    CREATE TABLE IF NOT EXISTS checklist_completions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      checklist_id INTEGER REFERENCES checklists(id),
+      user_id INTEGER REFERENCES users(id),
+      completion_date DATE NOT NULL,
+      proof_url TEXT,
+      notes TEXT,
+      submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(checklist_id, user_id, completion_date)
+    );
   `);
 
   // Safe schema migrations for columns added after initial release
@@ -1137,7 +1170,7 @@ function initializeDatabase() {
 
   const ALL_MODULES = [
     'dashboard','leads','quotations','orders','business_book','item_master','vendors','customers','procurement','cashflow','collections','payment_required','attendance','indent_fms','dpr',
-    'installation','billing','complaints','hr','employees','expenses','checklists','users'
+    'installation','billing','complaints','hr','employees','expenses','checklists','users','delegations'
   ];
 
   const insertRole = db.prepare('INSERT OR IGNORE INTO roles (name, description, is_system) VALUES (?, ?, ?)');

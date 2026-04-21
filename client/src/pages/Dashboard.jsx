@@ -1,17 +1,61 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api';
 import StatusBadge from '../components/StatusBadge';
-import { FiTarget, FiShoppingCart, FiTool, FiAlertCircle, FiUsers } from 'react-icons/fi';
+import toast from 'react-hot-toast';
+import { FiTarget, FiShoppingCart, FiTool, FiAlertCircle, FiUsers, FiCheckSquare, FiUpload, FiClock, FiAlertTriangle, FiExternalLink } from 'react-icons/fi';
 import { LuIndianRupee } from 'react-icons/lu';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
+  const [myTasks, setMyTasks] = useState([]);
+  const [todayChecklists, setTodayChecklists] = useState([]);
+  const [uploadingFor, setUploadingFor] = useState(null); // id of the checklist/task currently uploading
+
+  const loadPersonal = () => {
+    api.get('/delegations?scope=mine').then(r => setMyTasks(r.data)).catch(() => setMyTasks([]));
+    api.get('/hr/checklists/my-today').then(r => setTodayChecklists(r.data)).catch(() => setTodayChecklists([]));
+  };
 
   useEffect(() => {
     api.get('/dashboard').then(r => setStats(r.data));
+    loadPersonal();
   }, []);
 
+  // Shared proof-upload helper: POST /upload then return the URL
+  const uploadProof = async (file) => {
+    const fd = new FormData(); fd.append('file', file);
+    const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+    return res.data.url;
+  };
+
+  const completeChecklist = async (cl, file) => {
+    setUploadingFor('cl-' + cl.id);
+    try {
+      const url = await uploadProof(file);
+      await api.post(`/hr/checklists/${cl.id}/complete`, { proof_url: url });
+      toast.success(`${cl.title} marked complete`);
+      loadPersonal();
+    } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
+    setUploadingFor(null);
+  };
+
+  const submitDelegationProof = async (task, file) => {
+    setUploadingFor('del-' + task.id);
+    try {
+      const url = await uploadProof(file);
+      await api.post(`/delegations/${task.id}/submit`, { proof_url: url });
+      toast.success('Proof submitted — awaiting approval');
+      loadPersonal();
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+    setUploadingFor(null);
+  };
+
   if (!stats) return <div className="text-center py-10">Loading...</div>;
+
+  const myPendingTasks = myTasks.filter(t => t.status === 'pending' || t.status === 'rejected');
+  const pendingChecklists = todayChecklists.filter(c => !c.completion_id);
+  const doneChecklists = todayChecklists.filter(c => c.completion_id);
 
   const cards = [
     { title: 'Total Leads', value: stats.leads.total, sub: `${stats.leads.new} new`, icon: FiTarget, color: 'bg-red-500' },
@@ -39,6 +83,82 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* My Tasks & Today's Checklists — personal widgets */}
+      {(myPendingTasks.length > 0 || todayChecklists.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* My pending delegations */}
+          <div className="card">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2"><FiCheckSquare className="text-red-600" /> My Tasks <span className="text-xs font-normal text-gray-400">({myPendingTasks.length} pending)</span></h3>
+              <Link to="/delegations" className="text-xs text-red-600 hover:underline">Open Delegations →</Link>
+            </div>
+            {myPendingTasks.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No pending tasks — you're all caught up!</p>
+            ) : (
+              <div className="space-y-2">
+                {myPendingTasks.slice(0, 5).map(t => (
+                  <div key={t.id} className={`border rounded-lg p-2.5 ${t.status === 'rejected' ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-gray-800 truncate">{t.title}</p>
+                        <div className="flex flex-wrap gap-2 text-[10px] text-gray-500 mt-0.5">
+                          <span>by {t.assigned_by_name}</span>
+                          {t.due_date && <span className="flex items-center gap-1"><FiClock size={10} /> {t.due_date}</span>}
+                        </div>
+                        {t.status === 'rejected' && t.reject_reason && (
+                          <p className="text-[11px] text-red-700 mt-1 flex items-start gap-1"><FiAlertTriangle size={11} className="mt-0.5 flex-shrink-0" /> {t.reject_reason}</p>
+                        )}
+                      </div>
+                      <label className={`btn btn-primary text-[11px] px-2 py-1 flex items-center gap-1 cursor-pointer ${uploadingFor === 'del-' + t.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                        <FiUpload size={11} /> {uploadingFor === 'del-' + t.id ? '...' : 'Submit'}
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="hidden"
+                          onChange={e => { const f = e.target.files[0]; if (f) submitDelegationProof(t, f); e.target.value = ''; }} />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Today's checklists */}
+          <div className="card">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2"><FiCheckSquare className="text-emerald-600" /> Today's Checklists <span className="text-xs font-normal text-gray-400">({pendingChecklists.length} pending, {doneChecklists.length} done)</span></h3>
+              <Link to="/checklists" className="text-xs text-red-600 hover:underline">Manage →</Link>
+            </div>
+            {todayChecklists.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No checklists due today.</p>
+            ) : (
+              <div className="space-y-2">
+                {todayChecklists.slice(0, 6).map(c => (
+                  <div key={c.id} className={`border rounded-lg p-2.5 ${c.completion_id ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold text-sm ${c.completion_id ? 'text-emerald-800' : 'text-gray-800'} truncate`}>
+                          {c.completion_id && '✓ '}{c.title}
+                        </p>
+                        <div className="flex flex-wrap gap-2 text-[10px] text-gray-500 mt-0.5">
+                          <span className="uppercase">{c.frequency}</span>
+                          {c.completion_id && c.proof_url && <a href={c.proof_url} target="_blank" rel="noreferrer" className="text-red-600 hover:underline flex items-center gap-1"><FiExternalLink size={10} /> proof</a>}
+                        </div>
+                      </div>
+                      {!c.completion_id && (
+                        <label className={`btn btn-success text-[11px] px-2 py-1 flex items-center gap-1 cursor-pointer ${uploadingFor === 'cl-' + c.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                          <FiUpload size={11} /> {uploadingFor === 'cl-' + c.id ? '...' : 'Upload Proof'}
+                          <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="hidden"
+                            onChange={e => { const f = e.target.files[0]; if (f) completeChecklist(c, f); e.target.value = ''; }} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Recent Data */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

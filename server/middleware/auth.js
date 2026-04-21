@@ -62,7 +62,7 @@ function getUserPermissions(userId) {
     // Admin gets everything
     const modules = [
       'dashboard','leads','quotations','orders','vendors','procurement',
-      'installation','billing','complaints','hr','employees','expenses','checklists','users'
+      'installation','billing','complaints','hr','employees','expenses','checklists','users','delegations'
     ];
     const perms = {};
     for (const m of modules) {

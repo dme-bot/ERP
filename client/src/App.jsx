@@ -24,6 +24,7 @@ import CashFlow from './pages/CashFlow';
 import Collections from './pages/Collections';
 import IndentFMS from './pages/IndentFMS';
 import DPR from './pages/DPR';
+import Delegation from './pages/Delegation';
 import UserManagement from './pages/admin/UserManagement';
 import RolesPermissions from './pages/admin/RolesPermissions';
 
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="collections" element={<ModuleRoute module="collections"><Collections /></ModuleRoute>} />
         <Route path="indent-fms" element={<ModuleRoute module="indent_fms"><IndentFMS /></ModuleRoute>} />
         <Route path="dpr" element={<ModuleRoute module="dpr"><DPR /></ModuleRoute>} />
+        <Route path="delegations" element={<ModuleRoute module="delegations"><Delegation /></ModuleRoute>} />
         {/* Other Modules */}
         <Route path="leads" element={<ModuleRoute module="leads"><Leads /></ModuleRoute>} />
         <Route path="quotations" element={<ModuleRoute module="quotations"><Quotations /></ModuleRoute>} />

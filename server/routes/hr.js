@@ -208,4 +208,73 @@ router.delete('/checklists/:id', (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
+// Today's checklists for the logged-in user — used by the dashboard widget.
+// Returns active checklists that are due today based on frequency:
+//   daily       → every day
+//   weekly      → same weekday as the checklist's due_date
+//   monthly     → same day-of-month as the checklist's due_date
+//   quarterly   → once every 3 months on the due_date's day
+//   yearly      → same month-and-day as the due_date
+//   once        → exact due_date match
+// Each entry is joined with today's completion row (if any) so the UI knows
+// whether proof has been uploaded.
+router.get('/checklists/my-today', (req, res) => {
+  const db = getDb();
+  const today = new Date().toISOString().split('T')[0];
+  const d = new Date(today + 'T00:00:00');
+  const todayDow = d.getDay();            // 0..6
+  const todayDom = d.getDate();           // 1..31
+  const todayMonth = d.getMonth() + 1;    // 1..12
+
+  const uid = req.user.id;
+
+  // Pull checklists assigned to this user OR unassigned (applies to everyone)
+  const rows = db.prepare(
+    `SELECT c.*, cc.id as completion_id, cc.proof_url, cc.submitted_at, cc.notes
+     FROM checklists c
+     LEFT JOIN checklist_completions cc
+       ON cc.checklist_id = c.id AND cc.user_id = ? AND cc.completion_date = ?
+     WHERE (c.assigned_to = ? OR c.assigned_to IS NULL)
+       AND (c.status IS NULL OR c.status = 'pending' OR c.status = 'active' OR c.status = '')`
+  ).all(uid, today, uid);
+
+  const out = rows.filter(c => {
+    const f = String(c.frequency || '').toLowerCase();
+    if (!c.due_date && f !== 'daily') return f === 'daily';
+    const due = c.due_date ? new Date(c.due_date + 'T00:00:00') : null;
+    if (f === 'daily') return true;
+    if (f === 'weekly') return due && due.getDay() === todayDow;
+    if (f === 'monthly') return due && due.getDate() === todayDom;
+    if (f === 'quarterly') {
+      if (!due) return false;
+      const monthDiff = (todayMonth - (due.getMonth() + 1) + 12) % 3;
+      return monthDiff === 0 && due.getDate() === todayDom;
+    }
+    if (f === 'yearly') return due && due.getMonth() + 1 === todayMonth && due.getDate() === todayDom;
+    if (f === 'once') return c.due_date === today;
+    return false;
+  });
+
+  res.json(out);
+});
+
+// Mark a checklist as done for today (with optional proof_url + notes).
+// Uses UPSERT so re-submitting overwrites the proof.
+router.post('/checklists/:id/complete', (req, res) => {
+  const { proof_url, notes } = req.body;
+  const today = new Date().toISOString().split('T')[0];
+  const db = getDb();
+  const c = db.prepare('SELECT id FROM checklists WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Checklist not found' });
+  db.prepare(
+    `INSERT INTO checklist_completions (checklist_id, user_id, completion_date, proof_url, notes)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(checklist_id, user_id, completion_date) DO UPDATE SET
+       proof_url = excluded.proof_url,
+       notes = excluded.notes,
+       submitted_at = CURRENT_TIMESTAMP`
+  ).run(req.params.id, req.user.id, today, proof_url || null, notes || null);
+  res.json({ message: 'Checklist marked complete for today' });
+});
+
 module.exports = router;

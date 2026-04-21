@@ -27,6 +27,7 @@ const ALL_MODULES = [
   { key: 'employees', label: 'Employees' },
   { key: 'expenses', label: 'Expenses' },
   { key: 'checklists', label: 'Checklists' },
+  { key: 'delegations', label: 'Delegations' },
   { key: 'users', label: 'User Management' },
 ];
 

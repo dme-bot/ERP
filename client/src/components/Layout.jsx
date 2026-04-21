@@ -21,6 +21,7 @@ const menuItems = [
   { path: '/collections', label: 'Collection Engine', icon: FiCreditCard, module: 'collections' },
   { path: '/indent-fms', label: 'Indent to Payment', icon: FiLayers, module: 'indent_fms' },
   { path: '/dpr', label: 'DPR', icon: FiBarChart2, module: 'dpr' },
+  { path: '/delegations', label: 'Delegations', icon: FiCheckSquare, module: 'delegations' },
   { path: '/leads', label: 'Leads / CRM', icon: FiTarget, module: 'leads' },
   { path: '/quotations', label: 'BOQ & Quotations', icon: FiFileText, module: 'quotations' },
   { path: '/business-book', label: 'Business Book', icon: FiBook, module: 'business_book' },

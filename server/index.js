@@ -48,6 +48,7 @@ app.use('/api/customers', require('./routes/customers'));
 app.use('/api/installation', require('./routes/installation'));
 app.use('/api/complaints', require('./routes/complaints'));
 app.use('/api/hr', require('./routes/hr'));
+app.use('/api/delegations', require('./routes/delegations'));
 
 // 4 Critical Systems
 app.use('/api/cashflow', require('./routes/cashflow'));
