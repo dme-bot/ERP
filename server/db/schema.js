@@ -1156,9 +1156,13 @@ function initializeDatabase() {
     ['indent_items', 'is_foc INTEGER DEFAULT 0'],  // free-of-cost flag
     ['indent_items', 'is_tool INTEGER DEFAULT 0'], // tools vs materials flag
     // Indent-level fields shown on the physical indent form
-    ['indents', 'client_name TEXT'],
-    ['indents', 'location TEXT'],
-    ['indents', 'lead_no TEXT'],
+    ['indents', 'client_name TEXT'],   // kept for backward compat (superseded by site_name)
+    ['indents', 'location TEXT'],      // kept for backward compat (now derived from site)
+    ['indents', 'lead_no TEXT'],       // kept for backward compat (removed from UI)
+    ['indents', 'site_name TEXT'],     // unique site name from Business Book
+    ['indents', 'raised_by_name TEXT'],// employee who raised the indent
+    // Item classification mirrored from item_master.type (PO / FOC / RGP)
+    ['indent_items', 'item_type TEXT'],
   ];
   // Unique index on username — allows NULLs for legacy rows while enforcing uniqueness on set values
   try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL'); } catch (e) {}

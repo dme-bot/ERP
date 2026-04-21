@@ -7,10 +7,10 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
 
-const EMPTY_ITEM = { item_master_id: '', description: '', make: '', quantity: 1, unit: 'nos', rate: 0, vendor_id: '', is_foc: false, is_tool: false };
+const EMPTY_ITEM = { item_master_id: '', description: '', quantity: 1, unit: 'nos', item_type: '' };
 
 export default function Procurement() {
-  const { canDelete } = useAuth();
+  const { canDelete, user } = useAuth();
   const [tab, setTab] = useState('indents');
   const [indents, setIndents] = useState([]);
   const [vendorPos, setVendorPos] = useState([]);
@@ -18,6 +18,8 @@ export default function Procurement() {
   const [deliveryNotes, setDeliveryNotes] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [masterItems, setMasterItems] = useState([]);
+  const [sites, setSites] = useState([]);         // unique site names (Business Book)
+  const [employees, setEmployees] = useState([]); // for "Raised By" dropdown
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({});
   const [indentItems, setIndentItems] = useState([{ ...EMPTY_ITEM }]);
@@ -29,10 +31,14 @@ export default function Procurement() {
     api.get('/procurement/delivery-notes').then(r => setDeliveryNotes(r.data));
     api.get('/procurement/vendors').then(r => setVendors(r.data));
     api.get('/item-master/dropdown').then(r => setMasterItems(r.data || [])).catch(() => setMasterItems([]));
+    api.get('/procurement/sites').then(r => setSites(r.data || [])).catch(() => setSites([]));
+    api.get('/hr/employees').then(r => setEmployees((r.data || []).filter(e => !e.status || e.status === 'active'))).catch(() => setEmployees([]));
   };
   useEffect(() => { load(); }, []);
 
-  // Picking an item from the master auto-fills description / unit / make / rate
+  // Picking an item from the master auto-fills description / unit / type.
+  // Make, rate and vendor are intentionally NOT captured at indent stage —
+  // purchase team sets them later.
   const pickMasterItem = (i, item) => {
     const n = [...indentItems];
     n[i] = {
@@ -40,18 +46,24 @@ export default function Procurement() {
       item_master_id: item?.id || '',
       description: item ? [item.item_name, item.specification, item.size].filter(Boolean).join(' / ') : '',
       unit: item?.uom?.toLowerCase() || n[i].unit,
-      make: item?.make || n[i].make || '',
-      rate: item?.current_price || n[i].rate,
+      item_type: item?.type || '',
     };
     setIndentItems(n);
   };
 
   const saveIndent = async (e) => {
     e.preventDefault();
-    const clean = indentItems.filter(it => it.item_master_id || (it.description && it.description.trim()));
+    if (!form.site_name) return toast.error('Site Name is required');
+    if (!form.raised_by_name) return toast.error('Raised By is required');
+    const clean = indentItems.filter(it => it.item_master_id);
     if (clean.length === 0) return toast.error('Pick at least one item from Item Master');
     try {
-      await api.post('/procurement/indents', { ...form, items: clean });
+      await api.post('/procurement/indents', {
+        site_name: form.site_name,
+        raised_by_name: form.raised_by_name,
+        notes: form.notes || '',
+        items: clean,
+      });
       toast.success('Indent created — purchase team will take over');
       setModal(false); load();
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
@@ -101,7 +113,7 @@ export default function Procurement() {
         <>
           <div className="flex justify-between items-center">
             <h3 className="font-semibold">Material Indents</h3>
-            <button onClick={() => { setForm({ notes: '', client_name: '', location: '', lead_no: '' }); setIndentItems([{ ...EMPTY_ITEM }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Indent</button>
+            <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Indent</button>
           </div>
           <div className="card p-0 overflow-hidden"><table>
             <thead><tr><th>Indent No</th><th>Date</th><th>Created By</th><th>Status</th><th>Actions</th></tr></thead>
@@ -218,52 +230,70 @@ export default function Procurement() {
       {/* Indent Modal */}
       <Modal isOpen={modal === 'indent'} onClose={() => setModal(false)} title="Create Purchase Indent" wide>
         <form onSubmit={saveIndent} className="space-y-4">
-          {/* Header — matches the physical indent form */}
-          <div className="grid grid-cols-3 gap-3">
-            <div><label className="label">Client Name</label><input className="input" value={form.client_name || ''} onChange={e => setForm({ ...form, client_name: e.target.value })} placeholder="e.g. Imperial Golf Estate" /></div>
-            <div><label className="label">Location</label><input className="input" value={form.location || ''} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. Ludhiana" /></div>
-            <div><label className="label">Lead No</label><input className="input" value={form.lead_no || ''} onChange={e => setForm({ ...form, lead_no: e.target.value })} placeholder="optional" /></div>
+          {/* Header — Site from Business Book, Raised By from Employees */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Site Name *</label>
+              <SearchableSelect
+                options={sites.map(s => ({ id: s, label: s }))}
+                value={form.site_name || null}
+                valueKey="id" displayKey="label"
+                placeholder="Search site from Business Book…"
+                onChange={(s) => setForm({ ...form, site_name: s?.id || '' })}
+              />
+              <p className="text-[10px] text-gray-400 mt-0.5">Unique sites pulled from the Business Book master.</p>
+            </div>
+            <div>
+              <label className="label">Raised By *</label>
+              <SearchableSelect
+                options={employees.map(e => ({ id: e.name, label: e.name, ...e }))}
+                value={form.raised_by_name || null}
+                valueKey="id" displayKey="label"
+                placeholder="Search employee…"
+                onChange={(e) => setForm({ ...form, raised_by_name: e?.id || '' })}
+              />
+            </div>
           </div>
 
           <h4 className="font-semibold text-sm">Items <span className="text-gray-400 font-normal">(pick from Item Master — "item wise sheet")</span></h4>
           <div className="space-y-2">
             <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1">
-              <div className="col-span-4">Item (Item Master)</div>
-              <div className="col-span-2">Make</div>
+              <div className="col-span-7">Item (Item Master)</div>
               <div>Qty</div>
               <div>Unit</div>
-              <div className="col-span-2">Flags</div>
-              <div className="col-span-2">Vendor (optional)</div>
+              <div className="col-span-2">Type</div>
+              <div></div>
             </div>
-            {indentItems.map((item, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                <div className="col-span-4">
-                  <SearchableSelect
-                    options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}`, ...m }))}
-                    value={item.item_master_id || null}
-                    valueKey="id" displayKey="label"
-                    placeholder="Search item…"
-                    onChange={(m) => pickMasterItem(i, m)}
-                  />
+            {indentItems.map((item, i) => {
+              const t = String(item.item_type || '').toUpperCase();
+              const typeClass = t === 'FOC' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : t === 'RGP' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : t === 'PO' ? 'bg-red-50 text-red-700 border-red-200'
+                : 'bg-gray-50 text-gray-500 border-gray-200';
+              return (
+                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                  <div className="col-span-7">
+                    <SearchableSelect
+                      options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}`, ...m }))}
+                      value={item.item_master_id || null}
+                      valueKey="id" displayKey="label"
+                      placeholder="Search item…"
+                      onChange={(m) => pickMasterItem(i, m)}
+                    />
+                  </div>
+                  <input className="input text-sm" type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
+                  <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly />
+                  <div className={`col-span-2 text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>
+                    {t || '—'}
+                  </div>
+                  <button type="button" onClick={() => setIndentItems(indentItems.filter((_, x) => x !== i))} className="p-1 text-gray-300 hover:text-red-600 justify-self-center" title="Remove row">
+                    {indentItems.length > 1 && <FiTrash2 size={14} />}
+                  </button>
                 </div>
-                <input className="input col-span-2 text-sm" placeholder="Make" value={item.make} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
-                <input className="input text-sm" type="number" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
-                <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly />
-                <div className="col-span-2 flex gap-2 text-[11px] items-center">
-                  <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={!!item.is_foc} onChange={e => { const n = [...indentItems]; n[i].is_foc = e.target.checked; setIndentItems(n); }} /> FOC</label>
-                  <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={!!item.is_tool} onChange={e => { const n = [...indentItems]; n[i].is_tool = e.target.checked; setIndentItems(n); }} /> Tool</label>
-                </div>
-                <select className="select col-span-2 text-sm" value={item.vendor_id} onChange={e => { const n = [...indentItems]; n[i].vendor_id = e.target.value; setIndentItems(n); }}>
-                  <option value="">— Vendor —</option>
-                  {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </select>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => setIndentItems([...indentItems, { ...EMPTY_ITEM }])} className="btn btn-secondary text-xs">+ Add Item</button>
-            {indentItems.length > 1 && <button type="button" onClick={() => setIndentItems(indentItems.slice(0, -1))} className="text-xs text-red-600">– Remove last</button>}
-          </div>
+          <button type="button" onClick={() => setIndentItems([...indentItems, { ...EMPTY_ITEM }])} className="btn btn-secondary text-xs">+ Add Item</button>
           <div><label className="label">Notes</label><textarea className="input" rows="2" value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Any remarks for Purchase…" /></div>
           <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create Indent</button></div>
         </form>

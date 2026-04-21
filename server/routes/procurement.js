@@ -77,6 +77,18 @@ router.put('/vendor-rates/:id/approve', (req, res) => {
 });
 
 // Indents
+// Unique site names from Business Book — used for the indent "Site Name"
+// dropdown so the raiser picks from the master instead of free-typing.
+router.get('/sites', (req, res) => {
+  const rows = getDb().prepare(
+    `SELECT DISTINCT s.name
+     FROM sites s
+     WHERE s.name IS NOT NULL AND TRIM(s.name) != ''
+     ORDER BY s.name COLLATE NOCASE`
+  ).all();
+  res.json(rows.map(r => r.name));
+});
+
 router.get('/indents', (req, res) => {
   res.json(getDb().prepare(`SELECT i.*, u.name as created_by_name, au.name as approved_by_name FROM indents i
     LEFT JOIN users u ON i.created_by=u.id LEFT JOIN users au ON i.approved_by=au.id ORDER BY i.created_at DESC`).all());
@@ -84,42 +96,46 @@ router.get('/indents', (req, res) => {
 
 router.post('/indents', (req, res) => {
   const db = getDb();
-  const { planning_id, items, notes, client_name, location, lead_no } = req.body;
+  const { planning_id, items, notes, site_name, raised_by_name } = req.body;
   if (!items || items.length === 0 || !items.some(i => i.item_master_id || (i.description && i.description.trim()))) {
     return res.status(400).json({ error: 'At least one item is required' });
   }
   const count = db.prepare('SELECT COUNT(*) as c FROM indents').get().c;
   const indentNum = `IND-${String(count + 1).padStart(4, '0')}`;
   const r = db.prepare(
-    'INSERT INTO indents (planning_id, indent_number, notes, client_name, location, lead_no, created_by) VALUES (?,?,?,?,?,?,?)'
-  ).run(planning_id || null, indentNum, notes || '', client_name || '', location || '', lead_no || '', req.user.id);
+    `INSERT INTO indents (planning_id, indent_number, notes, site_name, raised_by_name, client_name, created_by)
+     VALUES (?,?,?,?,?,?,?)`
+  ).run(planning_id || null, indentNum, notes || '', site_name || '', raised_by_name || '', site_name || '', req.user.id);
 
-  // If item_master_id provided, fill description/unit from master on the server
-  // so it stays correct even if the client sends stale data.
-  const getMaster = db.prepare('SELECT item_name, specification, size, uom, make, current_price FROM item_master WHERE id=?');
+  // Pull description/unit/type from item_master on the server so the
+  // classification flags (PO / FOC / RGP) are authoritative and can't be
+  // forged by the client. Vendor/make/rate are NOT captured at indent stage
+  // — the purchase team sets them later via vendor-rates.
+  const getMaster = db.prepare('SELECT item_name, specification, size, uom, type FROM item_master WHERE id=?');
   const insertItem = db.prepare(
     `INSERT INTO indent_items
-      (indent_id, item_master_id, description, make, quantity, unit, rate, amount, vendor_id, is_foc, is_tool)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+      (indent_id, item_master_id, description, quantity, unit, rate, amount, item_type, is_foc, is_tool)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`
   );
   for (const i of (items || [])) {
     let desc = i.description || '';
     let unit = i.unit || 'nos';
-    let make = i.make || '';
-    let rate = i.rate || 0;
+    let itemType = null;
     if (i.item_master_id) {
       const m = getMaster.get(i.item_master_id);
       if (m) {
         desc = [m.item_name, m.specification, m.size].filter(Boolean).join(' / ');
         unit = m.uom || unit;
-        make = i.make || m.make || '';
-        if (!rate && m.current_price) rate = m.current_price;
+        itemType = m.type || null;
       }
     }
     const qty = +i.quantity || 0;
+    // Keep legacy is_foc / is_tool in sync with the new item_type so older
+    // reports still work.
+    const foc = String(itemType || '').toUpperCase() === 'FOC' ? 1 : 0;
+    const tool = String(itemType || '').toUpperCase() === 'RGP' ? 1 : 0;
     insertItem.run(
-      r.lastInsertRowid, i.item_master_id || null, desc, make, qty, unit, rate, qty * rate,
-      i.vendor_id || null, i.is_foc ? 1 : 0, i.is_tool ? 1 : 0,
+      r.lastInsertRowid, i.item_master_id || null, desc, qty, unit, 0, 0, itemType, foc, tool,
     );
   }
   res.status(201).json({ id: r.lastInsertRowid, indent_number: indentNum });
