@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
 
-const EMPTY_ITEM = { item_master_id: '', description: '', quantity: 1, unit: 'nos', item_type: '' };
+const EMPTY_ITEM = { item_master_id: '', description: '', make: '', quantity: 1, unit: 'nos', item_type: '' };
 
 export default function Procurement() {
   const { canDelete, user } = useAuth();
@@ -36,9 +36,9 @@ export default function Procurement() {
   };
   useEffect(() => { load(); }, []);
 
-  // Picking an item from the master auto-fills description / unit / type.
-  // Make, rate and vendor are intentionally NOT captured at indent stage —
-  // purchase team sets them later.
+  // Picking an item from the master auto-fills description / unit / type / make.
+  // Rate and vendor are intentionally NOT captured at indent stage — purchase
+  // team sets those later. Make is pre-filled from the master but stays editable.
   const pickMasterItem = (i, item) => {
     const n = [...indentItems];
     n[i] = {
@@ -47,6 +47,7 @@ export default function Procurement() {
       description: item ? [item.item_name, item.specification, item.size].filter(Boolean).join(' / ') : '',
       unit: item?.uom?.toLowerCase() || n[i].unit,
       item_type: item?.type || '',
+      make: item?.make || n[i].make || '',
     };
     setIndentItems(n);
   };
@@ -62,11 +63,24 @@ export default function Procurement() {
         site_name: form.site_name,
         raised_by_name: form.raised_by_name,
         notes: form.notes || '',
-        items: clean,
+        items: clean.map(it => ({ ...it, make: it.make || '' })),
       });
-      toast.success('Indent created — purchase team will take over');
+      toast.success('Dispatch created — purchase team will take over');
       setModal(false); load();
     } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  };
+
+  // Admin only — wipes all indents, vendor POs and related rows. Used when
+  // mam wants a clean slate before a demo / new operating cycle.
+  const wipeData = async () => {
+    if (!confirm('Delete ALL Dispatches, Vendor POs, Purchase Bills and Delivery Notes?\n\nThis cannot be undone. Type YES in the next prompt to confirm.')) return;
+    const c = prompt('Type YES (in capitals) to confirm permanent deletion:');
+    if (c !== 'YES') return toast.error('Cancelled — nothing deleted');
+    try {
+      const r = await api.post('/procurement/admin/wipe-indents-pos');
+      toast.success(`Cleared: ${r.data.counts.indents} dispatches, ${r.data.counts.vendor_pos} POs, ${r.data.counts.purchase_bills} bills, ${r.data.counts.delivery_notes} delivery notes`);
+      load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Wipe failed'); }
   };
 
   const approveIndent = async (id, status) => {
@@ -97,7 +111,7 @@ export default function Procurement() {
   };
 
   const tabs = [
-    { id: 'indents', label: 'Indents' },
+    { id: 'indents', label: 'Dispatch' },
     { id: 'vendorpo', label: 'Vendor PO' },
     { id: 'bills', label: 'Purchase Bills' },
     { id: 'delivery', label: 'Delivery Notes' },
@@ -111,16 +125,24 @@ export default function Procurement() {
 
       {tab === 'indents' && (
         <>
-          <div className="flex justify-between items-center">
-            <h3 className="font-semibold">Material Indents</h3>
-            <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Indent</button>
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <h3 className="font-semibold">Material Dispatch</h3>
+            <div className="flex gap-2">
+              {user?.role === 'admin' && (
+                <button onClick={wipeData} className="btn btn-danger text-xs flex items-center gap-1" title="Admin: delete all dispatches + POs"><FiTrash2 size={13} /> Wipe All</button>
+              )}
+              <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Dispatch</button>
+            </div>
           </div>
           <div className="card p-0 overflow-hidden"><table>
-            <thead><tr><th>Indent No</th><th>Date</th><th>Created By</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Dispatch No</th><th>Date</th><th>Site</th><th>Raised By</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {indents.map(i => (
                 <tr key={i.id}>
-                  <td className="font-medium">{i.indent_number}</td><td>{i.indent_date}</td><td>{i.created_by_name}</td>
+                  <td className="font-medium">{i.indent_number}</td>
+                  <td className="text-xs text-gray-600">{i.created_at ? new Date(i.created_at).toLocaleString() : (i.indent_date || '—')}</td>
+                  <td>{i.site_name || i.client_name || <span className="text-gray-400">—</span>}</td>
+                  <td>{i.raised_by_name || i.created_by_name}</td>
                   <td><StatusBadge status={i.status} /></td>
                   <td>
                     <div className="flex gap-1 items-center">
@@ -132,7 +154,7 @@ export default function Procurement() {
                       )}
                       {i.status === 'draft' && <button onClick={() => approveIndent(i.id, 'submitted')} className="btn btn-primary text-xs py-1 px-2">Submit</button>}
                       {canDelete('procurement') && <button onClick={async () => {
-                        if (!confirm(`Delete indent "${i.indent_number}"?`)) return;
+                        if (!confirm(`Delete dispatch "${i.indent_number}"?`)) return;
                         try { await api.delete(`/procurement/indents/${i.id}`); toast.success('Deleted'); load(); }
                         catch (err) { toast.error(err.response?.data?.error || 'Delete failed'); }
                       }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}
@@ -140,7 +162,7 @@ export default function Procurement() {
                   </td>
                 </tr>
               ))}
-              {indents.length === 0 && <tr><td colSpan="5" className="text-center py-8 text-gray-400">No indents yet</td></tr>}
+              {indents.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-gray-400">No dispatches yet</td></tr>}
             </tbody>
           </table></div>
         </>
@@ -228,8 +250,13 @@ export default function Procurement() {
       )}
 
       {/* Indent Modal */}
-      <Modal isOpen={modal === 'indent'} onClose={() => setModal(false)} title="Create Purchase Indent" wide>
+      <Modal isOpen={modal === 'indent'} onClose={() => setModal(false)} title="Create Dispatch" wide>
         <form onSubmit={saveIndent} className="space-y-4">
+          {/* Auto timestamp — mirrors the 'Dated' field on the physical form */}
+          <div className="text-[11px] text-gray-500 bg-gray-50 rounded px-3 py-1.5 flex justify-between items-center">
+            <span>Dated: <b className="text-gray-700">{new Date().toLocaleString()}</b></span>
+            <span className="text-gray-400">(auto-recorded on create)</span>
+          </div>
           {/* Header — Site from Business Book, Raised By from Employees */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -258,7 +285,8 @@ export default function Procurement() {
           <h4 className="font-semibold text-sm">Items <span className="text-gray-400 font-normal">(pick from Item Master — "item wise sheet")</span></h4>
           <div className="space-y-2">
             <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase px-1">
-              <div className="col-span-7">Item (Item Master)</div>
+              <div className="col-span-5">Item (Item Master)</div>
+              <div className="col-span-2">Make</div>
               <div>Qty</div>
               <div>Unit</div>
               <div className="col-span-2">Type</div>
@@ -272,7 +300,7 @@ export default function Procurement() {
                 : 'bg-gray-50 text-gray-500 border-gray-200';
               return (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                  <div className="col-span-7">
+                  <div className="col-span-5">
                     <SearchableSelect
                       options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}`, ...m }))}
                       value={item.item_master_id || null}
@@ -281,6 +309,7 @@ export default function Procurement() {
                       onChange={(m) => pickMasterItem(i, m)}
                     />
                   </div>
+                  <input className="input col-span-2 text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />
                   <input className="input text-sm" type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />
                   <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly />
                   <div className={`col-span-2 text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>

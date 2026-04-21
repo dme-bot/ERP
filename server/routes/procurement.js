@@ -111,22 +111,24 @@ router.post('/indents', (req, res) => {
   // classification flags (PO / FOC / RGP) are authoritative and can't be
   // forged by the client. Vendor/make/rate are NOT captured at indent stage
   // — the purchase team sets them later via vendor-rates.
-  const getMaster = db.prepare('SELECT item_name, specification, size, uom, type FROM item_master WHERE id=?');
+  const getMaster = db.prepare('SELECT item_name, specification, size, uom, type, make FROM item_master WHERE id=?');
   const insertItem = db.prepare(
     `INSERT INTO indent_items
-      (indent_id, item_master_id, description, quantity, unit, rate, amount, item_type, is_foc, is_tool)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`
+      (indent_id, item_master_id, description, make, quantity, unit, rate, amount, item_type, is_foc, is_tool)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
   );
   for (const i of (items || [])) {
     let desc = i.description || '';
     let unit = i.unit || 'nos';
     let itemType = null;
+    let make = i.make || '';
     if (i.item_master_id) {
       const m = getMaster.get(i.item_master_id);
       if (m) {
         desc = [m.item_name, m.specification, m.size].filter(Boolean).join(' / ');
         unit = m.uom || unit;
         itemType = m.type || null;
+        if (!make && m.make) make = m.make;
       }
     }
     const qty = +i.quantity || 0;
@@ -135,7 +137,7 @@ router.post('/indents', (req, res) => {
     const foc = String(itemType || '').toUpperCase() === 'FOC' ? 1 : 0;
     const tool = String(itemType || '').toUpperCase() === 'RGP' ? 1 : 0;
     insertItem.run(
-      r.lastInsertRowid, i.item_master_id || null, desc, qty, unit, 0, 0, itemType, foc, tool,
+      r.lastInsertRowid, i.item_master_id || null, desc, make, qty, unit, 0, 0, itemType, foc, tool,
     );
   }
   res.status(201).json({ id: r.lastInsertRowid, indent_number: indentNum });
@@ -269,6 +271,35 @@ router.post('/sales-bills', (req, res) => {
 router.delete('/sales-bills/:id', (req, res) => {
   getDb().prepare('DELETE FROM sales_bills WHERE id=?').run(req.params.id);
   res.json({ message: 'Deleted' });
+});
+
+// ADMIN ONLY — wipe all dispatches/indents, vendor POs, purchase bills,
+// delivery notes and vendor rate rows. Used when mam wants a clean slate.
+// Irreversible; the UI protects with a double confirmation.
+router.post('/admin/wipe-indents-pos', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const db = getDb();
+  const counts = {
+    indents: db.prepare('SELECT COUNT(*) as c FROM indents').get().c,
+    vendor_pos: db.prepare('SELECT COUNT(*) as c FROM vendor_pos').get().c,
+    purchase_bills: db.prepare('SELECT COUNT(*) as c FROM purchase_bills').get().c,
+    delivery_notes: db.prepare('SELECT COUNT(*) as c FROM delivery_notes').get().c,
+  };
+  // Delete child rows first to avoid FK issues (SQLite isn't enforcing by
+  // default here but this keeps things tidy either way).
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM grn_items').run();
+    db.prepare('DELETE FROM grn').run();
+    db.prepare('DELETE FROM indent_tracker').run();
+    db.prepare('DELETE FROM delivery_notes').run();
+    db.prepare('DELETE FROM purchase_bills').run();
+    db.prepare('DELETE FROM vendor_rates').run();
+    db.prepare('DELETE FROM vendor_pos').run();
+    db.prepare('DELETE FROM indent_items').run();
+    db.prepare('DELETE FROM indents').run();
+  });
+  tx();
+  res.json({ message: 'Wiped', counts });
 });
 
 module.exports = router;

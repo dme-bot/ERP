@@ -29,7 +29,7 @@ const menuItems = [
   { path: '/orders', label: 'Orders & Planning', icon: FiShoppingCart, module: 'orders' },
   { path: '/vendors', label: 'Vendors', icon: FiTruck, module: 'vendors' },
   { path: '/customers', label: 'Customers', icon: FiUsers, module: 'customers' },
-  { path: '/procurement', label: 'Procurement', icon: FiPackage, module: 'procurement' },
+  { path: '/procurement', label: 'Procurement / Dispatch', icon: FiPackage, module: 'procurement' },
   { path: '/installation', label: 'Installation', icon: FiTool, module: 'installation' },
   { path: '/billing', label: 'Billing', icon: FiClipboard, module: 'billing' },
   { path: '/complaints', label: 'Complaints', icon: FiAlertCircle, module: 'complaints' },
