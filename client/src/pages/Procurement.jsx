@@ -62,9 +62,22 @@ export default function Procurement() {
     reloadBoq(siteName);
   };
 
-  // Inline BOQ upload — lets mam attach / replace the BOQ for the chosen
-  // site without leaving the Raise Indent modal. Works for all 23+ projects
-  // that might be missing items in the DB.
+  // Fetch items from the BOQ already attached to this site's PO. No
+  // re-upload — server parses boq_file_link on disk or falls back to
+  // boq_items via the linked quotation, then saves into po_items so
+  // Remaining tracking works across indents.
+  const fetchExistingBoq = async () => {
+    if (!form.site_name) return toast.error('Pick a site first');
+    setUploadingBoq(true);
+    try {
+      const r = await api.post('/procurement/fetch-existing-boq', { site_name: form.site_name });
+      toast.success(`Fetched ${r.data.items_saved} items from ${r.data.source === 'po_file' ? `PO ${r.data.po_number} BOQ file` : 'BOQ module'}`);
+      reloadBoq(form.site_name);
+    } catch (err) { toast.error(err.response?.data?.error || 'Fetch failed'); }
+    setUploadingBoq(false);
+  };
+
+  // Fallback — if truly nothing on file, admin can still upload.
   const uploadBoqForSite = async (file) => {
     if (!form.site_name) return toast.error('Pick a site first');
     setUploadingBoq(true);
@@ -351,15 +364,18 @@ export default function Procurement() {
           ) : boqItems.length === 0 && !boqLoading ? (
             <div className="border-2 border-dashed border-amber-300 rounded-lg p-4 text-sm text-amber-700 bg-amber-50">
               <p className="font-semibold mb-1">No BOQ items found for <b>{form.site_name}</b>.</p>
-              {boqDiag
-                ? <p className="text-xs mb-3">{boqDiag.message}</p>
-                : <p className="text-xs mb-3">Upload the BOQ for this site below to continue.</p>}
-              <label className={`btn btn-primary inline-flex items-center gap-2 cursor-pointer text-xs ${uploadingBoq ? 'opacity-60 pointer-events-none' : ''}`}>
-                📎 {uploadingBoq ? 'Uploading…' : 'Upload BOQ Here'}
-                <input type="file" accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" disabled={uploadingBoq}
-                  onChange={e => { const f = e.target.files[0]; if (f) uploadBoqForSite(f); e.target.value = ''; }} />
-              </label>
-              <p className="text-[10px] text-amber-600 mt-2">Excel will auto-fill items; PDF/image just attaches the file.</p>
+              <p className="text-xs mb-3">BOQ is already uploaded to the PO — click below to fetch its items into this form.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" disabled={uploadingBoq} onClick={fetchExistingBoq} className="btn btn-primary inline-flex items-center gap-2 text-xs disabled:opacity-60">
+                  🔄 {uploadingBoq ? 'Fetching…' : 'Fetch Items from BOQ'}
+                </button>
+                <label className="text-[11px] text-amber-700 underline cursor-pointer">
+                  or upload a new BOQ file
+                  <input type="file" accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" disabled={uploadingBoq}
+                    onChange={e => { const f = e.target.files[0]; if (f) uploadBoqForSite(f); e.target.value = ''; }} />
+                </label>
+              </div>
+              {boqDiag && <p className="text-[10px] text-amber-600 mt-2">{boqDiag.message}</p>}
             </div>
           ) : (
             <>

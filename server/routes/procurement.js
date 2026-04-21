@@ -517,6 +517,100 @@ const uploadDir = path.join(__dirname, '..', '..', 'data', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const bulkUpload = multer({ dest: uploadDir, limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Fetch items from the BOQ that's ALREADY attached somewhere (PO file link,
+// BOQ module via quotation, etc.) — no re-upload needed. Mam's usual case:
+// BOQ was uploaded during PO creation; items either weren't saved to po_items
+// or were never saved because the final 'Update Purchase Order' step was
+// skipped. This endpoint fishes the items out and persists them to po_items.
+router.post('/fetch-existing-boq', (req, res) => {
+  const siteName = String(req.body?.site_name || '').trim();
+  if (!siteName) return res.status(400).json({ error: 'site_name is required' });
+  const db = getDb();
+
+  // 1. Resolve business_book_id (same tolerant matcher)
+  let bbId = null;
+  const viaSite = db.prepare(
+    `SELECT DISTINCT s.business_book_id FROM sites s
+     WHERE LOWER(TRIM(s.name)) = LOWER(TRIM(?)) AND s.business_book_id IS NOT NULL LIMIT 1`
+  ).get(siteName);
+  if (viaSite?.business_book_id) bbId = viaSite.business_book_id;
+  if (!bbId) {
+    const viaBB = db.prepare(
+      `SELECT id FROM business_book
+       WHERE LOWER(TRIM(project_name)) = LOWER(TRIM(?))
+          OR LOWER(TRIM(company_name)) = LOWER(TRIM(?))
+          OR LOWER(TRIM(client_name))  = LOWER(TRIM(?))
+       LIMIT 1`
+    ).get(siteName, siteName, siteName);
+    if (viaBB?.id) bbId = viaBB.id;
+  }
+  if (!bbId) return res.status(404).json({ error: `No Business Book entry matches "${siteName}"` });
+
+  // 2. Try each source in order and return the first that yields items.
+  const sources = [];
+
+  // 2a. Parse PO's boq_file_link from disk
+  const po = db.prepare(
+    `SELECT id, po_number, boq_file_link FROM purchase_orders
+     WHERE business_book_id=? AND boq_file_link IS NOT NULL AND boq_file_link != ''
+     ORDER BY created_at DESC LIMIT 1`
+  ).get(bbId);
+  if (po?.boq_file_link) {
+    const filename = path.basename(po.boq_file_link);
+    const diskPath = path.join(__dirname, '..', '..', 'data', 'uploads', filename);
+    if (fs.existsSync(diskPath)) {
+      const parsed = parseBoqExcel(diskPath);
+      if (parsed.length > 0) sources.push({ name: 'po_file', items: parsed, po_number: po.po_number });
+    }
+  }
+
+  // 2b. boq_items via quotations tied to this project's lead
+  if (sources.length === 0) {
+    const leadRows = db.prepare(
+      `SELECT DISTINCT lead_id FROM business_book WHERE id=? AND lead_id IS NOT NULL`
+    ).all(bbId);
+    const leadIds = leadRows.map(r => r.lead_id);
+    if (leadIds.length > 0) {
+      const leadPH = leadIds.map(() => '?').join(',');
+      const boqRows = db.prepare(
+        `SELECT bi.description, bi.quantity, bi.unit, bi.rate, bi.amount
+         FROM boq_items bi
+         JOIN boq b ON b.id = bi.boq_id
+         WHERE b.lead_id IN (${leadPH})`
+      ).all(...leadIds);
+      if (boqRows.length > 0) {
+        sources.push({
+          name: 'boq_module',
+          items: boqRows.map((r, i) => ({
+            description: r.description, unit: r.unit || 'nos', boq_qty: r.quantity,
+          })),
+        });
+      }
+    }
+  }
+
+  if (sources.length === 0) {
+    return res.status(404).json({
+      error: po?.boq_file_link
+        ? `BOQ file is attached to PO ${po.po_number} but could not be read or parsed.`
+        : 'No BOQ file attached to the PO, and no BOQ items in the BOQ module for this project.',
+    });
+  }
+
+  // 3. Persist into po_items so Remaining tracking works across indents
+  const src = sources[0];
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM po_items WHERE business_book_id=?').run(bbId);
+    const ins = db.prepare('INSERT INTO po_items (business_book_id, description, quantity, unit, rate, amount) VALUES (?,?,?,?,?,?)');
+    for (const it of src.items) {
+      ins.run(bbId, it.description, it.boq_qty || it.quantity || 0, it.unit || 'nos', it.rate || 0, it.amount || 0);
+    }
+  });
+  tx();
+
+  res.json({ message: 'Items fetched', items_saved: src.items.length, source: src.name, po_number: src.po_number || null });
+});
+
 router.post('/upload-boq-for-site', bulkUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const siteName = String(req.body?.site_name || '').trim();
