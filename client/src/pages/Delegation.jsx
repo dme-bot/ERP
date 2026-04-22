@@ -148,6 +148,11 @@ export default function Delegation() {
     catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
 
+  // Strip the legacy bracketed prefix '[TSK-N | project | category | by person]'
+  // that existed in descriptions before we moved those fields into proper DB
+  // columns. Keeps only the real task text the user typed.
+  const cleanDesc = (s) => String(s || '').replace(/^\s*\[[^\]]*\]\s*/, '').trim();
+
   const statusBadge = (s) => {
     const map = {
       pending: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -216,8 +221,7 @@ export default function Delegation() {
                 <tr key={t.id} className={t.status === 'rejected' ? 'bg-red-50/40' : t.status === 'submitted' ? 'bg-blue-50/40' : ''}>
                   <td className="font-mono text-xs text-red-700 whitespace-nowrap">TSK-{String(t.id).padStart(4, '0')}</td>
                   <td className="max-w-md">
-                    <div className="line-clamp-2 text-gray-800 font-medium">{t.description || t.title}</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">by {t.assigned_by_name}</div>
+                    <div className="line-clamp-2 text-gray-800 font-medium">{cleanDesc(t.description || t.title)}</div>
                     {t.status === 'rejected' && t.reject_reason && (
                       <div className="text-[10px] text-red-700 mt-1 flex items-start gap-1"><FiAlertTriangle size={10} className="mt-0.5 flex-shrink-0" /> {t.reject_reason}</div>
                     )}
@@ -286,7 +290,7 @@ export default function Delegation() {
                 <span className="font-mono text-xs text-red-700">TSK-{String(t.id).padStart(4, '0')}</span>
                 {statusBadge(t.status)}
               </div>
-              <p className="text-sm text-gray-800 font-medium mb-2 line-clamp-3">{t.description || t.title}</p>
+              <p className="text-sm text-gray-800 font-medium mb-2 line-clamp-3">{cleanDesc(t.description || t.title)}</p>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-gray-600 mb-2">
                 <div><span className="text-gray-400">Assigned to:</span> <b>{t.assigned_to_name}</b></div>
                 <div><span className="text-gray-400">By:</span> {t.assigned_by_name}</div>
@@ -364,7 +368,7 @@ export default function Delegation() {
       </Modal>
 
       {/* Submit Proof Modal */}
-      <Modal isOpen={!!submitModal} onClose={() => setSubmitModal(null)} title={submitModal ? `Submit proof — ${submitModal.title}` : 'Submit proof'}>
+      <Modal isOpen={!!submitModal} onClose={() => setSubmitModal(null)} title={submitModal ? `Submit proof — ${cleanDesc(submitModal.description || submitModal.title).slice(0, 60)}` : 'Submit proof'}>
         <form onSubmit={submitProof} className="space-y-3">
           {submitModal?.status === 'rejected' && submitModal.reject_reason && (
             <div className="bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700">
@@ -388,7 +392,7 @@ export default function Delegation() {
       </Modal>
 
       {/* Reject Modal */}
-      <Modal isOpen={!!rejectModal} onClose={() => setRejectModal(null)} title={rejectModal ? `Reject — ${rejectModal.title}` : 'Reject'}>
+      <Modal isOpen={!!rejectModal} onClose={() => setRejectModal(null)} title={rejectModal ? `Reject — ${cleanDesc(rejectModal.description || rejectModal.title).slice(0, 60)}` : 'Reject'}>
         <form onSubmit={reject} className="space-y-3">
           <div>
             <label className="label">Reason for rejection *</label>
