@@ -160,13 +160,15 @@ export default function Delegation() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header — only admin creates new tasks. Everyone else is a user who receives them. */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h3 className="text-xl font-bold text-gray-800">Delegations</h3>
-          <p className="text-sm text-gray-500">Assign tasks, upload proof, approve or reject</p>
+          <p className="text-sm text-gray-500">{isAdmin() ? 'Assign tasks, upload proof, approve or reject' : 'Upload proof for tasks assigned to you'}</p>
         </div>
-        <button onClick={openCreate} className="btn btn-primary flex items-center gap-2"><FiPlus /> New Task</button>
+        {isAdmin() && (
+          <button onClick={openCreate} className="btn btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"><FiPlus /> New Task</button>
+        )}
       </div>
 
       {/* Filters */}
@@ -189,66 +191,138 @@ export default function Delegation() {
         </select>
       </div>
 
-      {/* List */}
-      <div className="space-y-2">
+      {/* Table view — Task ID / Description / Assigned To / Completion Date / Upload Proof / Date Extension */}
+      <div className="card p-0 overflow-x-auto hidden md:block">
+        <table className="text-sm">
+          <thead>
+            <tr>
+              <th>Task ID</th>
+              <th>Description</th>
+              <th>Assigned To</th>
+              <th>Due / Completed</th>
+              <th>Status</th>
+              <th>Upload Proof</th>
+              <th>Extension</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tasks.length === 0 && <tr><td colSpan="8" className="text-center text-gray-400 py-8">No tasks</td></tr>}
+            {tasks.map(t => {
+              const isAssignee = t.assigned_to === user?.id;
+              const isAssigner = t.assigned_by === user?.id;
+              const completedDate = t.reviewed_at ? new Date(t.reviewed_at).toLocaleDateString() : null;
+              return (
+                <tr key={t.id} className={t.status === 'rejected' ? 'bg-red-50/40' : t.status === 'submitted' ? 'bg-blue-50/40' : ''}>
+                  <td className="font-mono text-xs text-red-700 whitespace-nowrap">TSK-{String(t.id).padStart(4, '0')}</td>
+                  <td className="max-w-md">
+                    <div className="line-clamp-2 text-gray-800 font-medium">{t.description || t.title}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">by {t.assigned_by_name}</div>
+                    {t.status === 'rejected' && t.reject_reason && (
+                      <div className="text-[10px] text-red-700 mt-1 flex items-start gap-1"><FiAlertTriangle size={10} className="mt-0.5 flex-shrink-0" /> {t.reject_reason}</div>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap">{t.assigned_to_name}</td>
+                  <td className="whitespace-nowrap text-xs">
+                    {completedDate
+                      ? <span className="text-emerald-700 font-medium">Done {completedDate}</span>
+                      : t.due_date
+                        ? <span className="text-gray-600">Due {t.due_date}</span>
+                        : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td>{statusBadge(t.status)}</td>
+                  <td>
+                    {t.proof_url
+                      ? <a href={t.proof_url} target="_blank" rel="noreferrer" className="text-red-600 text-xs hover:underline flex items-center gap-1"><FiExternalLink size={11} /> View</a>
+                      : isAssignee && (t.status === 'pending' || t.status === 'rejected')
+                        ? <button onClick={() => { setSubmitModal(t); setSubmitForm({ proof_url: '', uploading: false }); }} className="btn btn-success text-[11px] px-2 py-1 flex items-center gap-1"><FiUpload size={11} /> Upload</button>
+                        : <span className="text-gray-400 text-xs">—</span>}
+                  </td>
+                  <td className="whitespace-nowrap">
+                    {t.extension_status === 'pending' && t.requested_due_date ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block">→ {t.requested_due_date}</span>
+                        {isAdmin() && (
+                          <div className="flex gap-1">
+                            <button onClick={() => approveExtension(t)} className="text-[10px] text-emerald-600 font-bold hover:underline">Approve</button>
+                            <button onClick={() => rejectExtension(t)} className="text-[10px] text-red-600 font-bold hover:underline">Reject</button>
+                          </div>
+                        )}
+                      </div>
+                    ) : isAssignee && t.status !== 'approved' ? (
+                      <button onClick={() => { setExtendModal(t); setExtendForm({ requested_due_date: t.due_date || '', reason: '' }); }} className="text-[11px] text-gray-500 hover:text-red-600 flex items-center gap-1"><FiCalendar size={11} /> Request</button>
+                    ) : t.extension_status === 'rejected' ? (
+                      <span className="text-[10px] text-gray-400">Rejected</span>
+                    ) : <span className="text-gray-300 text-xs">—</span>}
+                  </td>
+                  <td>
+                    <div className="flex gap-1">
+                      {isAssigner && t.status === 'submitted' && (
+                        <>
+                          <button onClick={() => approve(t)} className="text-[10px] text-emerald-600 font-bold hover:underline">Approve</button>
+                          <button onClick={() => { setRejectModal(t); setRejectReason(''); }} className="text-[10px] text-red-600 font-bold hover:underline">Reject</button>
+                        </>
+                      )}
+                      {(isAssigner || isAdmin()) && <button onClick={() => del(t)} className="p-1 text-gray-400 hover:text-red-600"><FiTrash2 size={12} /></button>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MOBILE: compact card layout with the same columns as labeled rows */}
+      <div className="md:hidden space-y-2">
         {tasks.length === 0 && <div className="card text-center text-gray-400 py-8">No tasks</div>}
         {tasks.map(t => {
           const isAssignee = t.assigned_to === user?.id;
           const isAssigner = t.assigned_by === user?.id;
+          const completedDate = t.reviewed_at ? new Date(t.reviewed_at).toLocaleDateString() : null;
           return (
             <div key={t.id} className={`card p-3 ${t.status === 'rejected' ? 'border-l-4 border-red-500' : t.status === 'submitted' ? 'border-l-4 border-blue-500' : ''}`}>
-              <div className="flex flex-wrap justify-between items-start gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {statusBadge(t.status)}
-                    {t.due_date && <span className="text-[11px] text-gray-500 flex items-center gap-1"><FiClock size={11} /> Due {t.due_date}</span>}
-                  </div>
-                  {t.description && <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap font-medium">{t.description}</p>}
-                  <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-gray-500">
-                    <span>Assigned by <b>{t.assigned_by_name}</b></span>
-                    <span>to <b>{t.assigned_to_name}</b></span>
-                    {t.proof_url && <a href={t.proof_url} target="_blank" rel="noreferrer" className="text-red-600 flex items-center gap-1 hover:underline"><FiExternalLink size={11} /> View proof</a>}
-                  </div>
-                  {t.status === 'rejected' && t.reject_reason && (
-                    <div className="mt-2 bg-red-50 border border-red-200 rounded px-2 py-1.5 text-[11px] text-red-700 flex items-start gap-1.5">
-                      <FiAlertTriangle size={12} className="mt-0.5 flex-shrink-0" />
-                      <span><b>Rejected:</b> {t.reject_reason}</span>
-                    </div>
-                  )}
-                  {t.extension_status === 'pending' && t.requested_due_date && (
-                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 text-[11px] text-amber-800 flex items-start gap-1.5">
-                      <FiCalendar size={12} className="mt-0.5 flex-shrink-0" />
-                      <span><b>Extension requested:</b> new date {t.requested_due_date}{t.extension_reason ? ` — ${t.extension_reason}` : ''}. Awaiting admin review.</span>
-                    </div>
-                  )}
-                  {t.extension_status === 'rejected' && (
-                    <div className="mt-2 bg-gray-50 border border-gray-200 rounded px-2 py-1.5 text-[11px] text-gray-600 flex items-start gap-1.5">
-                      <FiX size={12} className="mt-0.5 flex-shrink-0" />
-                      <span>Previous extension request was rejected by admin.</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
-                  {isAssignee && (t.status === 'pending' || t.status === 'rejected') && (
-                    <button onClick={() => { setSubmitModal(t); setSubmitForm({ proof_url: '', uploading: false }); }} className="btn btn-success text-xs px-3 py-1 flex items-center gap-1"><FiUpload size={12} /> Submit Proof</button>
-                  )}
-                  {isAssignee && t.status !== 'approved' && t.extension_status !== 'pending' && (
-                    <button onClick={() => { setExtendModal(t); setExtendForm({ requested_due_date: t.due_date || '', reason: '' }); }} className="btn btn-secondary text-xs px-3 py-1 flex items-center gap-1"><FiCalendar size={12} /> Request Extension</button>
-                  )}
-                  {isAssigner && t.status === 'submitted' && (
-                    <>
-                      <button onClick={() => approve(t)} className="btn btn-success text-xs px-3 py-1 flex items-center gap-1"><FiCheck size={12} /> Approve</button>
-                      <button onClick={() => { setRejectModal(t); setRejectReason(''); }} className="btn btn-danger text-xs px-3 py-1 flex items-center gap-1"><FiX size={12} /> Reject</button>
-                    </>
-                  )}
-                  {isAdmin() && t.extension_status === 'pending' && (
-                    <>
-                      <button onClick={() => approveExtension(t)} className="btn btn-success text-xs px-3 py-1 flex items-center gap-1" title={`Approve extension to ${t.requested_due_date}`}><FiCheck size={12} /> Approve Ext</button>
-                      <button onClick={() => rejectExtension(t)} className="btn btn-danger text-xs px-3 py-1 flex items-center gap-1"><FiX size={12} /> Reject Ext</button>
-                    </>
-                  )}
-                  {(isAssigner || isAdmin()) && <button onClick={() => del(t)} className="p-1.5 text-gray-400 hover:text-red-600"><FiTrash2 size={13} /></button>}
-                </div>
+              <div className="flex justify-between items-start gap-2 mb-2">
+                <span className="font-mono text-xs text-red-700">TSK-{String(t.id).padStart(4, '0')}</span>
+                {statusBadge(t.status)}
+              </div>
+              <p className="text-sm text-gray-800 font-medium mb-2 line-clamp-3">{t.description || t.title}</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-gray-600 mb-2">
+                <div><span className="text-gray-400">Assigned to:</span> <b>{t.assigned_to_name}</b></div>
+                <div><span className="text-gray-400">By:</span> {t.assigned_by_name}</div>
+                {completedDate ? (
+                  <div className="col-span-2"><span className="text-gray-400">Completed:</span> <b className="text-emerald-700">{completedDate}</b></div>
+                ) : t.due_date && (
+                  <div className="col-span-2"><span className="text-gray-400">Due:</span> <b>{t.due_date}</b></div>
+                )}
+              </div>
+              {t.status === 'rejected' && t.reject_reason && (
+                <div className="bg-red-50 border border-red-200 rounded px-2 py-1 text-[11px] text-red-700 mb-2 flex items-start gap-1"><FiAlertTriangle size={11} className="mt-0.5" /> {t.reject_reason}</div>
+              )}
+              {t.extension_status === 'pending' && t.requested_due_date && (
+                <div className="bg-amber-50 border border-amber-200 rounded px-2 py-1 text-[11px] text-amber-800 mb-2 flex items-start gap-1"><FiCalendar size={11} className="mt-0.5" /> Extension → {t.requested_due_date}</div>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {t.proof_url && <a href={t.proof_url} target="_blank" rel="noreferrer" className="btn btn-secondary text-[11px] px-2 py-1 flex items-center gap-1"><FiExternalLink size={11} /> Proof</a>}
+                {isAssignee && (t.status === 'pending' || t.status === 'rejected') && (
+                  <button onClick={() => { setSubmitModal(t); setSubmitForm({ proof_url: '', uploading: false }); }} className="btn btn-success text-[11px] px-2 py-1 flex items-center gap-1"><FiUpload size={11} /> Upload Proof</button>
+                )}
+                {isAssignee && t.status !== 'approved' && t.extension_status !== 'pending' && (
+                  <button onClick={() => { setExtendModal(t); setExtendForm({ requested_due_date: t.due_date || '', reason: '' }); }} className="btn btn-secondary text-[11px] px-2 py-1 flex items-center gap-1"><FiCalendar size={11} /> Extension</button>
+                )}
+                {isAssigner && t.status === 'submitted' && (
+                  <>
+                    <button onClick={() => approve(t)} className="btn btn-success text-[11px] px-2 py-1 flex items-center gap-1"><FiCheck size={11} /> Approve</button>
+                    <button onClick={() => { setRejectModal(t); setRejectReason(''); }} className="btn btn-danger text-[11px] px-2 py-1 flex items-center gap-1"><FiX size={11} /> Reject</button>
+                  </>
+                )}
+                {isAdmin() && t.extension_status === 'pending' && (
+                  <>
+                    <button onClick={() => approveExtension(t)} className="btn btn-success text-[11px] px-2 py-1 flex items-center gap-1"><FiCheck size={11} /> Ext ✓</button>
+                    <button onClick={() => rejectExtension(t)} className="btn btn-danger text-[11px] px-2 py-1 flex items-center gap-1"><FiX size={11} /> Ext ✗</button>
+                  </>
+                )}
+                {(isAssigner || isAdmin()) && <button onClick={() => del(t)} className="p-1.5 text-gray-400 hover:text-red-600 ml-auto"><FiTrash2 size={13} /></button>}
               </div>
             </div>
           );

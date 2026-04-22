@@ -42,10 +42,11 @@ router.get('/', (req, res) => {
   res.json(db.prepare(sql).all(...params));
 });
 
-// Create a new delegation. Anyone can create; assigned_by = logged-in user.
+// Create a new delegation. Admin-only — regular users are recipients, not creators.
 // Title is derived from the first line of the description (first 80 chars)
 // since the UI no longer asks for it separately.
 router.post('/', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admins can create tasks' });
   const { title, description, assigned_to, due_date } = req.body;
   const desc = String(description || '').trim();
   if (!desc) return res.status(400).json({ error: 'Description is required' });
