@@ -299,6 +299,10 @@ export default function Procurement() {
 
       {tab === 'rates' && (
         <>
+          {/* Shared vendor name suggestions — used by all Name inputs on this tab */}
+          <datalist id="vendor-options">
+            {vendors.map(v => <option key={v.id} value={v.name} />)}
+          </datalist>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <h3 className="font-semibold">Item-wise Vendor Rates</h3>
@@ -341,14 +345,28 @@ export default function Procurement() {
                   const statColor = stat === 'finalized' ? 'bg-emerald-100 text-emerald-700' : stat === 'quoted' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700';
                   return (
                     <tr key={r.indent_item_id} className="border-b hover:bg-red-50/30">
-                      <td className="px-2 py-2"><div className="font-medium text-red-700">{r.indent_number}</div><div className="text-[10px] text-gray-400">{r.site_name}</div></td>
-                      <td className="px-2 py-2 max-w-[220px]"><div className="line-clamp-2">{r.description}</div>{r.make && <div className="text-[10px] text-gray-400">Make: {r.make}</div>}</td>
-                      <td className="px-2 py-2 text-center font-semibold">{r.qty} {r.unit}</td>
+                      <td className="px-2 py-2 whitespace-nowrap"><div className="font-medium text-red-700">{r.indent_number}</div><div className="text-[10px] text-gray-400">{r.site_name}</div></td>
+                      <td className="px-2 py-2 min-w-[260px]"><div className="whitespace-normal leading-snug">{r.description}</div>{r.make && <div className="text-[10px] text-gray-400 mt-0.5">Make: {r.make}</div>}</td>
+                      <td className="px-2 py-2 text-center font-semibold whitespace-nowrap">{r.qty} {r.unit}</td>
                       {[1,2,3].map(n => (
                         <Fragment key={n}>
-                          <td className="px-1 py-1"><input className="input text-[11px] px-1 py-0.5 w-24" placeholder="Vendor" value={r[`vendor${n}_name`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_name`]: e.target.value })} /></td>
+                          <td className="px-1 py-1">
+                            <input
+                              className="input text-[11px] px-1 py-0.5 w-28"
+                              placeholder="Vendor"
+                              list="vendor-options"
+                              value={r[`vendor${n}_name`] || ''}
+                              onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_name`]: e.target.value })}
+                            />
+                          </td>
                           <td className="px-1 py-1"><input className="input text-[11px] px-1 py-0.5 w-20 text-right" type="number" placeholder="0" value={r[`vendor${n}_rate`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_rate`]: +e.target.value })} /></td>
-                          <td className="px-1 py-1"><input className="input text-[11px] px-1 py-0.5 w-20" placeholder="terms" value={r[`vendor${n}_terms`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_terms`]: e.target.value })} /></td>
+                          <td className="px-1 py-1">
+                            <select className="select text-[11px] px-1 py-0.5 w-24" value={r[`vendor${n}_terms`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_terms`]: e.target.value })}>
+                              <option value="">—</option>
+                              <option value="Advance">Advance</option>
+                              <option value="Credit">Credit</option>
+                            </select>
+                          </td>
                         </Fragment>
                       ))}
                       <td className="px-2 py-2"><span className={`badge ${statColor}`}>{stat}</span></td>
@@ -383,9 +401,13 @@ export default function Procurement() {
                     <div key={n} className="border rounded p-2 bg-gray-50">
                       <div className="text-[10px] font-bold text-gray-500 uppercase mb-1">Vendor {n}</div>
                       <div className="grid grid-cols-3 gap-2">
-                        <input className="input text-xs" placeholder="Name" value={r[`vendor${n}_name`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_name`]: e.target.value })} />
+                        <input className="input text-xs" placeholder="Name" list="vendor-options" value={r[`vendor${n}_name`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_name`]: e.target.value })} />
                         <input className="input text-xs" type="number" placeholder="Rate" value={r[`vendor${n}_rate`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_rate`]: +e.target.value })} />
-                        <input className="input text-xs" placeholder="Terms" value={r[`vendor${n}_terms`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_terms`]: e.target.value })} />
+                        <select className="select text-xs" value={r[`vendor${n}_terms`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_terms`]: e.target.value })}>
+                          <option value="">— Terms —</option>
+                          <option value="Advance">Advance</option>
+                          <option value="Credit">Credit</option>
+                        </select>
                       </div>
                     </div>
                   ))}
@@ -757,10 +779,17 @@ export default function Procurement() {
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><label className="label">Final Vendor *</label><input className="input" required value={finalForm.final_vendor_name || ''} onChange={e => setFinalForm(f => ({ ...f, final_vendor_name: e.target.value }))} /></div>
+            <div><label className="label">Final Vendor *</label><input className="input" required list="vendor-options" value={finalForm.final_vendor_name || ''} onChange={e => setFinalForm(f => ({ ...f, final_vendor_name: e.target.value }))} /></div>
             <div><label className="label">Final Rate (Rs) *</label><input className="input" type="number" required value={finalForm.final_rate || ''} onChange={e => setFinalForm(f => ({ ...f, final_rate: +e.target.value }))} /></div>
-            <div><label className="label">Payment Terms</label><input className="input" value={finalForm.final_terms || ''} onChange={e => setFinalForm(f => ({ ...f, final_terms: e.target.value }))} placeholder="e.g. 30% advance, 70% on delivery" /></div>
-            <div><label className="label">Credit Days (if credit)</label><input className="input" type="number" value={finalForm.final_credit_days || 0} onChange={e => setFinalForm(f => ({ ...f, final_credit_days: +e.target.value }))} /></div>
+            <div>
+              <label className="label">Payment Terms</label>
+              <select className="select" value={finalForm.final_terms || ''} onChange={e => setFinalForm(f => ({ ...f, final_terms: e.target.value }))}>
+                <option value="">— Select —</option>
+                <option value="Advance">Advance</option>
+                <option value="Credit">Credit</option>
+              </select>
+            </div>
+            <div><label className="label">Credit Days (if Credit)</label><input className="input" type="number" value={finalForm.final_credit_days || 0} onChange={e => setFinalForm(f => ({ ...f, final_credit_days: +e.target.value }))} disabled={finalForm.final_terms !== 'Credit'} /></div>
           </div>
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <button type="button" onClick={() => { setFinalModal(null); setFinalForm({}); }} className="btn btn-secondary">Cancel</button>
