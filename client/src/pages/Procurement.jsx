@@ -221,7 +221,7 @@ export default function Procurement() {
               <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setBoqItems([]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Raise Indent</button>
             </div>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Indent No</th><th>Date</th><th>Site</th><th>Raised By</th><th>BOQ</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {indents.map(i => (
@@ -266,7 +266,7 @@ export default function Procurement() {
             <h3 className="font-semibold">Vendor Purchase Orders</h3>
             <button onClick={() => { setForm({ indent_id: '', vendor_id: '', total_amount: 0, advance_required: false }); setModal('vendorpo'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Vendor PO</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>PO Number</th><th>Vendor</th><th>Amount</th><th>Advance</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {vendorPos.map(v => (
@@ -293,7 +293,7 @@ export default function Procurement() {
             <h3 className="font-semibold">Purchase Bills</h3>
             <button onClick={() => { setForm({ vendor_id: '', bill_number: '', bill_date: '', amount: 0, gst_amount: 0, total_amount: 0 }); setModal('bill'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Bill</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Bill No</th><th>Vendor</th><th>Date</th><th>Amount</th><th>GST</th><th>Total</th><th>Payment</th><th>Actions</th></tr></thead>
             <tbody>
               {purchaseBills.map(b => (
@@ -321,7 +321,7 @@ export default function Procurement() {
             <h3 className="font-semibold">Dispatch to Site</h3>
             <button onClick={() => { setForm({ vendor_po_id: '', delivery_date: '', notes: '' }); setModal('delivery'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Dispatch</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>ID</th><th>Date</th><th>Received By</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {deliveryNotes.map(d => (
@@ -493,7 +493,7 @@ export default function Procurement() {
                           <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Item (Item Master)</label>
                           {masterPicker}
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                           <div>
                             <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Qty</label>
                             {qtyInput}
@@ -580,7 +580,7 @@ export default function Procurement() {
       <Modal isOpen={modal === 'bill'} onClose={() => setModal(false)} title="Add Purchase Bill">
         <form onSubmit={savePurchaseBill} className="space-y-4">
           <div><label className="label">Vendor *</label><select className="select" value={form.vendor_id} onChange={e => setForm({...form, vendor_id: e.target.value})} required><option value="">Select</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="label">Bill Number</label><input className="input" value={form.bill_number} onChange={e => setForm({...form, bill_number: e.target.value})} /></div>
             <div><label className="label">Bill Date</label><input className="input" type="date" value={form.bill_date} onChange={e => setForm({...form, bill_date: e.target.value})} /></div>
             <div><label className="label">Amount</label><input className="input" type="number" value={form.amount} onChange={e => setForm({...form, amount: +e.target.value, total_amount: +e.target.value + (form.gst_amount || 0)})} /></div>

@@ -95,7 +95,7 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed md:relative z-40 h-full bg-gradient-to-b from-red-800 to-red-900 text-white flex flex-col transition-transform duration-300 flex-shrink-0 ${isMobile ? 'w-56' : 'w-64'} ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed md:relative z-40 h-full bg-gradient-to-b from-red-800 to-red-900 text-white flex flex-col transition-transform duration-300 flex-shrink-0 ${isMobile ? 'w-[80vw] max-w-[260px]' : 'w-64'} ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-4 border-b border-white/10 flex justify-between items-center">
           <div>
             <div className="flex items-center gap-2">

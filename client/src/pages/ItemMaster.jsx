@@ -149,7 +149,7 @@ export default function ItemMaster() {
       )}
 
       {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="overflow-x-auto"><table className="min-w-full">
           <thead><tr className="bg-gray-50">
             <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Code</th>
@@ -192,18 +192,18 @@ export default function ItemMaster() {
       {/* Add/Edit Modal */}
       <Modal isOpen={modal === 'add' || modal === 'edit'} onClose={() => setModal(null)} title={modal === 'edit' ? `Edit - ${form.item_code}` : 'Add Item'} wide>
         <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div><label className="label">Item Code</label><input className="input font-mono" value={form.item_code || ''} onChange={e => F('item_code', e.target.value)} placeholder="Auto-generated if empty" /></div>
             <div><label className="label">Department *</label><select className="select" value={form.department} onChange={e => F('department', e.target.value)}>{DEPARTMENTS.map(d => <option key={d} value={d}>{d} - {DEPT_LABELS[d] || d}</option>)}</select></div>
             <div><label className="label">Type</label><select className="select" value={form.type} onChange={e => F('type', e.target.value)}>{TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div><label className="label">Item Name *</label><input className="input" value={form.item_name || ''} onChange={e => F('item_name', e.target.value)} required /></div>
             <div><label className="label">Specification</label><input className="input" value={form.specification || ''} onChange={e => F('specification', e.target.value)} /></div>
             <div><label className="label">Size</label><input className="input" value={form.size || ''} onChange={e => F('size', e.target.value)} /></div>
           </div>
           <div className="bg-gray-50 p-2 rounded text-sm"><strong>Display in PO:</strong> {[form.item_name, form.specification, form.size].filter(Boolean).join(' / ') || '(enter item details)'}</div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div><label className="label">UOM</label><select className="select" value={form.uom} onChange={e => F('uom', e.target.value)}>{UOMS.map(u => <option key={u}>{u}</option>)}</select></div>
             <div><label className="label">GST</label><input className="input" value={form.gst || ''} onChange={e => F('gst', e.target.value)} /></div>
             <div><label className="label">Make</label><input className="input" value={form.make || ''} onChange={e => F('make', e.target.value)} /></div>

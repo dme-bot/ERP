@@ -36,7 +36,7 @@ export default function Installation() {
         <h3 className="font-semibold">Installations</h3>
         <button onClick={() => { setEditing(null); setForm({ po_id: '', site_address: '', start_date: '', end_date: '', assigned_to: '', notes: '' }); setModal(true); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Installation</button>
       </div>
-      <div className="card p-0 overflow-hidden"><table>
+      <div className="card p-0 overflow-x-auto"><table>
         <thead><tr><th>PO</th><th>Site Address</th><th>Start</th><th>End</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           {installations.map(i => (
@@ -61,7 +61,7 @@ export default function Installation() {
         <form onSubmit={save} className="space-y-4">
           <div><label className="label">Purchase Order</label><select className="select" value={form.po_id || ''} onChange={e => setForm({...form, po_id: e.target.value})}><option value="">Select</option>{pos.map(p => <option key={p.id} value={p.id}>{p.po_number} - {p.company_name}</option>)}</select></div>
           <div><label className="label">Site Address</label><textarea className="input" rows="2" value={form.site_address || ''} onChange={e => setForm({...form, site_address: e.target.value})} /></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="label">Start Date</label><input className="input" type="date" value={form.start_date || ''} onChange={e => setForm({...form, start_date: e.target.value})} /></div>
             <div><label className="label">End Date</label><input className="input" type="date" value={form.end_date || ''} onChange={e => setForm({...form, end_date: e.target.value})} /></div>
           </div>

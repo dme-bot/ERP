@@ -134,7 +134,7 @@ export default function Customers() {
 
       <p className="text-sm text-gray-500">Showing {filtered.length} customer{filtered.length === 1 ? '' : 's'}</p>
 
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-[1100px] text-xs w-full">
             <thead>
@@ -186,7 +186,7 @@ export default function Customers() {
               <span className="font-mono text-xs text-red-600">{viewData.customer_code}</span>
               {viewData.category && <span className={`text-xs px-2 py-0.5 rounded font-medium ${CAT_COLORS[viewData.category] || 'bg-gray-100'}`}>{viewData.category}</span>}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><span className="text-gray-400 text-xs">Sub Company:</span><br/><span className="font-medium">{viewData.sub_company_name || '-'}</span></div>
               <div><span className="text-gray-400 text-xs">Contact No:</span><br/><span className="font-medium">{viewData.contact_no || '-'}</span></div>
               <div><span className="text-gray-400 text-xs">Email:</span><br/><span className="font-medium">{viewData.email || '-'}</span></div>
@@ -202,7 +202,7 @@ export default function Customers() {
       {/* Add/Edit Modal */}
       <Modal isOpen={modal === 'form'} onClose={() => { setModal(false); setEditing(null); }} title={editing ? 'Edit Customer' : 'New Customer'} wide>
         <form onSubmit={save} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {editing && (
               <div>
                 <label className="label">Customer Code</label>

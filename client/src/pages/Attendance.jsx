@@ -292,7 +292,7 @@ export default function Attendance() {
           )}
 
           {/* Today's Records */}
-          <div className="card p-0 overflow-hidden">
+          <div className="card p-0 overflow-x-auto">
             <div className="p-3 border-b"><h4 className="font-semibold">Today's Attendance</h4></div>
             <div className="overflow-x-auto"><table className="text-sm">
               <thead><tr><th>Name</th><th>Dept</th><th>In</th><th>Out</th><th>Hours</th><th>Status</th><th>Photo</th></tr></thead>
@@ -315,7 +315,7 @@ export default function Attendance() {
       {tab === 'records' && (
         <>
           <input type="date" className="input w-48" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
-          <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="text-sm">
+          <div className="card p-0 overflow-x-auto"><table className="text-sm">
             <thead><tr><th>Name</th><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Site</th><th>Status</th><th>In Photo</th><th>Out Photo</th><th>Actions</th></tr></thead>
             <tbody>{records.map(r => (
               <tr key={r.id}>
@@ -334,7 +334,7 @@ export default function Attendance() {
                 }} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><FiTrash2 size={14} /></button>}</td>
               </tr>
             ))}</tbody>
-          </table></div></div>
+          </table></div>
         </>
       )}
 
@@ -427,7 +427,7 @@ export default function Attendance() {
               })()}
 
               {/* Detail table */}
-              <div className="card p-0 overflow-hidden">
+              <div className="card p-0 overflow-x-auto">
                 <div className="p-3 border-b"><h4 className="font-semibold text-sm">Daily Detail</h4></div>
                 <div className="overflow-x-auto">
                   <table className="text-sm w-full">
@@ -479,7 +479,7 @@ export default function Attendance() {
 
       {/* MONTHLY REPORT */}
       {tab === 'report' && (
-        <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="text-sm">
+        <div className="card p-0 overflow-x-auto"><table className="text-sm">
           <thead><tr><th>Employee</th><th>Dept</th><th>Present</th><th>Late</th><th>Half Day</th><th>Absent</th><th>Avg Hours</th></tr></thead>
           <tbody>{report.map(r => (
             <tr key={r.user_id}>
@@ -491,7 +491,7 @@ export default function Attendance() {
               <td className="font-semibold">{r.avg_hours || '-'}h</td>
             </tr>
           ))}</tbody>
-        </table></div></div>
+        </table></div>
       )}
 
       {/* GEOFENCE SETTINGS */}
@@ -502,7 +502,7 @@ export default function Attendance() {
             <button onClick={() => { setForm({ site_name: '', latitude: '', longitude: '', radius_meters: 200 }); setModal('geofence'); }} className="btn btn-primary flex items-center gap-2 text-sm"><FiPlus size={14} /> Add Geofence</button>
           </div>
           <p className="text-xs text-gray-500">Employees can only punch in/out when inside these areas. If no geofence set, punch from anywhere.</p>
-          <div className="card p-0 overflow-hidden"><table className="text-sm">
+          <div className="card p-0 overflow-x-auto"><table className="text-sm">
             <thead><tr><th>Site</th><th>Latitude</th><th>Longitude</th><th>Radius</th><th>Active</th><th>Actions</th></tr></thead>
             <tbody>{geofences.map(g => (
               <tr key={g.id}>
@@ -519,7 +519,7 @@ export default function Attendance() {
 
       {/* LEAVES TAB */}
       {tab === 'leaves' && (
-        <div className="card p-0 overflow-hidden"><table className="text-sm">
+        <div className="card p-0 overflow-x-auto"><table className="text-sm">
           <thead><tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>{leaves.map(l => (
             <tr key={l.id}>

@@ -83,7 +83,7 @@ export default function Vendors() {
 
           <p className="text-sm text-gray-500">Showing {filtered.length} vendors</p>
 
-          <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="min-w-[1000px] text-xs">
+          <div className="card p-0 overflow-x-auto"><table className="min-w-[1000px] text-xs">
             <thead><tr className="bg-gray-50">
               <th className="px-2 py-2">Code</th><th className="px-2 py-2 text-left">Vendor Name</th><th className="px-2 py-2">Category</th>
               <th className="px-2 py-2 text-left">Deals In</th><th className="px-2 py-2">Type</th><th className="px-2 py-2 text-left">District</th>
@@ -113,7 +113,7 @@ export default function Vendors() {
                 </td>
               </tr>
             ))}{filtered.length === 0 && <tr><td colSpan="10" className="text-center py-8 text-gray-400">No vendors found</td></tr>}</tbody>
-          </table></div></div>
+          </table></div>
         </>
       )}
 
@@ -123,7 +123,7 @@ export default function Vendors() {
             <h3 className="font-semibold text-sm">3 Vendor Rate Comparison</h3>
             <button onClick={() => { setForm({ item_description: '', vendor1_id: '', vendor1_rate: 0, vendor2_id: '', vendor2_rate: 0, vendor3_id: '', vendor3_rate: 0, final_rate: 0, selected_vendor_id: '' }); setModal('rate'); }} className="btn btn-primary flex items-center gap-2 text-sm"><FiPlus size={15} /> Add Comparison</button>
           </div>
-          <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="text-xs">
+          <div className="card p-0 overflow-x-auto"><table className="text-xs">
             <thead><tr><th>Item</th><th>Vendor 1</th><th>Rate 1</th><th>Vendor 2</th><th>Rate 2</th><th>Vendor 3</th><th>Rate 3</th><th>Final</th><th>Selected</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>{rates.map(r => (
               <tr key={r.id}>
@@ -149,7 +149,7 @@ export default function Vendors() {
                 </div></td>
               </tr>
             ))}{rates.length === 0 && <tr><td colSpan="11" className="text-center py-8 text-gray-400">No comparisons yet</td></tr>}</tbody>
-          </table></div></div>
+          </table></div>
         </>
       )}
 
@@ -162,7 +162,7 @@ export default function Vendors() {
               <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">{viewData.type}</span>
               <span className="font-mono text-xs text-red-600">{viewData.vendor_code}</span>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div><span className="text-gray-400 text-xs">Deals In:</span><br/><span className="font-medium">{viewData.deals_in || '-'}</span></div>
               <div><span className="text-gray-400 text-xs">Authorized:</span><br/><span className="font-medium">{viewData.authorized_dealer || '-'}</span></div>
               <div><span className="text-gray-400 text-xs">Sub Category:</span><br/><span className="font-medium">{viewData.sub_category || '-'}</span></div>
@@ -183,7 +183,7 @@ export default function Vendors() {
       {/* Add/Edit Vendor Modal */}
       <Modal isOpen={modal === 'vendor'} onClose={() => { setModal(false); setEditing(null); }} title={editing ? 'Edit Vendor' : 'Add Vendor'} wide>
         <form onSubmit={saveVendor} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div><label className="label">Vendor Code</label><input className="input" value={form.vendor_code || ''} onChange={e => setForm({...form, vendor_code: e.target.value})} placeholder="Auto if empty" /></div>
             <div><label className="label">Vendor Name *</label><input className="input" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} required /></div>
             <div><label className="label">Firm Name</label><input className="input" value={form.firm_name || ''} onChange={e => setForm({...form, firm_name: e.target.value})} /></div>
@@ -209,7 +209,7 @@ export default function Vendors() {
       <Modal isOpen={modal === 'rate'} onClose={() => setModal(false)} title="3 Vendor Rate Comparison" wide>
         <form onSubmit={saveRate} className="space-y-4">
           <div><label className="label">Item Description *</label><input className="input" value={form.item_description || ''} onChange={e => setForm({...form, item_description: e.target.value})} required /></div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {[1,2,3].map(n => (
               <div key={n} className="space-y-2 p-3 bg-gray-50 rounded-lg">
                 <h4 className="font-semibold text-sm">Vendor {n}</h4>
@@ -218,7 +218,7 @@ export default function Vendors() {
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="label">Final Rate</label><input className="input" type="number" value={form.final_rate || 0} onChange={e => setForm({...form, final_rate: +e.target.value})} /></div>
             <div><label className="label">Selected Vendor</label><select className="select" value={form.selected_vendor_id || ''} onChange={e => setForm({...form, selected_vendor_id: e.target.value})}><option value="">Select</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
           </div>

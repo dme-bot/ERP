@@ -65,7 +65,7 @@ export default function Quotations() {
             <h3 className="font-semibold text-gray-800">Bill of Quantities</h3>
             <button onClick={() => { setForm({ lead_id: '', title: '', drawing_required: false }); setBoqItems([{ description: '', quantity: 1, unit: 'nos', rate: 0 }]); setModal('boq'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create BOQ</button>
           </div>
-          <div className="card p-0 overflow-hidden">
+          <div className="card p-0 overflow-x-auto">
             <table>
               <thead><tr><th>Title</th><th>Client</th><th>Drawing</th><th>Total</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
               <tbody>
@@ -99,7 +99,7 @@ export default function Quotations() {
             <h3 className="font-semibold text-gray-800">Quotations</h3>
             <button onClick={() => { setForm({ lead_id: '', boq_id: '', total_amount: 0, discount: 0, final_amount: 0, valid_until: '', notes: '' }); setModal('quotation'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Quotation</button>
           </div>
-          <div className="card p-0 overflow-hidden">
+          <div className="card p-0 overflow-x-auto">
             <table>
               <thead><tr><th>Number</th><th>Client</th><th>Total</th><th>Discount</th><th>Final</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
@@ -135,7 +135,7 @@ export default function Quotations() {
       {/* BOQ Modal */}
       <Modal isOpen={modal === 'boq'} onClose={() => setModal(false)} title="Create BOQ" wide>
         <form onSubmit={createBoq} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Lead / Client</label>
               <select className="select" value={form.lead_id} onChange={e => setForm({...form, lead_id: e.target.value})}>
@@ -183,7 +183,7 @@ export default function Quotations() {
               {boqs.map(b => <option key={b.id} value={b.id}>{b.title} - Rs {b.total_amount?.toLocaleString()}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div><label className="label">Total Amount</label><input className="input" type="number" value={form.total_amount} onChange={e => setForm({...form, total_amount: +e.target.value, final_amount: +e.target.value - (form.discount || 0)})} /></div>
             <div><label className="label">Discount</label><input className="input" type="number" value={form.discount} onChange={e => setForm({...form, discount: +e.target.value, final_amount: (form.total_amount || 0) - +e.target.value})} /></div>
             <div><label className="label">Final Amount</label><input className="input" type="number" value={form.final_amount} readOnly /></div>

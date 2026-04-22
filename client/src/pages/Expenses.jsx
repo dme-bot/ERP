@@ -50,7 +50,7 @@ export default function Expenses() {
         ))}
       </div>
 
-      <div className="card p-0 overflow-hidden"><table>
+      <div className="card p-0 overflow-x-auto"><table>
         <thead><tr><th>Title</th><th>Category</th><th>Amount</th><th>Date</th><th>Submitted By</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           {expenses.map(e => (
@@ -84,7 +84,7 @@ export default function Expenses() {
         <form onSubmit={save} className="space-y-4">
           <div><label className="label">Title *</label><input className="input" value={form.title || ''} onChange={e => setForm({...form, title: e.target.value})} required /></div>
           <div><label className="label">Description</label><textarea className="input" rows="2" value={form.description || ''} onChange={e => setForm({...form, description: e.target.value})} /></div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div><label className="label">Amount (Rs) *</label><input className="input" type="number" value={form.amount || 0} onChange={e => setForm({...form, amount: +e.target.value})} required /></div>
             <div><label className="label">Category</label><input className="input" value={form.category || ''} onChange={e => setForm({...form, category: e.target.value})} placeholder="Travel, Food, etc." /></div>
             <div><label className="label">Date</label><input className="input" type="date" value={form.expense_date || ''} onChange={e => setForm({...form, expense_date: e.target.value})} /></div>

@@ -138,7 +138,7 @@ export default function PaymentRequired() {
 
           {/* Pending approvals */}
           {stats.pendingApprovals?.length > 0 && (
-            <div className="card p-0 overflow-hidden">
+            <div className="card p-0 overflow-x-auto">
               <div className="p-4 border-b bg-amber-50"><h4 className="font-semibold text-amber-800">Pending Approvals</h4></div>
               <table><thead><tr><th>Req No</th><th>Employee</th><th>Category</th><th>Amount</th><th>Step</th><th>Actions</th></tr></thead>
                 <tbody>{stats.pendingApprovals.map(r => (
@@ -171,7 +171,7 @@ export default function PaymentRequired() {
             <select className="select w-40" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}><option value="">All Status</option>{STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}</select>
           </div>
 
-          <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Req No</th><th>Employee</th><th>Site</th><th>Category</th><th>Amount</th><th>Purpose</th><th>Step</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
             <tbody>
               {requests.filter(r => {
@@ -205,7 +205,7 @@ export default function PaymentRequired() {
               ))}
               {requests.length === 0 && <tr><td colSpan="10" className="text-center py-8 text-gray-400">No requests found</td></tr>}
             </tbody>
-          </table></div></div>
+          </table></div>
         </>
       )}
 

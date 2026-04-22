@@ -180,7 +180,7 @@ export default function BusinessBook() {
       </div>
 
       {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead><tr className="bg-gray-50">
@@ -242,7 +242,7 @@ export default function BusinessBook() {
                 <span className={`ml-2 inline-flex px-2 py-0.5 rounded text-xs font-medium ${viewEntry.lead_type === 'Government' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`}>{viewEntry.lead_type}</span>
               </div>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-gray-50 p-3 rounded-lg text-center"><p className="text-xs text-gray-500">Sale Amount</p><p className="font-bold">{fmt(viewEntry.sale_amount_without_gst)}</p></div>
               <div className="bg-red-50 p-3 rounded-lg text-center"><p className="text-xs text-gray-500">PO Amount</p><p className="font-bold text-red-700">{fmt(viewEntry.po_amount)}</p></div>
               <div className="bg-emerald-50 p-3 rounded-lg text-center"><p className="text-xs text-gray-500">Advance</p><p className="font-bold text-emerald-600">{fmt(viewEntry.advance_received)}</p></div>
@@ -269,7 +269,7 @@ export default function BusinessBook() {
 
           {/* 1. Client */}
           <FSection title="Client & Company Details" color="gray">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <Sel label="Lead Type" value={form.lead_type} onChange={v => F('lead_type', v)} options={LEAD_TYPES} />
               <Inp label="Client Name *" value={form.client_name} onChange={v => F('client_name', v)} required />
               <Inp label="Company/Department" value={form.company_name} onChange={v => F('company_name', v)} />
@@ -285,7 +285,7 @@ export default function BusinessBook() {
 
           {/* 2. Location */}
           <FSection title="Location & Address" color="gray">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <Inp label="District" value={form.district} onChange={v => F('district', v)} />
               <Inp label="State" value={form.state} onChange={v => F('state', v)} />
               <Inp label="Billing Address" value={form.billing_address} onChange={v => F('billing_address', v)} />
@@ -295,7 +295,7 @@ export default function BusinessBook() {
 
           {/* 3. Project & Order + PO */}
           <FSection title="Project, Order & PO Details" color="blue">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <Inp label="Project Name" value={form.project_name} onChange={v => F('project_name', v)} />
               <Sel label="Order Type" value={form.order_type} onChange={v => F('order_type', v)} options={ORDER_TYPES} />
               <Sel label="Category" value={form.category} onChange={v => F('category', v)} options={CATEGORIES} blank="Select" />
@@ -311,7 +311,7 @@ export default function BusinessBook() {
 
           {/* 4. Financial */}
           <FSection title="Financial Details" color="emerald">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <Inp label="Sale Amount (Without GST)" value={form.sale_amount_without_gst} onChange={v => F('sale_amount_without_gst', +v)} type="number" />
               <Inp label="PO Amount (With GST)" value={form.po_amount} onChange={v => F('po_amount', +v)} type="number" />
               <Inp label="Advance Received" value={form.advance_received} onChange={v => F('advance_received', +v)} type="number" />
@@ -322,7 +322,7 @@ export default function BusinessBook() {
 
           {/* 5. Payment Terms */}
           <FSection title="Payment Terms" color="indigo">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <Inp label="Advance" value={form.payment_advance} onChange={v => F('payment_advance', v)} placeholder="%" />
               <Inp label="Against Delivery" value={form.payment_against_delivery} onChange={v => F('payment_against_delivery', v)} placeholder="%" />
               <Inp label="Against Installation" value={form.payment_against_installation} onChange={v => F('payment_against_installation', v)} placeholder="%" />
@@ -335,7 +335,7 @@ export default function BusinessBook() {
 
           {/* 6. Dates */}
           <FSection title="Committed Dates" color="amber">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <Inp label="Committed Start" value={form.committed_start_date} onChange={v => F('committed_start_date', v)} type="date" />
               <Inp label="Committed Delivery" value={form.committed_delivery_date} onChange={v => F('committed_delivery_date', v)} type="date" />
               <Inp label="Committed Completion" value={form.committed_completion_date} onChange={v => F('committed_completion_date', v)} type="date" />
@@ -344,7 +344,7 @@ export default function BusinessBook() {
 
           {/* 7. People */}
           <FSection title="People & Contacts" color="purple">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <Inp label="Employee Name" value={form.employee_assigned} onChange={v => F('employee_assigned', v)} />
               <Inp label="Lead By" value={form.lead_by} onChange={v => F('lead_by', v)} />
               <div></div>
@@ -367,7 +367,7 @@ export default function BusinessBook() {
 
           {/* 8. TPA */}
           <FSection title="TPA Details" color="rose">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <Inp label="TPA Items Count" value={form.tpa_items_count} onChange={v => F('tpa_items_count', +v)} type="number" />
               <Inp label="Total Qty (TPA Items)" value={form.tpa_items_qty} onChange={v => F('tpa_items_qty', v)} />
               <Inp label="TPA Material Amount" value={form.tpa_material_amount} onChange={v => F('tpa_material_amount', +v)} type="number" />
@@ -442,7 +442,7 @@ function FSection({ title, color, children }) {
 function DSection({ title, items }) {
   const filtered = items.filter(([, v]) => v && v !== '-' && v !== 0 && v !== 'Rs 0');
   if (filtered.length === 0) return null;
-  return (<div className="border rounded-lg p-3"><h4 className="font-semibold text-sm text-gray-700 mb-2">{title}</h4><div className="grid grid-cols-3 gap-2">{filtered.map(([l, v]) => <div key={l}><p className="text-xs text-gray-400">{l}</p><p className="text-sm font-medium">{v}</p></div>)}</div></div>);
+  return (<div className="border rounded-lg p-3"><h4 className="font-semibold text-sm text-gray-700 mb-2">{title}</h4><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">{filtered.map(([l, v]) => <div key={l}><p className="text-xs text-gray-400">{l}</p><p className="text-sm font-medium">{v}</p></div>)}</div></div>);
 }
 
 function Inp({ label, value, onChange, type = 'text', required, placeholder }) {

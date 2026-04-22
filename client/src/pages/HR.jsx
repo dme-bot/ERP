@@ -53,7 +53,7 @@ export default function HR() {
             <h3 className="font-semibold">Hiring Pipeline</h3>
             <button onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', source: 'naukri', position: '', notes: '' }); setModal('candidate'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Candidate</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Name</th><th>Phone</th><th>Position</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {candidates.map(c => (
@@ -82,7 +82,7 @@ export default function HR() {
             <h3 className="font-semibold">Sub-Contractors</h3>
             <button onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', specialization: '', rate: 0, rate_unit: 'per_day', notes: '' }); setModal('contractor'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Contractor</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Name</th><th>Phone</th><th>Specialization</th><th>Rate</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {contractors.map(c => (
@@ -107,7 +107,7 @@ export default function HR() {
 
       <Modal isOpen={modal === 'candidate'} onClose={() => setModal(false)} title={editing ? 'Edit Candidate' : 'Add Candidate'}>
         <form onSubmit={saveCandidate} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="label">Name *</label><input className="input" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} required /></div>
             <div><label className="label">Phone</label><input className="input" value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} /></div>
             <div><label className="label">Email</label><input className="input" value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} /></div>
@@ -122,7 +122,7 @@ export default function HR() {
 
       <Modal isOpen={modal === 'contractor'} onClose={() => setModal(false)} title={editing ? 'Edit Contractor' : 'Add Contractor'}>
         <form onSubmit={saveContractor} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="label">Name *</label><input className="input" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} required /></div>
             <div><label className="label">Phone</label><input className="input" value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} /></div>
             <div><label className="label">Email</label><input className="input" value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} /></div>

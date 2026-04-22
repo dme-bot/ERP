@@ -216,7 +216,7 @@ export default function Dashboard() {
                 {stats.recentComplaints.map(c => (
                   <tr key={c.id}>
                     <td className="font-medium">{c.complaint_number}</td>
-                    <td className="max-w-xs truncate">{c.description}</td>
+                    <td className="max-w-[180px] sm:max-w-xs truncate">{c.description}</td>
                     <td><StatusBadge status={c.priority} /></td>
                     <td><StatusBadge status={c.status} /></td>
                   </tr>

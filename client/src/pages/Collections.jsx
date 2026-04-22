@@ -113,7 +113,7 @@ export default function Collections() {
       )}
 
       {/* Receivables Table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="overflow-x-auto">
           <table>
             <thead>

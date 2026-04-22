@@ -129,7 +129,7 @@ export default function Orders() {
               setModal('po');
             }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add PO</button>
           </div>
-          <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>PO Number</th><th>Lead No</th><th>Client</th><th>Project</th><th>Category</th><th>Date</th><th>Amount</th><th>Site Engineer</th><th>CRM</th><th>PO Copy</th><th>BOQ File</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {pos.map(p => (
@@ -160,7 +160,7 @@ export default function Orders() {
               ))}
               {pos.length === 0 && <tr><td colSpan="13" className="text-center py-8 text-gray-400">No orders yet</td></tr>}
             </tbody>
-          </table></div></div>
+          </table></div>
         </>
       )}
 
@@ -170,7 +170,7 @@ export default function Orders() {
             <h3 className="font-semibold">Order Planning</h3>
             <button onClick={() => { setForm({ po_id: '', business_book_id: '', planned_start: '', planned_end: '', notes: '' }); setModal('planning'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Plan</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>PO</th><th>Client</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
             <tbody>
               {planning.map(p => (
@@ -200,7 +200,7 @@ export default function Orders() {
             {form.business_book_id && (() => {
               const bb = bbEntries.find(b => b.id === +form.business_book_id);
               return bb ? (
-                <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
+                <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div><span className="text-gray-400">Client:</span> <span className="font-medium">{bb.client_name}</span></div>
                   <div><span className="text-gray-400">Company:</span> <span className="font-medium">{bb.company_name}</span></div>
                   <div><span className="text-gray-400">Project:</span> <span className="font-medium">{bb.project_name}</span></div>
@@ -213,7 +213,7 @@ export default function Orders() {
           {/* 2. PO Details + Upload PO Copy */}
           <div className="border rounded-lg p-3 bg-red-50">
             <h4 className="font-semibold text-sm text-red-700 mb-3">Purchase Order Details</h4>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><label className="label">PO Number *</label><input className="input" value={form.po_number || ''} onChange={e => setForm({ ...form, po_number: e.target.value })} required /></div>
               <div><label className="label">PO Date *</label><input className="input" type="date" value={form.po_date || ''} onChange={e => setForm({ ...form, po_date: e.target.value })} required /></div>
               <div><label className="label">Total Amount (Rs)</label><input className="input" type="number" value={form.total_amount || 0} onChange={e => setForm({ ...form, total_amount: +e.target.value })} /></div>
@@ -382,7 +382,7 @@ export default function Orders() {
       <Modal isOpen={modal === 'planning'} onClose={() => setModal(false)} title="Create Order Plan">
         <form onSubmit={savePlanning} className="space-y-4">
           <div><label className="label">Purchase Order</label><select className="select" value={form.po_id || ''} onChange={e => setForm({ ...form, po_id: e.target.value })}><option value="">Select</option>{pos.map(p => <option key={p.id} value={p.id}>{p.po_number}</option>)}</select></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="label">Planned Start</label><input className="input" type="date" value={form.planned_start || ''} onChange={e => setForm({ ...form, planned_start: e.target.value })} /></div>
             <div><label className="label">Planned End</label><input className="input" type="date" value={form.planned_end || ''} onChange={e => setForm({ ...form, planned_end: e.target.value })} /></div>
           </div>

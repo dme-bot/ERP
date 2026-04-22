@@ -168,7 +168,7 @@ export default function Leads() {
       {/* List Tab */}
       {tab === 'list' && (<>
         <div className="relative"><FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input className="input pl-10" placeholder="Search client, company, lead no, phone..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
-        <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="text-xs">
+        <div className="card p-0 overflow-x-auto"><table className="text-xs">
           <thead><tr><th className="px-3 py-2">Lead No</th><th className="px-3 py-2">Client</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">Category</th><th className="px-3 py-2">Location</th><th className="px-3 py-2">SC</th><th className="px-3 py-2">Stage</th><th className="px-3 py-2">Date</th><th className="px-3 py-2">Actions</th></tr></thead>
           <tbody>{leads.map(l => (<tr key={l.id} className="border-b hover:bg-red-50/40 cursor-pointer" onClick={()=>viewLead(l)}>
             <td className="px-3 py-2.5 font-bold text-red-600">{l.lead_no}</td>
@@ -187,7 +187,7 @@ export default function Leads() {
               </div>
             </td>
           </tr>))}{leads.length===0&&<tr><td colSpan="9" className="text-center py-8 text-gray-400">No leads</td></tr>}</tbody>
-        </table></div></div>
+        </table></div>
       </>)}
 
       {/* View + Stage Actions */}
@@ -198,7 +198,7 @@ export default function Leads() {
             const done=ti<=si; const cur=viewData.current_stage===key;
             return(<div key={key} className="flex items-center"><div className={`px-2 py-1 rounded text-[9px] font-bold min-w-[50px] text-center ${cur?'text-white':''}  ${done?'text-white':''}`} style={{backgroundColor:cur||done?STAGE_COLORS[key]:'#e5e7eb',color:cur||done?'white':'#9ca3af'}}>{STAGE_LABELS[key]}</div>{idx<keys.length-1&&<FiChevronRight size={10} className="text-gray-300 mx-0.5"/>}</div>);
           })}</div>
-          <div className="grid grid-cols-3 gap-2 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm">
             <div><span className="text-gray-400 text-[10px]">Client</span><br/><strong>{viewData.client_name}</strong></div>
             <div><span className="text-gray-400 text-[10px]">Company</span><br/>{viewData.company_name||'-'}</div>
             <div><span className="text-gray-400 text-[10px]">Category</span><br/>{viewData.category||'-'}</div>
@@ -285,7 +285,7 @@ export default function Leads() {
       {/* Add/Edit */}
       <Modal isOpen={modal==='add'||modal==='edit'} onClose={()=>setModal(null)} title={modal==='edit'?'Edit Lead':'New Lead'} wide>
         <form onSubmit={saveLead} className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div><label className="label">Client Name *</label><input className="input" value={form.client_name||''} onChange={e=>F('client_name',e.target.value)} required/></div>
             <div><label className="label">Company</label><input className="input" value={form.company_name||''} onChange={e=>F('company_name',e.target.value)}/></div>
             <div><label className="label">Phone</label><input className="input" value={form.phone||''} onChange={e=>F('phone',e.target.value)}/></div>

@@ -150,7 +150,7 @@ export default function DPR() {
           )}
 
           {/* BOQ vs DPR-consumed progress, grouped by engineer → site → item */}
-          <div className="card p-0 overflow-hidden">
+          <div className="card p-0 overflow-x-auto">
             <div className="bg-gradient-to-r from-red-600 to-red-600 text-white px-4 py-3">
               <h3 className="font-bold text-base">Engineer Progress — BOQ vs DPR Consumed</h3>
               <p className="text-xs text-red-100">Per engineer, per site, per BOQ item. Incomplete items listed first.{!isAdmin() && ' Showing only your sites.'}</p>
@@ -293,7 +293,7 @@ export default function DPR() {
               setModal(true);
             }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Submit DPR</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Site</th><th>Date</th><th>Shift</th><th>By</th><th>Status</th><th>Total(A)</th><th>Cost(B)</th><th>P/L</th><th>Approval</th><th>Actions</th></tr></thead>
             <tbody>
               {dprs.map(d => (
@@ -329,7 +329,7 @@ export default function DPR() {
           <div className="flex justify-between items-center"><h4 className="font-semibold">Project Sites</h4>
             <button onClick={() => { setForm({ name: '', address: '', client_name: '', site_engineer_id: '', supervisor: '' }); setSiteModal(true); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Add Site</button>
           </div>
-          <div className="card p-0 overflow-hidden"><table>
+          <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Lead No</th><th>Site</th><th>Address</th><th>Client</th><th>Engineer</th><th>Supervisor</th><th>Status</th></tr></thead>
             <tbody>{sites.map(s => (<tr key={s.id}><td className="text-red-600 font-bold">{s.lead_no || '-'}</td><td className="font-medium">{s.name}</td><td>{s.address}</td><td>{s.client_name}</td><td>{s.engineer_name}</td><td>{s.supervisor}</td><td><StatusBadge status={s.status} /></td></tr>))}
               {sites.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No sites</td></tr>}</tbody>
@@ -343,7 +343,7 @@ export default function DPR() {
 
           {/* Header */}
           <div className="border rounded-lg p-3 bg-gray-50">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div><label className="label">Site Name *</label>
                 <select className="select" value={form.site_id || ''} onChange={e => handleSiteSelect(e.target.value)} required>
                   <option value="">Select Site</option>{sites.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.lead_no ? `[${s.lead_no}] ` : ''}{s.name}</option>)}
@@ -444,14 +444,14 @@ export default function DPR() {
           {/* TABLE B: Costs */}
           <div className="border-2 border-red-300 rounded-lg p-3 bg-red-50">
             <h5 className="font-bold text-red-800 mb-3">TABLE B: Costs</h5>
-            <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-gray-600 mb-1 px-1 uppercase">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-1 text-[10px] font-bold text-gray-600 mb-1 px-1 uppercase">
               <div>Type</div><div>Qty</div><div>Rate (Rs)</div><div>Amount (Rs)</div>
             </div>
             {costs.map((c, i) => {
               const isStaff = c.type === 'Staff Cost';
               return (
                 <div key={i} className="bg-white rounded p-1 mb-1.5">
-                  <div className="grid grid-cols-4 gap-1 items-center">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-1 items-center">
                     <div className="text-sm font-medium">
                       {c.type}
                       {c.fixed && <span className="ml-1 text-[9px] text-gray-400">(fixed)</span>}
@@ -505,7 +505,7 @@ export default function DPR() {
           <div className="border rounded-lg p-3 bg-cyan-50">
             <h5 className="font-semibold text-sm text-cyan-700 mb-2">Machinery / Tools Used</h5>
             {machinery.map((m, i) => (
-              <div key={i} className="grid grid-cols-4 gap-2 mb-1.5">
+              <div key={i} className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-1.5">
                 <select className="input text-sm" value={m.equipment} onChange={e => { const n = [...machinery]; n[i].equipment = e.target.value; setMachinery(n); }}>
                   <option value="">Select</option>{EQUIPMENT_LIST.map(eq => <option key={eq}>{eq}</option>)}
                 </select>
@@ -522,7 +522,7 @@ export default function DPR() {
           {/* Safety */}
           <div className="border rounded-lg p-3 bg-red-50">
             <h5 className="font-semibold text-sm text-red-700 mb-2">Safety & Compliance</h5>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="w-4 h-4 rounded" checked={form.safety_toolbox_talk || false} onChange={e => setForm({ ...form, safety_toolbox_talk: e.target.checked })} /><span className="text-sm">Toolbox Talk (TBT)</span></label>
               <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="w-4 h-4 rounded" checked={form.safety_ppe_compliance || false} onChange={e => setForm({ ...form, safety_ppe_compliance: e.target.checked })} /><span className="text-sm">PPE Compliance</span></label>
             </div>
@@ -530,7 +530,7 @@ export default function DPR() {
           </div>
 
           {/* Hindrances + Next Day */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="border rounded-lg p-3 bg-orange-50">
               <h5 className="font-semibold text-sm text-orange-700 mb-2">Hindrances / Issues</h5>
               <textarea className="input" rows="2" value={form.hindrances || ''} onChange={e => setForm({ ...form, hindrances: e.target.value })} placeholder="Material shortage, Drawing pending..." />
@@ -552,7 +552,7 @@ export default function DPR() {
         <form onSubmit={createSite} className="space-y-4">
           <div><label className="label">Site Name *</label><input className="input" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} required /></div>
           <div><label className="label">Address</label><textarea className="input" rows="2" value={form.address || ''} onChange={e => setForm({ ...form, address: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="label">Client</label><input className="input" value={form.client_name || ''} onChange={e => setForm({ ...form, client_name: e.target.value })} /></div>
             <div><label className="label">Supervisor</label><input className="input" value={form.supervisor || ''} onChange={e => setForm({ ...form, supervisor: e.target.value })} /></div>
             <div><label className="label">Site Engineer</label><select className="select" value={form.site_engineer_id || ''} onChange={e => setForm({ ...form, site_engineer_id: e.target.value })}><option value="">Select</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
@@ -565,7 +565,7 @@ export default function DPR() {
       <Modal isOpen={detailModal} onClose={() => setDetailModal(false)} title={`DPR - ${selectedDpr?.site_name} - ${selectedDpr?.report_date}`} wide>
         {selectedDpr && (
           <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-            <div className="grid grid-cols-4 gap-3 text-sm bg-gray-50 p-3 rounded-lg">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm bg-gray-50 p-3 rounded-lg">
               <div><strong>Site:</strong> {selectedDpr.site_name}</div>
               <div><strong>Date:</strong> {selectedDpr.report_date}</div>
               <div><strong>Shift:</strong> {selectedDpr.shift || '-'}</div>
