@@ -13,6 +13,7 @@ const EQUIPMENT_LIST = ['Welding Machine', 'Pipe Threading Machine', 'Drill Mach
 export default function DPR() {
   const { user, isAdmin, canDelete, canApprove } = useAuth();
   const [tab, setTab] = useState('dashboard');
+  const [reportFilter, setReportFilter] = useState(''); // when set by stat-card click, filters Daily Reports tab
   const [summary, setSummary] = useState(null);
   const [dprs, setDprs] = useState([]);
   const [sites, setSites] = useState([]);
@@ -132,10 +133,26 @@ export default function DPR() {
       {tab === 'dashboard' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="card text-center border-l-4 border-red-500"><div className="text-3xl font-bold text-red-600">{summary.activeSites}</div><div className="text-sm text-gray-500">Active Sites</div></div>
-            <div className="card text-center border-l-4 border-emerald-500"><div className="text-3xl font-bold text-emerald-600">{summary.todaySubmissions}</div><div className="text-sm text-gray-500">DPR Today</div></div>
-            <div className="card text-center border-l-4 border-amber-500"><div className="text-3xl font-bold text-amber-600">{summary.pendingApproval}</div><div className="text-sm text-gray-500">Pending Approval</div></div>
-            <div className="card text-center border-l-4 border-purple-500"><div className="text-3xl font-bold text-purple-600">{summary.billingReady}</div><div className="text-sm text-gray-500">Billing Ready</div></div>
+            <button type="button" onClick={() => { setReportFilter(''); setTab('sites'); }}
+              className="card text-center border-l-4 border-red-500 text-left hover:shadow-md transition-shadow cursor-pointer">
+              <div className="text-3xl font-bold text-red-600">{summary.activeSites}</div>
+              <div className="text-sm text-gray-500">Active Sites <span className="text-[10px] text-red-600 font-semibold">→ view</span></div>
+            </button>
+            <button type="button" onClick={() => { setFilterDate(new Date().toISOString().split('T')[0]); setReportFilter(''); setTab('reports'); }}
+              className="card text-center border-l-4 border-emerald-500 text-left hover:shadow-md transition-shadow cursor-pointer">
+              <div className="text-3xl font-bold text-emerald-600">{summary.todaySubmissions}</div>
+              <div className="text-sm text-gray-500">DPR Today <span className="text-[10px] text-emerald-600 font-semibold">→ view</span></div>
+            </button>
+            <button type="button" onClick={() => { setReportFilter('pending'); setTab('reports'); }}
+              className="card text-center border-l-4 border-amber-500 text-left hover:shadow-md transition-shadow cursor-pointer">
+              <div className="text-3xl font-bold text-amber-600">{summary.pendingApproval}</div>
+              <div className="text-sm text-gray-500">Pending Approval <span className="text-[10px] text-amber-600 font-semibold">→ view</span></div>
+            </button>
+            <button type="button" onClick={() => { setReportFilter('billing'); setTab('reports'); }}
+              className="card text-center border-l-4 border-purple-500 text-left hover:shadow-md transition-shadow cursor-pointer">
+              <div className="text-3xl font-bold text-purple-600">{summary.billingReady}</div>
+              <div className="text-sm text-gray-500">Billing Ready <span className="text-[10px] text-purple-600 font-semibold">→ view</span></div>
+            </button>
           </div>
           {summary.missingSites.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4">
@@ -277,6 +294,12 @@ export default function DPR() {
 
       {tab === 'reports' && (
         <>
+          {reportFilter && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 flex items-center justify-between">
+              <span>Filtered: <b>{reportFilter === 'pending' ? 'Pending Approval' : reportFilter === 'billing' ? 'Billing Ready' : reportFilter}</b></span>
+              <button type="button" onClick={() => setReportFilter('')} className="text-red-600 hover:underline">Clear filter</button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <input type="date" className="input w-48" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
             <button onClick={() => {
@@ -296,7 +319,14 @@ export default function DPR() {
           <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Site</th><th>Date</th><th>Shift</th><th>By</th><th>Status</th><th>Total(A)</th><th>Cost(B)</th><th>P/L</th><th>Approval</th><th>Actions</th></tr></thead>
             <tbody>
-              {dprs.map(d => (
+              {dprs
+                .filter(d => {
+                  if (!reportFilter) return true;
+                  if (reportFilter === 'pending') return d.approval_status === 'pending';
+                  if (reportFilter === 'billing') return d.billing_ready === 1 || d.billing_ready === true;
+                  return true;
+                })
+                .map(d => (
                 <tr key={d.id}>
                   <td className="font-medium">{d.site_name}</td><td>{d.report_date}</td><td className="capitalize text-xs">{d.shift || '-'}</td>
                   <td>{d.submitted_by_name}</td><td><StatusBadge status={d.overall_status} /></td>

@@ -57,30 +57,32 @@ export default function Dashboard() {
   const pendingChecklists = todayChecklists.filter(c => !c.completion_id);
   const doneChecklists = todayChecklists.filter(c => c.completion_id);
 
+  // Each card drills into the page that produced its number so mam can jump
+  // straight to the underlying data instead of hunting for it.
   const cards = [
-    { title: 'Total Leads', value: stats.leads.total, sub: `${stats.leads.new} new`, icon: FiTarget, color: 'bg-red-500' },
-    { title: 'Won Deals', value: stats.leads.won, sub: `${stats.leads.qualified} qualified`, icon: FiTarget, color: 'bg-emerald-500' },
-    { title: 'Active Orders', value: stats.orders.total, sub: `Rs ${(stats.orders.totalValue/100000).toFixed(1)}L value`, icon: FiShoppingCart, color: 'bg-purple-500' },
-    { title: 'Installations', value: stats.installations.inProgress, sub: `${stats.installations.completed} completed`, icon: FiTool, color: 'bg-amber-500' },
-    { title: 'Open Complaints', value: stats.complaints.open, sub: `${stats.complaints.inProgress} in progress`, icon: FiAlertCircle, color: 'bg-red-500' },
-    { title: 'Employees', value: stats.hr.employees, sub: `${stats.hr.subContractors} contractors`, icon: FiUsers, color: 'bg-teal-500' },
-    { title: 'Pending Expenses', value: `Rs ${stats.expenses.pending.toLocaleString()}`, sub: `Rs ${stats.expenses.approved.toLocaleString()} approved`, icon: LuIndianRupee, color: 'bg-orange-500' },
-    { title: 'Candidates', value: stats.hr.candidates, sub: 'in pipeline', icon: FiUsers, color: 'bg-red-500' },
+    { title: 'Total Leads', value: stats.leads.total, sub: `${stats.leads.new} new`, icon: FiTarget, color: 'bg-red-500', link: '/leads' },
+    { title: 'Won Deals', value: stats.leads.won, sub: `${stats.leads.qualified} qualified`, icon: FiTarget, color: 'bg-emerald-500', link: '/leads' },
+    { title: 'Active Orders', value: stats.orders.total, sub: `Rs ${(stats.orders.totalValue/100000).toFixed(1)}L value`, icon: FiShoppingCart, color: 'bg-purple-500', link: '/orders' },
+    { title: 'Installations', value: stats.installations.inProgress, sub: `${stats.installations.completed} completed`, icon: FiTool, color: 'bg-amber-500', link: '/installation' },
+    { title: 'Open Complaints', value: stats.complaints.open, sub: `${stats.complaints.inProgress} in progress`, icon: FiAlertCircle, color: 'bg-red-500', link: '/complaints' },
+    { title: 'Employees', value: stats.hr.employees, sub: `${stats.hr.subContractors} contractors`, icon: FiUsers, color: 'bg-teal-500', link: '/employees' },
+    { title: 'Pending Expenses', value: `Rs ${stats.expenses.pending.toLocaleString()}`, sub: `Rs ${stats.expenses.approved.toLocaleString()} approved`, icon: LuIndianRupee, color: 'bg-orange-500', link: '/expenses' },
+    { title: 'Candidates', value: stats.hr.candidates, sub: 'in pipeline', icon: FiUsers, color: 'bg-red-500', link: '/hr' },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Stat Cards */}
+      {/* Stat Cards — each drills into the page it came from */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c, i) => (
-          <div key={i} className="stat-card">
+          <Link to={c.link} key={i} className="stat-card hover:shadow-md transition-shadow cursor-pointer">
             <div className={`${c.color} p-3 rounded-xl text-white`}><c.icon size={24} /></div>
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="text-2xl font-bold text-gray-800">{c.value}</div>
-              <div className="text-xs text-gray-500">{c.title}</div>
+              <div className="text-xs text-gray-500 flex items-center gap-1">{c.title} <span className="text-[10px] text-red-500 font-semibold">→</span></div>
               <div className="text-xs text-gray-400 mt-0.5">{c.sub}</div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
