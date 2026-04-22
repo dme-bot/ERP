@@ -148,8 +148,8 @@ export default function Procurement() {
     e.preventDefault();
     if (!form.site_name) return toast.error('Site Name is required');
     if (!form.raised_by_name) return toast.error('Raised By is required');
-    const clean = indentItems.filter(it => it.po_item_id || it.item_master_id || (it.description && it.description.trim()));
-    if (clean.length === 0) return toast.error('Add at least one item (pick from BOQ or type manually)');
+    const clean = indentItems.filter(it => it.item_master_id || (it.description && it.description.trim()));
+    if (clean.length === 0) return toast.error('Pick at least one item from Item Master');
     try {
       await api.post('/procurement/indents', {
         site_name: form.site_name,
@@ -653,47 +653,17 @@ export default function Procurement() {
           </div>
 
           <h4 className="font-semibold text-sm">
-            Items <span className="text-gray-400 font-normal">(pick from this site's BOQ — "item wise sheet")</span>
+            Items <span className="text-gray-400 font-normal">(pick from Item Master — "item wise sheet")</span>
           </h4>
           {!form.site_name ? (
-            <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center text-sm text-gray-500 bg-gray-50">
-              Pick a site above to load its BOQ items.
-            </div>
-          ) : boqItems.length === 0 && !boqLoading && !manualMode ? (
-            <div className="border-2 border-dashed border-amber-300 rounded-lg p-4 text-sm text-amber-700 bg-amber-50">
-              <p className="font-semibold mb-1">No BOQ items found for <b>{form.site_name}</b>.</p>
-              <p className="text-xs mb-3">Pick one of the options below to keep going:</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => { setManualMode(true); setIndentItems([{ ...EMPTY_ITEM, manual: true }]); }} className="btn btn-primary inline-flex items-center gap-2 text-xs">
-                  ✍ Type items manually
-                </button>
-                <button type="button" disabled={uploadingBoq} onClick={fetchExistingBoq} className="btn btn-secondary inline-flex items-center gap-2 text-xs disabled:opacity-60">
-                  🔄 {uploadingBoq ? 'Fetching…' : 'Retry Fetch from BOQ'}
-                </button>
-                <label className="text-[11px] text-amber-700 underline cursor-pointer">
-                  or upload a new BOQ file
-                  <input type="file" accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" disabled={uploadingBoq}
-                    onChange={e => { const f = e.target.files[0]; if (f) uploadBoqForSite(f); e.target.value = ''; }} />
-                </label>
-              </div>
-              {boqDiag && <p className="text-[10px] text-amber-600 mt-2">{boqDiag.message}</p>}
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center text-sm text-gray-500 bg-gray-50">
+              Pick a site above, then add items from the Item Master.
             </div>
           ) : (
             <>
-              {boqDiag?.reason === 'fallback_parsed' && (
-                <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-[11px] text-blue-800">
-                  ℹ Items loaded from this project's BOQ file ({boqDiag.po_number}).
-                </div>
-              )}
-              {(boqDiag?.reason === 'borrowed_from_sibling' || boqDiag?.reason === 'borrowed_from_sibling_file') && (
-                <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-[11px] text-amber-800">
-                  📋 {boqDiag.message}
-                </div>
-              )}
               {/* Desktop column headers — hidden on mobile, where each row is a stacked card */}
-              <div className="hidden md:grid gap-2 text-[10px] font-bold text-gray-500 uppercase px-1" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr)) auto' }}>
-                <div className="col-span-4">BOQ Item</div>
-                <div className="col-span-4">Item (Item Master)</div>
+              <div className="hidden md:grid gap-2 text-[10px] font-bold text-gray-500 uppercase px-1" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr)) auto' }}>
+                <div className="col-span-6">Item (Item Master)</div>
                 <div className="col-span-2">Make</div>
                 <div>Qty</div>
                 <div>Unit</div>
@@ -707,42 +677,23 @@ export default function Procurement() {
                     : t === 'RGP' ? 'bg-amber-50 text-amber-700 border-amber-200'
                     : t === 'PO' ? 'bg-red-50 text-red-700 border-red-200'
                     : 'bg-gray-50 text-gray-500 border-gray-200';
-                  const rem = item.remaining_qty;
-                  const overRem = !item.is_foc && rem !== null && rem !== undefined && (item.quantity || 0) > rem;
-                  const inManual = manualMode || item.manual;
 
-                  const boqPicker = inManual ? (
-                    <input className="input text-sm" placeholder="Type item description…" value={item.description || ''}
-                      onChange={e => { const n = [...indentItems]; n[i].description = e.target.value; n[i].manual = true; setIndentItems(n); }} />
-                  ) : (
-                    <SearchableSelect
-                      options={boqItems.map(b => ({
-                        id: b.id,
-                        label: `${b.item_code ? '[' + b.item_code + '] ' : ''}${b.description}${b.is_foc ? ' · FOC' : ` · BOQ ${b.boq_qty || 0} · Rem ${b.remaining_qty ?? 0}`}`,
-                        ...b,
-                      }))}
-                      value={item.po_item_id || null} valueKey="id" displayKey="label"
-                      placeholder="Search BOQ item…"
-                      onChange={(b) => pickBoqItem(i, b)}
-                    />
-                  );
                   const masterPicker = (
                     <SearchableSelect
                       options={masterItems.map(m => ({ id: m.id, label: `[${m.item_code}] ${m.display_name || m.item_name}${m.type ? ' · ' + m.type : ''}`, ...m }))}
                       value={item.item_master_id || null} valueKey="id" displayKey="label"
-                      placeholder="Pick Item Master SKU…"
+                      placeholder="Search Item Master…"
                       onChange={(m) => pickMasterItem(i, m)}
                     />
                   );
                   const makeInput = <input className="input text-sm" placeholder="Make" value={item.make || ''} onChange={e => { const n = [...indentItems]; n[i].make = e.target.value; setIndentItems(n); }} />;
-                  const qtyInput = <input className={`input text-sm ${overRem ? 'border-red-400 ring-1 ring-red-300' : ''}`} type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />;
-                  const unitInput = <input className="input text-sm" placeholder="Unit" value={item.unit} readOnly={!inManual}
-                    onChange={e => { if (!inManual) return; const n = [...indentItems]; n[i].unit = e.target.value; setIndentItems(n); }} />;
+                  const qtyInput = <input className="input text-sm" type="number" min="0" placeholder="Qty" value={item.quantity} onChange={e => { const n = [...indentItems]; n[i].quantity = +e.target.value; setIndentItems(n); }} />;
+                  const unitInput = <input className="input text-sm" placeholder="Unit" value={item.unit} onChange={e => { const n = [...indentItems]; n[i].unit = e.target.value; setIndentItems(n); }} />;
                   const typeBox = (
                     <div className={`text-center text-[11px] font-bold uppercase px-2 py-1.5 rounded-lg border ${typeClass}`}>
-                      {inManual
-                        ? <select className="bg-transparent w-full outline-none text-[11px]" value={item.item_type || ''} onChange={e => { const n = [...indentItems]; n[i].item_type = e.target.value; setIndentItems(n); }}><option value="">—</option><option value="PO">PO</option><option value="FOC">FOC</option><option value="RGP">RGP</option></select>
-                        : (t || '—')}
+                      <select className="bg-transparent w-full outline-none text-[11px]" value={item.item_type || ''} onChange={e => { const n = [...indentItems]; n[i].item_type = e.target.value; setIndentItems(n); }}>
+                        <option value="">—</option><option value="PO">PO</option><option value="FOC">FOC</option><option value="RGP">RGP</option>
+                      </select>
                     </div>
                   );
                   const removeBtn = (
@@ -753,21 +704,17 @@ export default function Procurement() {
 
                   return (
                     <div key={i}>
-                      {/* MOBILE: stacked card with labeled fields */}
+                      {/* MOBILE: stacked card */}
                       <div className="md:hidden border rounded-lg p-2.5 bg-white space-y-2 relative">
                         <div className="flex justify-between items-center">
                           <span className="text-[10px] font-bold text-gray-400 uppercase">Row {i + 1}</span>
                           {indentItems.length > 1 && removeBtn}
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">BOQ Item</label>
-                          {boqPicker}
-                        </div>
-                        <div>
                           <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Item (Item Master)</label>
                           {masterPicker}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                           <div>
                             <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Qty</label>
                             {qtyInput}
@@ -785,50 +732,24 @@ export default function Procurement() {
                           <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Make</label>
                           {makeInput}
                         </div>
-                        {item.po_item_id && !inManual && (
-                          <div className="text-[10px] text-gray-500 flex flex-wrap gap-3 pt-1 border-t">
-                            {item.is_foc
-                              ? <span className="text-emerald-700 font-semibold">FOC — not counted in BOQ</span>
-                              : <>
-                                  <span>BOQ: <b>{item.boq_qty}</b></span>
-                                  <span>Rem: <b className={overRem ? 'text-red-600' : 'text-emerald-700'}>{rem}</b></span>
-                                  {overRem && <span className="text-red-600">⚠ Exceeds remaining</span>}
-                                </>}
-                          </div>
-                        )}
                       </div>
 
                       {/* DESKTOP: wide grid row */}
-                      <div className="hidden md:block space-y-0.5">
-                        <div className="grid gap-2 items-center" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr)) auto' }}>
-                          <div className="col-span-4">{boqPicker}</div>
-                          <div className="col-span-4">{masterPicker}</div>
+                      <div className="hidden md:block">
+                        <div className="grid gap-2 items-center" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr)) auto' }}>
+                          <div className="col-span-6">{masterPicker}</div>
                           <div className="col-span-2">{makeInput}</div>
                           {qtyInput}
                           {unitInput}
                           <div className="col-span-2">{typeBox}</div>
                           {removeBtn}
                         </div>
-                        {item.po_item_id && !inManual && (
-                          <div className="text-[10px] text-gray-500 pl-1 flex gap-3">
-                            {item.is_foc
-                              ? <span className="text-emerald-700 font-semibold">FOC item — not counted against BOQ consumption</span>
-                              : <>
-                                  <span>BOQ total: <b>{item.boq_qty}</b></span>
-                                  <span>Remaining: <b className={overRem ? 'text-red-600' : 'text-emerald-700'}>{rem}</b></span>
-                                  {overRem && <span className="text-red-600">⚠ Indent qty exceeds remaining</span>}
-                                </>}
-                          </div>
-                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => setIndentItems([...indentItems, { ...EMPTY_ITEM, manual: manualMode }])} className="btn btn-secondary text-xs">+ Add Item</button>
-                {manualMode && <span className="text-[10px] text-gray-500">✍ Manual mode — typing items directly (no BOQ)</span>}
-              </div>
+              <button type="button" onClick={() => setIndentItems([...indentItems, { ...EMPTY_ITEM }])} className="btn btn-secondary text-xs">+ Add Item</button>
             </>
           )}
           <div><label className="label">Notes</label><textarea className="input" rows="2" value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Any remarks for Purchase…" /></div>
