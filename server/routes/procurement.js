@@ -616,6 +616,88 @@ router.delete('/sales-bills/:id', (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
+// ITEM-WISE VENDOR RATES — each indent item gets up to 3 vendor quotes,
+// then one is finalized. This is the "Step 1 + Step 2" of mam's workflow
+// sheet: (1) 3 Vendors Rate, (2) Final Rate.
+
+// List all indent items (not yet fully converted to vendor PO) with their
+// current rates row (one per item, joined). An item shows here once the
+// indent is submitted/approved.
+router.get('/item-rates', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(
+    `SELECT ii.id as indent_item_id, ii.description, ii.make, ii.quantity as qty, ii.unit,
+            ii.item_type, i.indent_number, i.id as indent_id,
+            i.site_name, i.raised_by_name, i.status as indent_status,
+            bb.lead_no,
+            r.id as rate_id,
+            r.vendor1_name, r.vendor1_rate, r.vendor1_terms, r.vendor1_credit_days,
+            r.vendor2_name, r.vendor2_rate, r.vendor2_terms, r.vendor2_credit_days,
+            r.vendor3_name, r.vendor3_rate, r.vendor3_terms, r.vendor3_credit_days,
+            r.final_rate, r.final_vendor_name, r.final_terms, r.final_credit_days,
+            r.status as rate_status, r.finalized_at, fu.name as finalized_by_name
+     FROM indent_items ii
+     JOIN indents i ON ii.indent_id = i.id
+     LEFT JOIN indent_item_rates r ON r.indent_item_id = ii.id
+     LEFT JOIN users fu ON fu.id = r.finalized_by
+     LEFT JOIN order_planning op ON op.id = i.planning_id
+     LEFT JOIN business_book bb ON bb.id = op.business_book_id
+     ORDER BY i.created_at DESC, ii.id`
+  ).all();
+  res.json(rows);
+});
+
+// Upsert a rate row for an indent item. Any of the 3 vendors (or the
+// finalization fields) may be updated in one call.
+router.post('/item-rates', (req, res) => {
+  const db = getDb();
+  const b = req.body || {};
+  const iiId = parseInt(b.indent_item_id, 10);
+  if (!iiId) return res.status(400).json({ error: 'indent_item_id is required' });
+
+  const existing = db.prepare('SELECT id FROM indent_item_rates WHERE indent_item_id=?').get(iiId);
+  const fields = ['vendor1_name','vendor1_rate','vendor1_terms','vendor1_credit_days',
+                  'vendor2_name','vendor2_rate','vendor2_terms','vendor2_credit_days',
+                  'vendor3_name','vendor3_rate','vendor3_terms','vendor3_credit_days'];
+  // Mark status 'quoted' once any vendor rate is set
+  const anyRate = [b.vendor1_rate, b.vendor2_rate, b.vendor3_rate].some(v => Number(v) > 0);
+
+  if (existing) {
+    const sets = fields.map(f => `${f} = COALESCE(?, ${f})`).join(', ');
+    const vals = fields.map(f => b[f] !== undefined ? b[f] : null);
+    db.prepare(
+      `UPDATE indent_item_rates
+       SET ${sets}, status = COALESCE(?, status), updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).run(...vals, anyRate ? 'quoted' : null, existing.id);
+    res.json({ id: existing.id, updated: true });
+  } else {
+    const cols = ['indent_item_id', ...fields, 'status', 'entered_by'];
+    const vals = [iiId, ...fields.map(f => b[f] ?? null), anyRate ? 'quoted' : 'pending', req.user.id];
+    const r = db.prepare(
+      `INSERT INTO indent_item_rates (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`
+    ).run(...vals);
+    res.status(201).json({ id: r.lastInsertRowid, created: true });
+  }
+});
+
+// Finalize — admin / approver picks one of the three vendors (or enters a
+// custom final rate). After this, downstream steps (Vendor PO, Bill) use
+// the final_* columns.
+router.post('/item-rates/:id/finalize', (req, res) => {
+  const db = getDb();
+  const b = req.body || {};
+  const { final_rate, final_vendor_name, final_terms, final_credit_days } = b;
+  if (!final_vendor_name || !final_rate) return res.status(400).json({ error: 'final_vendor_name and final_rate are required' });
+  db.prepare(
+    `UPDATE indent_item_rates
+     SET final_rate=?, final_vendor_name=?, final_terms=?, final_credit_days=?,
+         status='finalized', finalized_by=?, finalized_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+     WHERE id=?`
+  ).run(+final_rate, final_vendor_name, final_terms || null, +final_credit_days || 0, req.user.id, req.params.id);
+  res.json({ message: 'Finalized' });
+});
+
 // ADMIN ONLY — wipe all dispatches/indents, vendor POs, purchase bills,
 // delivery notes and vendor rate rows. Used when mam wants a clean slate.
 // Irreversible; the UI protects with a double confirmation.

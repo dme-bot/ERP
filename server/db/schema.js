@@ -1099,6 +1099,27 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Per-item vendor rates (3-vendor quote per indent line). Up to 3
+    -- vendor_N columns keep the sheet-like layout mam asked for. final_rate
+    -- + selected_vendor are set once the purchase manager / admin finalizes.
+    CREATE TABLE IF NOT EXISTS indent_item_rates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      indent_item_id INTEGER REFERENCES indent_items(id) ON DELETE CASCADE,
+      vendor1_name TEXT, vendor1_rate REAL DEFAULT 0, vendor1_terms TEXT, vendor1_credit_days INTEGER DEFAULT 0,
+      vendor2_name TEXT, vendor2_rate REAL DEFAULT 0, vendor2_terms TEXT, vendor2_credit_days INTEGER DEFAULT 0,
+      vendor3_name TEXT, vendor3_rate REAL DEFAULT 0, vendor3_terms TEXT, vendor3_credit_days INTEGER DEFAULT 0,
+      final_rate REAL DEFAULT 0,
+      final_vendor_name TEXT,
+      final_terms TEXT,
+      final_credit_days INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','quoted','finalized','rejected')),
+      entered_by INTEGER REFERENCES users(id),
+      finalized_by INTEGER REFERENCES users(id),
+      finalized_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Delegations — a user assigns a task to another user; assignee uploads
     -- proof; assigner approves or rejects with a reason. Rejected tasks
     -- reappear on the assignee's dashboard with the reason, so they can redo.

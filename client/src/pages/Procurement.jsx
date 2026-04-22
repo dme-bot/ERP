@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import api from '../api';
 import Modal from '../components/Modal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -17,6 +17,10 @@ export default function Procurement() {
   const [purchaseBills, setPurchaseBills] = useState([]);
   const [deliveryNotes, setDeliveryNotes] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [itemRates, setItemRates] = useState([]); // indent items with their 3-vendor rates + final
+  const [ratesFilter, setRatesFilter] = useState('all'); // all | pending | quoted | finalized
+  const [finalModal, setFinalModal] = useState(null); // { row } being finalized
+  const [finalForm, setFinalForm] = useState({});
   const [masterItems, setMasterItems] = useState([]); // Item Master dropdown source
   const [boqItems, setBoqItems] = useState([]); // BOQ items for the currently-selected site
   const [boqLoading, setBoqLoading] = useState(false);
@@ -35,6 +39,7 @@ export default function Procurement() {
     api.get('/procurement/purchase-bills').then(r => setPurchaseBills(r.data));
     api.get('/procurement/delivery-notes').then(r => setDeliveryNotes(r.data));
     api.get('/procurement/vendors').then(r => setVendors(r.data));
+    api.get('/procurement/item-rates').then(r => setItemRates(r.data || [])).catch(() => setItemRates([]));
     api.get('/item-master/dropdown').then(r => setMasterItems(r.data || [])).catch(() => setMasterItems([]));
     api.get('/procurement/sites').then(r => {
       // Response is one row per unique name: [{ name, lead_no }]
@@ -193,15 +198,53 @@ export default function Procurement() {
     setModal(false); load();
   };
 
-  // Order matches the flow: raise an indent first, purchase team turns it
-  // into a vendor PO, books the purchase bill, and finally the goods are
-  // dispatched to site.
+  // Order matches the flow: raise an indent first, purchase team collects
+  // 3 vendor quotes + finalizes per item, then turns it into a vendor PO,
+  // books the purchase bill, and finally the goods are dispatched to site.
   const tabs = [
     { id: 'indents', label: 'Raise Indent' },
+    { id: 'rates', label: 'Vendor Rates' },
     { id: 'vendorpo', label: 'Vendor PO' },
     { id: 'bills', label: 'Purchase Bills' },
     { id: 'delivery', label: 'Dispatch' },
   ];
+
+  // --- Vendor Rates (Step 1 + 2) helpers ---
+  // Patch a single field on an item's rate row and save to server. Keeps the
+  // UI snappy by updating local state optimistically.
+  const updateItemRate = async (indentItemId, patch) => {
+    setItemRates(prev => prev.map(r => r.indent_item_id === indentItemId ? { ...r, ...patch } : r));
+    try {
+      await api.post('/procurement/item-rates', { indent_item_id: indentItemId, ...patch });
+    } catch (err) { toast.error(err.response?.data?.error || 'Save failed'); }
+  };
+  const openFinalize = (row) => {
+    // Default to the lowest non-zero vendor rate (best offer) when opening
+    const quotes = [
+      { name: row.vendor1_name, rate: row.vendor1_rate, terms: row.vendor1_terms, days: row.vendor1_credit_days },
+      { name: row.vendor2_name, rate: row.vendor2_rate, terms: row.vendor2_terms, days: row.vendor2_credit_days },
+      { name: row.vendor3_name, rate: row.vendor3_rate, terms: row.vendor3_terms, days: row.vendor3_credit_days },
+    ].filter(q => q.name && q.rate > 0).sort((a, b) => a.rate - b.rate);
+    const best = quotes[0] || {};
+    setFinalForm({
+      rate_id: row.rate_id, row,
+      final_rate: row.final_rate || best.rate || 0,
+      final_vendor_name: row.final_vendor_name || best.name || '',
+      final_terms: row.final_terms || best.terms || '',
+      final_credit_days: row.final_credit_days || best.days || 0,
+    });
+    setFinalModal(row);
+  };
+  const submitFinalize = async (e) => {
+    e.preventDefault();
+    if (!finalForm.rate_id) return toast.error('Enter a vendor rate first');
+    try {
+      await api.post(`/procurement/item-rates/${finalForm.rate_id}/finalize`, finalForm);
+      toast.success('Rate finalized');
+      setFinalModal(null); setFinalForm({});
+      load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
+  };
 
   return (
     <div className="space-y-4">
@@ -213,12 +256,7 @@ export default function Procurement() {
         <>
           <div className="flex justify-between items-center flex-wrap gap-2">
             <h3 className="font-semibold">Raise Indent</h3>
-            <div className="flex gap-2">
-              {user?.role === 'admin' && (
-                <button onClick={wipeData} className="btn btn-danger text-xs flex items-center gap-1" title="Admin: delete all indents, POs, bills, dispatches"><FiTrash2 size={13} /> Wipe All</button>
-              )}
-              <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setBoqItems([]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Raise Indent</button>
-            </div>
+            <button onClick={() => { setForm({ notes: '', site_name: '', raised_by_name: user?.name || '' }); setIndentItems([{ ...EMPTY_ITEM }]); setBoqItems([]); setModal('indent'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Raise Indent</button>
           </div>
           <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>Indent No</th><th>Date</th><th>Site</th><th>Raised By</th><th>BOQ</th><th>Status</th><th>Actions</th></tr></thead>
@@ -256,6 +294,109 @@ export default function Procurement() {
               {indents.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-gray-400">No indents yet</td></tr>}
             </tbody>
           </table></div>
+        </>
+      )}
+
+      {tab === 'rates' && (
+        <>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h3 className="font-semibold">Item-wise Vendor Rates</h3>
+              <p className="text-xs text-gray-500">Step 1: enter up to 3 vendor quotes per indent item. Step 2: finalize the best rate.</p>
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {['all','pending','quoted','finalized'].map(f => (
+                <button key={f} onClick={() => setRatesFilter(f)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${ratesFilter === f ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                  {f === 'all' ? 'All' : f[0].toUpperCase() + f.slice(1)}
+                  <span className="ml-1 opacity-80">({itemRates.filter(r => f === 'all' ? true : (r.rate_status || 'pending') === f).length})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Desktop table */}
+          <div className="card p-0 overflow-x-auto hidden lg:block">
+            <table className="text-xs">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-2 py-2 text-left" rowSpan="2">Indent</th>
+                  <th className="px-2 py-2 text-left" rowSpan="2">Item</th>
+                  <th className="px-2 py-2" rowSpan="2">Qty</th>
+                  <th className="px-2 py-2 text-center" colSpan="3">Vendor 1</th>
+                  <th className="px-2 py-2 text-center" colSpan="3">Vendor 2</th>
+                  <th className="px-2 py-2 text-center" colSpan="3">Vendor 3</th>
+                  <th className="px-2 py-2" rowSpan="2">Status</th>
+                  <th className="px-2 py-2" rowSpan="2">Final</th>
+                </tr>
+                <tr className="bg-gray-50 text-[10px]">
+                  <th className="px-2 py-1">Name</th><th className="px-2 py-1">Rate</th><th className="px-2 py-1">Terms</th>
+                  <th className="px-2 py-1">Name</th><th className="px-2 py-1">Rate</th><th className="px-2 py-1">Terms</th>
+                  <th className="px-2 py-1">Name</th><th className="px-2 py-1">Rate</th><th className="px-2 py-1">Terms</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itemRates.filter(r => ratesFilter === 'all' ? true : (r.rate_status || 'pending') === ratesFilter).map(r => {
+                  const stat = r.rate_status || 'pending';
+                  const statColor = stat === 'finalized' ? 'bg-emerald-100 text-emerald-700' : stat === 'quoted' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700';
+                  return (
+                    <tr key={r.indent_item_id} className="border-b hover:bg-red-50/30">
+                      <td className="px-2 py-2"><div className="font-medium text-red-700">{r.indent_number}</div><div className="text-[10px] text-gray-400">{r.site_name}</div></td>
+                      <td className="px-2 py-2 max-w-[220px]"><div className="line-clamp-2">{r.description}</div>{r.make && <div className="text-[10px] text-gray-400">Make: {r.make}</div>}</td>
+                      <td className="px-2 py-2 text-center font-semibold">{r.qty} {r.unit}</td>
+                      {[1,2,3].map(n => (
+                        <Fragment key={n}>
+                          <td className="px-1 py-1"><input className="input text-[11px] px-1 py-0.5 w-24" placeholder="Vendor" value={r[`vendor${n}_name`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_name`]: e.target.value })} /></td>
+                          <td className="px-1 py-1"><input className="input text-[11px] px-1 py-0.5 w-20 text-right" type="number" placeholder="0" value={r[`vendor${n}_rate`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_rate`]: +e.target.value })} /></td>
+                          <td className="px-1 py-1"><input className="input text-[11px] px-1 py-0.5 w-20" placeholder="terms" value={r[`vendor${n}_terms`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_terms`]: e.target.value })} /></td>
+                        </Fragment>
+                      ))}
+                      <td className="px-2 py-2"><span className={`badge ${statColor}`}>{stat}</span></td>
+                      <td className="px-2 py-2">
+                        {stat === 'finalized'
+                          ? <div className="text-[11px]"><div className="font-semibold text-emerald-700">{r.final_vendor_name}</div><div>Rs {r.final_rate}</div></div>
+                          : <button onClick={() => openFinalize(r)} disabled={stat === 'pending'} className="btn btn-primary text-[11px] px-2 py-1 disabled:opacity-40">Finalize</button>}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {itemRates.length === 0 && <tr><td colSpan="14" className="text-center py-8 text-gray-400">No indent items yet — raise an indent first.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile card layout */}
+          <div className="lg:hidden space-y-2">
+            {itemRates.filter(r => ratesFilter === 'all' ? true : (r.rate_status || 'pending') === ratesFilter).map(r => {
+              const stat = r.rate_status || 'pending';
+              return (
+                <div key={r.indent_item_id} className="card p-3 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-red-700 text-xs">{r.indent_number}</div>
+                      <div className="text-sm font-medium line-clamp-2">{r.description}</div>
+                      <div className="text-[10px] text-gray-400">{r.site_name} · {r.qty} {r.unit}{r.make ? ` · ${r.make}` : ''}</div>
+                    </div>
+                    <span className={`badge ${stat === 'finalized' ? 'badge-green' : stat === 'quoted' ? 'badge-blue' : 'badge-yellow'}`}>{stat}</span>
+                  </div>
+                  {[1,2,3].map(n => (
+                    <div key={n} className="border rounded p-2 bg-gray-50">
+                      <div className="text-[10px] font-bold text-gray-500 uppercase mb-1">Vendor {n}</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input className="input text-xs" placeholder="Name" value={r[`vendor${n}_name`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_name`]: e.target.value })} />
+                        <input className="input text-xs" type="number" placeholder="Rate" value={r[`vendor${n}_rate`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_rate`]: +e.target.value })} />
+                        <input className="input text-xs" placeholder="Terms" value={r[`vendor${n}_terms`] || ''} onChange={e => updateItemRate(r.indent_item_id, { [`vendor${n}_terms`]: e.target.value })} />
+                      </div>
+                    </div>
+                  ))}
+                  {stat === 'finalized'
+                    ? <div className="bg-emerald-50 border border-emerald-200 rounded p-2 text-xs"><b className="text-emerald-700">Final:</b> {r.final_vendor_name} @ Rs {r.final_rate}</div>
+                    : <button onClick={() => openFinalize(r)} disabled={stat === 'pending'} className="btn btn-primary text-xs w-full disabled:opacity-40">Finalize Rate</button>}
+                </div>
+              );
+            })}
+            {itemRates.length === 0 && <div className="card text-center py-8 text-gray-400">No indent items yet.</div>}
+          </div>
         </>
       )}
 
@@ -597,6 +738,34 @@ export default function Procurement() {
           <div><label className="label">Delivery Date</label><input className="input" type="date" value={form.delivery_date} onChange={e => setForm({...form, delivery_date: e.target.value})} /></div>
           <div><label className="label">Notes</label><textarea className="input" rows="3" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
           <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Save</button></div>
+        </form>
+      </Modal>
+
+      {/* Finalize Rate Modal — Step 2 of the item-wise rate flow */}
+      <Modal isOpen={!!finalModal} onClose={() => { setFinalModal(null); setFinalForm({}); }} title={finalModal ? `Finalize — ${finalModal.description?.slice(0, 60) || 'Item'}` : 'Finalize'}>
+        <form onSubmit={submitFinalize} className="space-y-3">
+          {/* Quote comparison for quick reference */}
+          {finalModal && (
+            <div className="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
+              <p className="font-semibold text-gray-700">Vendor quotes for this item:</p>
+              {[1,2,3].map(n => finalModal[`vendor${n}_name`] && finalModal[`vendor${n}_rate`] > 0 && (
+                <div key={n} className="flex justify-between">
+                  <span>{finalModal[`vendor${n}_name`]}</span>
+                  <span className="font-mono">Rs {finalModal[`vendor${n}_rate`]} {finalModal[`vendor${n}_terms`] ? `· ${finalModal[`vendor${n}_terms`]}` : ''}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label className="label">Final Vendor *</label><input className="input" required value={finalForm.final_vendor_name || ''} onChange={e => setFinalForm(f => ({ ...f, final_vendor_name: e.target.value }))} /></div>
+            <div><label className="label">Final Rate (Rs) *</label><input className="input" type="number" required value={finalForm.final_rate || ''} onChange={e => setFinalForm(f => ({ ...f, final_rate: +e.target.value }))} /></div>
+            <div><label className="label">Payment Terms</label><input className="input" value={finalForm.final_terms || ''} onChange={e => setFinalForm(f => ({ ...f, final_terms: e.target.value }))} placeholder="e.g. 30% advance, 70% on delivery" /></div>
+            <div><label className="label">Credit Days (if credit)</label><input className="input" type="number" value={finalForm.final_credit_days || 0} onChange={e => setFinalForm(f => ({ ...f, final_credit_days: +e.target.value }))} /></div>
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            <button type="button" onClick={() => { setFinalModal(null); setFinalForm({}); }} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary">Finalize Rate</button>
+          </div>
         </form>
       </Modal>
     </div>
