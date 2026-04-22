@@ -532,27 +532,33 @@ router.get('/indents/:id/items-for-po', (req, res) => {
   const db = getDb();
   const rows = db.prepare(
     `SELECT ii.id as indent_item_id, ii.description, ii.make, ii.quantity, ii.unit, ii.item_type,
+            ii.item_master_id, im.item_code, im.item_name as master_name, im.specification, im.size, im.uom,
             r.final_rate, r.final_vendor_name, r.final_terms, r.final_credit_days, r.status as rate_status,
             (SELECT COUNT(*) FROM vendor_po_items vpi WHERE vpi.indent_item_id = ii.id) as in_po_count
      FROM indent_items ii
      LEFT JOIN indent_item_rates r ON r.indent_item_id = ii.id
+     LEFT JOIN item_master im ON im.id = ii.item_master_id
      WHERE ii.indent_id = ?
      ORDER BY ii.id`
   ).all(req.params.id);
   res.json(rows);
 });
 
-// Indent items with a finalized rate but not yet in any Vendor PO — the
-// 'pending for PO' list on top of the Vendor PO tab.
+// Indent items not yet covered by a Vendor PO — the 'pending for PO' list
+// on top of the Vendor PO tab. Joins item_master so the Pending table can
+// show item_code + full master name (mam's ask: 'no item of item master
+// which I fill in indent').
 router.get('/pending-po-items', (req, res) => {
   const db = getDb();
   const rows = db.prepare(
     `SELECT ii.id as indent_item_id, ii.description, ii.make, ii.quantity, ii.unit, ii.item_type,
+            ii.item_master_id, im.item_code, im.item_name as master_name, im.specification, im.size, im.uom,
             i.id as indent_id, i.indent_number, i.site_name, i.raised_by_name,
             r.final_rate, r.final_vendor_name, r.final_terms, r.final_credit_days, r.status as rate_status
      FROM indent_items ii
      JOIN indents i ON ii.indent_id = i.id
      LEFT JOIN indent_item_rates r ON r.indent_item_id = ii.id
+     LEFT JOIN item_master im ON im.id = ii.item_master_id
      WHERE NOT EXISTS (SELECT 1 FROM vendor_po_items vpi WHERE vpi.indent_item_id = ii.id)
      ORDER BY
        CASE WHEN r.status = 'finalized' THEN 0 ELSE 1 END,
@@ -683,7 +689,9 @@ router.get('/item-rates', (req, res) => {
   const db = getDb();
   const rows = db.prepare(
     `SELECT ii.id as indent_item_id, ii.description, ii.make, ii.quantity as qty, ii.unit,
-            ii.item_type, i.indent_number, i.id as indent_id,
+            ii.item_type, ii.item_master_id,
+            im.item_code, im.item_name as master_name, im.specification, im.size, im.uom,
+            i.indent_number, i.id as indent_id,
             i.site_name, i.raised_by_name, i.status as indent_status,
             bb.lead_no,
             r.id as rate_id,
@@ -694,6 +702,7 @@ router.get('/item-rates', (req, res) => {
             r.status as rate_status, r.finalized_at, fu.name as finalized_by_name
      FROM indent_items ii
      JOIN indents i ON ii.indent_id = i.id
+     LEFT JOIN item_master im ON im.id = ii.item_master_id
      LEFT JOIN indent_item_rates r ON r.indent_item_id = ii.id
      LEFT JOIN users fu ON fu.id = r.finalized_by
      LEFT JOIN order_planning op ON op.id = i.planning_id

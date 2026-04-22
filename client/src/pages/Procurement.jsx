@@ -415,7 +415,11 @@ export default function Procurement() {
                   return (
                     <tr key={r.indent_item_id} className="border-b hover:bg-red-50/30">
                       <td className="px-2 py-2 whitespace-nowrap"><div className="font-medium text-red-700">{r.indent_number}</div><div className="text-[10px] text-gray-400">{r.site_name}</div></td>
-                      <td className="px-2 py-2 min-w-[260px]"><div className="whitespace-normal leading-snug">{r.description}</div>{r.make && <div className="text-[10px] text-gray-400 mt-0.5">Make: {r.make}</div>}</td>
+                      <td className="px-2 py-2 min-w-[260px]">
+                        {r.item_code && <div className="text-[10px] font-mono text-gray-500">[{r.item_code}]</div>}
+                        <div className="whitespace-normal leading-snug font-medium">{[r.master_name || r.description, r.specification, r.size].filter(Boolean).join(' / ')}</div>
+                        {r.make && <div className="text-[10px] text-gray-400 mt-0.5">Make: {r.make}</div>}
+                      </td>
                       <td className="px-2 py-2 text-center font-semibold whitespace-nowrap">{r.qty} {r.unit}</td>
                       {[1,2,3].map(n => (
                         <Fragment key={n}>
@@ -461,7 +465,8 @@ export default function Procurement() {
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="font-medium text-red-700 text-xs">{r.indent_number}</div>
-                      <div className="text-sm font-medium line-clamp-2">{r.description}</div>
+                      {r.item_code && <div className="text-[10px] font-mono text-gray-500">[{r.item_code}]</div>}
+                      <div className="text-sm font-medium line-clamp-2">{[r.master_name || r.description, r.specification, r.size].filter(Boolean).join(' / ')}</div>
                       <div className="text-[10px] text-gray-400">{r.site_name} · {r.qty} {r.unit}{r.make ? ` · ${r.make}` : ''}</div>
                     </div>
                     <span className={`badge ${stat === 'finalized' ? 'badge-green' : stat === 'quoted' ? 'badge-blue' : 'badge-yellow'}`}>{stat}</span>
@@ -517,23 +522,32 @@ export default function Procurement() {
                     <th className="px-2 py-1"></th>
                   </tr></thead>
                   <tbody>
-                    {pendingPoItems.map(p => (
-                      <tr key={p.indent_item_id} className="border-b border-amber-100">
-                        <td className="px-2 py-1.5 whitespace-nowrap"><b className="text-red-700">{p.indent_number}</b><div className="text-[10px] text-gray-500">{p.site_name}</div></td>
-                        <td className="px-2 py-1.5 max-w-[260px]"><div className="whitespace-normal leading-snug">{p.description}</div>{p.make && <div className="text-[10px] text-gray-400">Make: {p.make}</div>}</td>
-                        <td className="px-2 py-1.5 text-center">{p.quantity} {p.unit}</td>
-                        <td className="px-2 py-1.5 text-right">{p.final_rate ? `Rs ${p.final_rate}` : <span className="text-gray-400">—</span>}</td>
-                        <td className="px-2 py-1.5">{p.final_vendor_name || <span className="text-gray-400">—</span>}</td>
-                        <td className="px-2 py-1.5">
-                          <span className={`badge ${p.rate_status === 'finalized' ? 'badge-green' : 'badge-yellow'}`}>{p.rate_status || 'pending'}</span>
-                        </td>
-                        <td className="px-2 py-1.5">
-                          {p.rate_status === 'finalized' && (
+                    {pendingPoItems.map(p => {
+                      // Prefer Item Master values for display (what mam picked in the indent)
+                      const displayName = [p.master_name || p.description, p.specification, p.size].filter(Boolean).join(' / ');
+                      return (
+                        <tr key={p.indent_item_id} className="border-b border-amber-100">
+                          <td className="px-2 py-1.5 whitespace-nowrap"><b className="text-red-700">{p.indent_number}</b><div className="text-[10px] text-gray-500">{p.site_name}</div></td>
+                          <td className="px-2 py-1.5 max-w-[320px]">
+                            {p.item_code && <div className="text-[10px] font-mono text-gray-500">[{p.item_code}]</div>}
+                            <div className="whitespace-normal leading-snug font-medium">{displayName}</div>
+                            <div className="text-[10px] text-gray-400 flex gap-2">
+                              {p.make && <span>Make: {p.make}</span>}
+                              {p.item_type && <span className={`font-bold ${p.item_type === 'FOC' ? 'text-emerald-600' : p.item_type === 'RGP' ? 'text-amber-600' : 'text-red-600'}`}>{p.item_type}</span>}
+                            </div>
+                          </td>
+                          <td className="px-2 py-1.5 text-center">{p.quantity} {p.unit || p.uom}</td>
+                          <td className="px-2 py-1.5 text-right">{p.final_rate ? `Rs ${p.final_rate}` : <span className="text-gray-400">—</span>}</td>
+                          <td className="px-2 py-1.5">{p.final_vendor_name || <span className="text-gray-400">—</span>}</td>
+                          <td className="px-2 py-1.5">
+                            <span className={`badge ${p.rate_status === 'finalized' ? 'badge-green' : 'badge-yellow'}`}>{p.rate_status || 'pending'}</span>
+                          </td>
+                          <td className="px-2 py-1.5">
                             <button onClick={() => openCreateVendorPo(p.indent_id)} className="btn btn-primary text-[10px] px-2 py-1">Create PO</button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -827,8 +841,9 @@ export default function Procurement() {
                             <td className="px-2 py-1.5 text-center">
                               <input type="checkbox" disabled={inPo} checked={!!s.checked} onChange={e => togglePoItem(it.indent_item_id, { checked: e.target.checked })} />
                             </td>
-                            <td className="px-2 py-1.5 max-w-[260px]">
-                              <div className="whitespace-normal leading-snug">{it.description}</div>
+                            <td className="px-2 py-1.5 max-w-[320px]">
+                              {it.item_code && <div className="text-[10px] font-mono text-gray-500">[{it.item_code}]</div>}
+                              <div className="whitespace-normal leading-snug font-medium">{[it.master_name || it.description, it.specification, it.size].filter(Boolean).join(' / ')}</div>
                               {it.make && <div className="text-[10px] text-gray-400">Make: {it.make}</div>}
                               {inPo && <div className="text-[10px] text-gray-500 italic">Already in a Vendor PO</div>}
                             </td>
