@@ -37,21 +37,21 @@ export default function Procurement() {
     api.get('/procurement/vendors').then(r => setVendors(r.data));
     api.get('/item-master/dropdown').then(r => setMasterItems(r.data || [])).catch(() => setMasterItems([]));
     api.get('/procurement/sites').then(r => {
-      // Response is one row per business_book: [{ bb_id, name, lead_no }]
+      // Response is one row per unique name: [{ name, lead_no }]
       setSites(r.data || []);
     }).catch(() => setSites([]));
     api.get('/hr/employees').then(r => setEmployees((r.data || []).filter(e => !e.status || e.status === 'active'))).catch(() => setEmployees([]));
   };
   useEffect(() => { load(); }, []);
 
-  // When the site changes, pull BOQ items for that site and reset any picked items.
-  // Response shape: { items: [...], diagnostic?: {reason, message} }. We surface
-  // the diagnostic message in the UI so the raiser sees exactly what to fix.
-  const reloadBoq = async (bbId) => {
-    if (!bbId) { setBoqItems([]); setBoqDiag(null); return; }
+  // Site dropdown shows one row per unique name. BOQ/PO items are aggregated
+  // across every Business Book entry matching that name, so picking
+  // 'CONSERN PHARMA' pools items from all CONSERN PHARMA projects.
+  const reloadBoq = async (siteName) => {
+    if (!siteName) { setBoqItems([]); setBoqDiag(null); return; }
     setBoqLoading(true);
     try {
-      const r = await api.get('/procurement/boq-items-by-bb', { params: { bb_id: bbId } });
+      const r = await api.get('/procurement/boq-items', { params: { site_name: siteName } });
       const payload = r.data;
       const list = Array.isArray(payload) ? payload : (payload?.items || []);
       const diag = Array.isArray(payload) ? null : (payload?.diagnostic || null);
@@ -61,12 +61,12 @@ export default function Procurement() {
     setBoqLoading(false);
   };
   const handleSiteChange = (site) => {
-    // `site` is the full object from SearchableSelect ({ bb_id, name, lead_no }).
-    setForm(f => ({ ...f, bb_id: site?.bb_id || null, site_name: site?.name || '', lead_no: site?.lead_no || '' }));
+    // `site` is the object from SearchableSelect ({ name, lead_no }).
+    setForm(f => ({ ...f, site_name: site?.name || '', lead_no: site?.lead_no || '' }));
     setIndentItems([{ ...EMPTY_ITEM }]);
     setBoqDiag(null);
     setManualMode(false);
-    reloadBoq(site?.bb_id || null);
+    reloadBoq(site?.name || '');
   };
 
   // Fetch items from the BOQ already attached to this site's PO. No
@@ -143,7 +143,6 @@ export default function Procurement() {
     if (clean.length === 0) return toast.error('Add at least one item (pick from BOQ or type manually)');
     try {
       await api.post('/procurement/indents', {
-        business_book_id: form.bb_id || null,
         site_name: form.site_name,
         raised_by_name: form.raised_by_name,
         notes: form.notes || '',
@@ -354,10 +353,10 @@ export default function Procurement() {
             <div>
               <label className="label">Site Name *</label>
               <SearchableSelect
-                options={sites.map(s => ({ id: s.bb_id, label: `${s.lead_no ? '[' + s.lead_no + '] ' : ''}${s.name}`, ...s }))}
-                value={form.bb_id || null}
+                options={sites.map(s => ({ id: s.name, label: `${s.lead_no ? '[' + s.lead_no + '] ' : ''}${s.name}`, ...s }))}
+                value={form.site_name || null}
                 valueKey="id" displayKey="label"
-                placeholder="Search project from Business Book…"
+                placeholder="Search site / company / project name…"
                 onChange={(s) => handleSiteChange(s)}
               />
               <p className="text-[10px] text-gray-400 mt-0.5">

@@ -34,11 +34,27 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
     // Amount received (from cash flow inflows for this client)
     const received = db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM cash_flow_entries WHERE type='inflow' AND party_name LIKE ?").get(`%${p.client_name}%`);
 
-    // Purchase value (from payment_requests approved for this site)
-    const purchaseValue = db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM payment_requests WHERE status='final_approved' AND site_name LIKE ?").get(`%${p.project_name}%`);
+    // Purchase value — only payment_requests where category='Purchase' for this
+    // site/project (mam: 'purchase value is pick from payment required where
+    // we select category Purchase'). Includes approved + pending so the tracker
+    // reflects actual commitment, not just cleared amounts.
+    const purchaseValue = db.prepare(
+      "SELECT COALESCE(SUM(amount),0) as total FROM payment_requests WHERE category='Purchase' AND site_name LIKE ?"
+    ).get(`%${p.project_name}%`);
 
-    // Total PO value for this company
-    const totalPO = db.prepare("SELECT COALESCE(SUM(po.total_amount),0) as total FROM purchase_orders po JOIN business_book bb ON po.business_book_id=bb.id WHERE bb.company_name=?").get(p.project_name);
+    // Total PO value + CRM from the latest Client PO uploaded for this project.
+    // mam: 'CRM name is pick from client PO upload'.
+    const totalPO = db.prepare(
+      `SELECT COALESCE(SUM(po.total_amount),0) as total
+       FROM purchase_orders po JOIN business_book bb ON po.business_book_id=bb.id
+       WHERE bb.company_name=?`
+    ).get(p.project_name);
+    const poCrm = db.prepare(
+      `SELECT po.crm_name FROM purchase_orders po
+       JOIN business_book bb ON po.business_book_id=bb.id
+       WHERE bb.company_name=? AND po.crm_name IS NOT NULL AND po.crm_name != ''
+       ORDER BY po.created_at DESC LIMIT 1`
+    ).get(p.project_name);
 
     const amountReceived = received?.total || 0;
     const purchaseAmt = purchaseValue?.total || 0;
@@ -67,7 +83,8 @@ router.get('/projects', requirePermission('cashflow', 'view'), (req, res) => {
       sr_no: idx + 1,
       id: p.id,
       project_name: p.project_name || p.client_name,
-      crm_person: p.crm_person,
+      // CRM comes from the Client PO if available, falls back to Business Book's employee_assigned
+      crm_person: poCrm?.crm_name || p.crm_person,
       category: p.category,
       sale_amount: p.sale_amount_without_gst || 0,
       po_amount: totalPO?.total || p.po_amount || 0,

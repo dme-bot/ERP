@@ -145,20 +145,25 @@ router.put('/vendor-rates/:id/approve', (req, res) => {
 });
 
 // Indents
-// Sites for the indent "Site Name" dropdown — one row per Business Book
-// entry (not grouped by name) so mam sees '[SEPL20227] CONSERN PHARMA' and
-// '[SEPL20228] CONSERN PHARMA' as separate projects even though their name
-// is identical.
+// Sites for the indent "Site Name" dropdown. mam's rule: show each company
+// exactly once (CONSERN PHARMA even though there are 10 BB entries for it).
+// The BOQ/PO-items lookup aggregates across ALL matching BBs for that name,
+// so picking "CONSERN PHARMA" pulls items from every project with that
+// company/site/project name. We return a representative lead_no (the latest)
+// just so the dropdown can show '[SEPL20227] CONSERN PHARMA' as a hint.
 router.get('/sites', (req, res) => {
   const rows = getDb().prepare(
-    `SELECT bb.id as bb_id, bb.lead_no,
-            COALESCE(s.name, bb.project_name, bb.company_name) as name
-     FROM business_book bb
-     LEFT JOIN sites s ON s.business_book_id = bb.id
-     WHERE COALESCE(s.name, bb.project_name, bb.company_name) IS NOT NULL
-       AND TRIM(COALESCE(s.name, bb.project_name, bb.company_name)) != ''
-     GROUP BY bb.id
-     ORDER BY bb.lead_no DESC, name COLLATE NOCASE`
+    `SELECT name, MAX(lead_no) as lead_no
+     FROM (
+       SELECT COALESCE(s.name, bb.project_name, bb.company_name) as name,
+              bb.lead_no as lead_no
+       FROM business_book bb
+       LEFT JOIN sites s ON s.business_book_id = bb.id
+       WHERE COALESCE(s.name, bb.project_name, bb.company_name) IS NOT NULL
+         AND TRIM(COALESCE(s.name, bb.project_name, bb.company_name)) != ''
+     )
+     GROUP BY LOWER(TRIM(name))
+     ORDER BY name COLLATE NOCASE`
   ).all();
   res.json(rows);
 });
