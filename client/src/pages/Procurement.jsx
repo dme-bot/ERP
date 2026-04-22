@@ -183,8 +183,10 @@ export default function Procurement() {
 
   // Open the Create Vendor PO modal. If an indent is pre-selected (from the
   // Pending section), its items auto-load with finalized rates pre-filled.
+  // Terms + Credit Days are PO-level — set once for the whole PO, applied
+  // to every checked item on save.
   const openCreateVendorPo = (indentId = '') => {
-    setForm({ indent_id: indentId || '', vendor_id: '', advance_required: false });
+    setForm({ indent_id: indentId || '', vendor_id: '', advance_required: false, terms: '', credit_days: 0 });
     setIndentItemsForPo([]);
     setPoItemSelection({});
     if (indentId) pickIndentForPo(indentId);
@@ -205,17 +207,23 @@ export default function Procurement() {
           checked: it.rate_status === 'finalized' && it.in_po_count === 0,
           quantity: it.quantity || 0,
           rate: it.final_rate || 0,
-          terms: it.final_terms || '',
-          credit_days: it.final_credit_days || 0,
         };
       }
       setPoItemSelection(sel);
-      // Pre-fill vendor from the first finalized item if they all agree
+      // Pre-fill vendor + terms + credit days from the finalized items if they agree
       const vendorNames = [...new Set(items.filter(i => i.final_vendor_name).map(i => i.final_vendor_name))];
-      if (vendorNames.length === 1) {
-        const match = vendors.find(v => v.name?.toLowerCase() === vendorNames[0].toLowerCase());
-        if (match) setForm(f => ({ ...f, vendor_id: match.id }));
-      }
+      const termsSet = [...new Set(items.filter(i => i.final_terms).map(i => i.final_terms))];
+      const daysSet = [...new Set(items.filter(i => i.final_credit_days).map(i => i.final_credit_days))];
+      setForm(f => {
+        const next = { ...f };
+        if (vendorNames.length === 1) {
+          const match = vendors.find(v => v.name?.toLowerCase() === vendorNames[0].toLowerCase());
+          if (match) next.vendor_id = match.id;
+        }
+        if (termsSet.length === 1) next.terms = termsSet[0];
+        if (daysSet.length === 1) next.credit_days = daysSet[0];
+        return next;
+      });
     } catch { toast.error('Failed to load indent items'); }
   };
   const togglePoItem = (iiId, patch) => {
@@ -226,9 +234,12 @@ export default function Procurement() {
   const saveVendorPo = async (e) => {
     e.preventDefault();
     if (!form.vendor_id) return toast.error('Pick a vendor');
+    // Terms + Credit Days are PO-level; stamp them onto every checked item.
+    const poTerms = form.terms || null;
+    const poCreditDays = form.terms === 'Credit' ? (+form.credit_days || 0) : 0;
     const items = Object.entries(poItemSelection)
       .filter(([, v]) => v.checked && +v.quantity > 0 && +v.rate > 0)
-      .map(([iiId, v]) => ({ indent_item_id: +iiId, quantity: +v.quantity, rate: +v.rate, terms: v.terms, credit_days: +v.credit_days || 0 }));
+      .map(([iiId, v]) => ({ indent_item_id: +iiId, quantity: +v.quantity, rate: +v.rate, terms: poTerms, credit_days: poCreditDays }));
     if (items.length === 0) return toast.error('Check at least one item with qty and rate');
     try {
       const r = await api.post('/procurement/vendor-po', {
@@ -846,6 +857,19 @@ export default function Procurement() {
                 {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
               <p className="text-[10px] text-gray-400 mt-0.5">Auto-picked from finalized rates if all items agree.</p>
+            </div>
+            <div>
+              <label className="label">Payment Terms</label>
+              <select className="select" value={form.terms || ''} onChange={e => setForm({ ...form, terms: e.target.value, credit_days: e.target.value === 'Credit' ? (form.credit_days || 0) : 0 })}>
+                <option value="">— Select —</option>
+                <option value="Advance">Advance</option>
+                <option value="Credit">Credit</option>
+              </select>
+              <p className="text-[10px] text-gray-400 mt-0.5">Applies to the whole PO (all items below).</p>
+            </div>
+            <div>
+              <label className="label">Credit Days {form.terms !== 'Credit' && <span className="text-gray-400 font-normal">(only if Credit)</span>}</label>
+              <input className="input" type="number" min="0" value={form.credit_days || 0} onChange={e => setForm({ ...form, credit_days: +e.target.value })} disabled={form.terms !== 'Credit'} />
             </div>
           </div>
 
