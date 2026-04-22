@@ -134,18 +134,37 @@ router.get('/sites/:site_id/staff-cost', (req, res) => {
 
   let totalMonthly = 0;
   let matched = 0;
+  let submitterMatched = false;
+  let submitterHasSalary = false;
   const seenEmpIds = new Set();
   for (const u of engUsers) {
     const emp = findEmp(u);
-    if (emp && !seenEmpIds.has(emp.id)) {
-      seenEmpIds.add(emp.id);
-      totalMonthly += emp.salary || 0;
-      matched++;
+    if (emp) {
+      if (u.id === req.user?.id) {
+        submitterMatched = true;
+        if ((emp.salary || 0) > 0) submitterHasSalary = true;
+      }
+      if (!seenEmpIds.has(emp.id) && (emp.salary || 0) > 0) {
+        seenEmpIds.add(emp.id);
+        totalMonthly += emp.salary;
+        matched++;
+      }
     }
   }
 
   const perDay = Math.round((totalMonthly / 30) * 100) / 100;
-  res.json({ per_day_cost: perDay, engineer_count: matched, po_engineers: engUsers.length });
+  // Diagnostic so the UI can tell the user exactly why staff cost is 0
+  let diagnostic = null;
+  if (matched === 0) {
+    if (!submitterMatched) {
+      diagnostic = { reason: 'no_employee_for_submitter', message: 'You have no employee record in HR → Employees. Add one (with a monthly salary) so Staff Cost can auto-calculate. Until then, enter the rate manually.' };
+    } else if (!submitterHasSalary) {
+      diagnostic = { reason: 'submitter_salary_zero', message: 'Your employee record has salary = 0 in HR. Ask HR to set your monthly salary. Until then, enter the rate manually.' };
+    } else {
+      diagnostic = { reason: 'no_matching_engineers', message: 'No site engineers with salary records on this PO. Enter rate manually or ask HR to link users → employees.' };
+    }
+  }
+  res.json({ per_day_cost: perDay, engineer_count: matched, po_engineers: engUsers.length, diagnostic });
 });
 
 // Get PO items for a site - fetches ALL PO items for that company/site name

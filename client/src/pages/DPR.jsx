@@ -61,11 +61,12 @@ export default function DPR() {
     if (siteId) {
       api.get(`/dpr/sites/${siteId}/po-items`).then(r => setPoItemsForSite(r.data)).catch(() => setPoItemsForSite([]));
       // Auto-fill Staff Cost rate from the site's PO engineers (salary/30).
-      // Backend returns only { per_day_cost, engineer_count, po_engineers } — no individual salaries.
+      // Backend returns only aggregates + an optional diagnostic — no individual salaries.
       api.get(`/dpr/sites/${siteId}/staff-cost`).then(r => {
-        const { per_day_cost = 0, engineer_count = 0, po_engineers = 0 } = r.data || {};
+        const { per_day_cost = 0, engineer_count = 0, po_engineers = 0, diagnostic = null } = r.data || {};
         setCosts(prev => prev.map(c => c.type === 'Staff Cost'
-          ? { ...c, rate: per_day_cost, engineer_count, po_engineers, amount: (c.qty || 0) * per_day_cost }
+          // When auto-pull found nothing, unlock the rate so the user can type a value
+          ? { ...c, rate: per_day_cost, engineer_count, po_engineers, auto: per_day_cost > 0, diagnostic, amount: (c.qty || 0) * per_day_cost }
           : c));
       }).catch(() => {});
     } else { setPoItemsForSite([]); }
@@ -484,13 +485,18 @@ export default function DPR() {
             </div>
             {costs.map((c, i) => {
               const isStaff = c.type === 'Staff Cost';
+              // Staff rate is locked only when auto-fetch succeeded. When it
+              // returns 0 (no employee/salary), let the user type a rate manually.
+              const staffRateLocked = isStaff && c.auto;
+              const rateLocked = c.fixed || staffRateLocked;
               return (
                 <div key={i} className="bg-white rounded p-1 mb-1.5">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-1 items-center">
                     <div className="text-sm font-medium">
                       {c.type}
                       {c.fixed && <span className="ml-1 text-[9px] text-gray-400">(fixed)</span>}
-                      {isStaff && <span className="ml-1 text-[9px] text-gray-400">(auto, 1 day)</span>}
+                      {isStaff && c.auto && <span className="ml-1 text-[9px] text-emerald-600">(auto, 1 day)</span>}
+                      {isStaff && !c.auto && c.engineer_count === 0 && <span className="ml-1 text-[9px] text-amber-600">(manual — see below)</span>}
                     </div>
                     {isStaff ? (
                       <div className="text-sm text-center text-gray-500 font-medium">1</div>
@@ -498,25 +504,27 @@ export default function DPR() {
                       <input className="input text-sm text-center" type="number" placeholder="0" value={c.qty || ''} onChange={e => updateCost(i, 'qty', +e.target.value)} />
                     )}
                     <input
-                      className={`input text-sm text-center ${(c.fixed || isStaff) ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+                      className={`input text-sm text-center ${rateLocked ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
                       type="number"
                       placeholder="0"
                       value={c.rate || ''}
-                      readOnly={c.fixed || isStaff}
+                      readOnly={rateLocked}
                       onChange={e => updateCost(i, 'rate', +e.target.value)}
-                      title={c.fixed ? `Fixed company rate: Rs ${c.rate}` : (isStaff ? 'Auto: sum of PO site engineers’ monthly salary ÷ 30' : '')}
+                      title={c.fixed ? `Fixed company rate: Rs ${c.rate}` : (staffRateLocked ? 'Auto: sum of PO site engineers’ monthly salary ÷ 30' : (isStaff ? 'Type the staff per-day cost manually' : ''))}
                     />
                     <div className="text-sm font-bold text-right pr-2">Rs {(c.amount || 0).toLocaleString()}</div>
                   </div>
                   {isStaff && (
-                    <p className="text-[10px] text-gray-500 pl-1 mt-1">
+                    <p className={`text-[10px] pl-1 mt-1 ${c.diagnostic ? 'text-amber-700' : 'text-gray-500'}`}>
                       {!form.site_id
                         ? 'Select a site first — Staff Cost auto-fills from that PO’s site engineers.'
                         : c.engineer_count > 0
-                          ? `Auto: ${c.engineer_count} of ${c.po_engineers || c.engineer_count} PO engineer${c.engineer_count > 1 ? 's' : ''} × Rs ${c.rate}/day (individual salaries not shown)`
-                          : c.po_engineers > 0
-                            ? `${c.po_engineers} site engineer${c.po_engineers > 1 ? 's' : ''} are on this PO but none have a matching employee salary record. Open HR → Employees and check each engineer's Linked User, email, or name matches.`
-                            : 'No site engineers assigned to this PO yet. Edit the PO (Orders → PO) and assign site engineers first.'}
+                          ? `Auto: ${c.engineer_count} staff × Rs ${c.rate}/day (individual salaries not shown)`
+                          : c.diagnostic
+                            ? c.diagnostic.message
+                            : c.po_engineers > 0
+                              ? `${c.po_engineers} site engineer${c.po_engineers > 1 ? 's' : ''} are on this PO but none have a matching employee salary record. Type the rate manually, or ask HR to add your salary.`
+                              : 'No site engineers / submitter salary found. Type the rate manually below, or ask HR to add your salary.'}
                     </p>
                   )}
                 </div>
