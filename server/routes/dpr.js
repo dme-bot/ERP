@@ -74,6 +74,11 @@ router.get('/sites/:site_id/staff-cost', (req, res) => {
       String(po.site_engineer_ids).split(',').map(s => parseInt(s, 10)).filter(Boolean).forEach(i => ids.add(i));
     }
   }
+  // Also include the DPR submitter — the person filing the report is present
+  // on site that day even if they aren't listed as a site engineer on the PO.
+  // This ensures Raushan / Samsad / etc. are counted when they submit.
+  if (req.user?.id) ids.add(req.user.id);
+
   if (ids.size === 0) return res.json({ per_day_cost: 0, engineer_count: 0, po_engineers: 0 });
 
   const idList = [...ids];
