@@ -34,6 +34,17 @@ const WORKFLOW = {
     { step: 4, name: 'Billing Engineer Approval', approver_role: 'Billing Engineer' },
     { step: 5, name: 'Payment Release', approver_role: 'Accountant' },
   ],
+  // Payroll / statutory payments — lighter approval (HR → Accountant → Release).
+  'Salary': [
+    { step: 1, name: 'HR Approval', approver_role: 'HR Manager' },
+    { step: 2, name: 'Accountant Approval', approver_role: 'Accountant' },
+    { step: 5, name: 'Payment Release', approver_role: 'Accountant' },
+  ],
+  'Compliance': [
+    { step: 1, name: 'HR Approval', approver_role: 'HR Manager' },
+    { step: 2, name: 'Accountant Approval', approver_role: 'Accountant' },
+    { step: 5, name: 'Payment Release', approver_role: 'Accountant' },
+  ],
 };
 
 function canUserApproveStep(db, userId, category, step) {
@@ -119,6 +130,10 @@ router.post('/', requirePermission('payment_required', 'create'), (req, res) => 
     return res.status(400).json({ error: 'Employee, category, amount, purpose required' });
   }
   if (!WORKFLOW[b.category]) return res.status(400).json({ error: 'Invalid category' });
+  // Vendor Name is mandatory for Purchase category (who are we paying?).
+  if (b.category === 'Purchase' && !String(b.vendor_name || '').trim()) {
+    return res.status(400).json({ error: 'Vendor name is required for Purchase requests' });
+  }
   const db = getDb();
   const count = db.prepare('SELECT COUNT(*) as c FROM payment_requests').get().c;
   const requestNo = `PR-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;

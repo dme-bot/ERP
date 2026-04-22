@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiSearch, FiFilter, FiEye, FiCheck, FiX, FiClock, FiCheckCircle, FiXCircle, FiUpload, FiTrash2 } from 'react-icons/fi';
 import { LuIndianRupee } from 'react-icons/lu';
 
-const CATEGORIES = ['TA/DA', 'Purchase', 'Labour', 'Transport'];
+const CATEGORIES = ['TA/DA', 'Purchase', 'Labour', 'Transport', 'Salary', 'Compliance'];
 const STATUSES = ['pending', 'step1_approved', 'accounts_approved', 'dues_checked', 'velocity_checked', 'final_approved', 'rejected'];
 const STATUS_LABELS = { pending: 'Pending', step1_approved: 'Step 1 Approved', accounts_approved: 'Accounts Approved', dues_checked: 'Dues Checked', velocity_checked: 'Velocity Checked', final_approved: 'Final Approved', rejected: 'Rejected' };
 const STEPS = [
@@ -23,9 +23,17 @@ const TADA_STEPS = [
   { step: 5, name: 'Payment Release' },
 ];
 
+// Default 'Required By Date' is today + 5 days — immediate payments can't be
+// processed so we set a realistic lead time.
+const defaultRequiredByDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 5);
+  return d.toISOString().split('T')[0];
+};
+
 const emptyForm = {
   employee_name: '', site_id: '', site_name: '', department: '', contact_number: '',
-  category: '', amount: 0, purpose: '', payment_mode: 'Bank', required_by_date: '',
+  category: '', amount: 0, purpose: '', payment_mode: 'Bank', required_by_date: defaultRequiredByDate(),
   travel_from_to: '', travel_dates: '', mode_of_travel: '', stay_details: '',
   ticket_upload: '', start_km: 0, end_km: 0, km_photo: '',
   indent_number: '', item_description: '', vendor_name: '', quotation_link: '',
@@ -105,7 +113,7 @@ export default function PaymentRequired() {
         </div>
         <div className="flex gap-2">
           {canCreate('payment_required') && (
-            <button onClick={() => { setForm({ ...emptyForm, employee_name: user?.name || '' }); setModal('add'); }} className="btn btn-primary flex items-center gap-2"><FiPlus size={16} /> New Request</button>
+            <button onClick={() => { setForm({ ...emptyForm, employee_name: user?.name || '', required_by_date: defaultRequiredByDate() }); setModal('add'); }} className="btn btn-primary flex items-center gap-2"><FiPlus size={16} /> New Request</button>
           )}
         </div>
       </div>
@@ -431,7 +439,7 @@ export default function PaymentRequired() {
               <h4 className="font-semibold text-sm text-red-700 mb-3">Purchase Details</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label">Indent Number *</label><input className="input" value={form.indent_number} onChange={e => F('indent_number', e.target.value)} required /></div>
-                <div><label className="label">Vendor Name</label><input className="input" value={form.vendor_name} onChange={e => F('vendor_name', e.target.value)} /></div>
+                <div><label className="label">Vendor Name *</label><input className="input" value={form.vendor_name} onChange={e => F('vendor_name', e.target.value)} required /></div>
                 <div className="col-span-2"><label className="label">Item Description</label><textarea className="input" rows="2" value={form.item_description} onChange={e => F('item_description', e.target.value)} /></div>
                 <div><label className="label">Purchase Order Upload *</label>
                   {form.quotation_link ? (

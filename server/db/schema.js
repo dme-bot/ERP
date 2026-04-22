@@ -1168,6 +1168,29 @@ function initializeDatabase() {
   ];
   // Unique index on username — allows NULLs for legacy rows while enforcing uniqueness on set values
   try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL'); } catch (e) {}
+
+  // Relax payment_requests.category CHECK to allow new categories like
+  // 'Salary' and 'Compliance'. SQLite can't ALTER a CHECK constraint, so we
+  // detect the old 4-category signature in sqlite_master and rebuild the
+  // table via a data-preserving copy. Runs exactly once — the new CREATE
+  // TABLE IF NOT EXISTS won't re-create if a relaxed version already exists.
+  try {
+    const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_requests'").get();
+    if (row && /CHECK\s*\(\s*category\s+IN\s*\(\s*'TA\/DA'\s*,\s*'Purchase'\s*,\s*'Labour'\s*,\s*'Transport'\s*\)\s*\)/.test(row.sql)) {
+      db.exec('BEGIN');
+      // Build new table with no CHECK on category — app layer already validates via WORKFLOW
+      const newSql = row.sql
+        .replace(/CREATE TABLE\s+payment_requests/i, 'CREATE TABLE payment_requests_new')
+        .replace(/CHECK\s*\(\s*category\s+IN\s*\([^)]*\)\s*\)/i, '');
+      db.exec(newSql);
+      db.exec('INSERT INTO payment_requests_new SELECT * FROM payment_requests');
+      db.exec('DROP TABLE payment_requests');
+      db.exec('ALTER TABLE payment_requests_new RENAME TO payment_requests');
+      db.exec('COMMIT');
+    }
+  } catch (e) {
+    try { db.exec('ROLLBACK'); } catch (e2) {}
+  }
   for (const [table, col] of migrations) {
     try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col}`); } catch (e) {}
   }
