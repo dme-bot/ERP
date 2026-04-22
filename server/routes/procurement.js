@@ -525,15 +525,71 @@ router.get('/vendor-po', (req, res) => {
     LEFT JOIN vendors v ON vp.vendor_id=v.id ORDER BY vp.created_at DESC`).all());
 });
 
+// Items of a given indent, with finalized rate info and whether each item is
+// already covered by a Vendor PO. Used to populate the item-checkbox grid in
+// the Create Vendor PO modal.
+router.get('/indents/:id/items-for-po', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(
+    `SELECT ii.id as indent_item_id, ii.description, ii.make, ii.quantity, ii.unit, ii.item_type,
+            r.final_rate, r.final_vendor_name, r.final_terms, r.final_credit_days, r.status as rate_status,
+            (SELECT COUNT(*) FROM vendor_po_items vpi WHERE vpi.indent_item_id = ii.id) as in_po_count
+     FROM indent_items ii
+     LEFT JOIN indent_item_rates r ON r.indent_item_id = ii.id
+     WHERE ii.indent_id = ?
+     ORDER BY ii.id`
+  ).all(req.params.id);
+  res.json(rows);
+});
+
+// Indent items with a finalized rate but not yet in any Vendor PO — the
+// 'pending for PO' list on top of the Vendor PO tab.
+router.get('/pending-po-items', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(
+    `SELECT ii.id as indent_item_id, ii.description, ii.make, ii.quantity, ii.unit, ii.item_type,
+            i.id as indent_id, i.indent_number, i.site_name, i.raised_by_name,
+            r.final_rate, r.final_vendor_name, r.final_terms, r.final_credit_days, r.status as rate_status
+     FROM indent_items ii
+     JOIN indents i ON ii.indent_id = i.id
+     LEFT JOIN indent_item_rates r ON r.indent_item_id = ii.id
+     WHERE NOT EXISTS (SELECT 1 FROM vendor_po_items vpi WHERE vpi.indent_item_id = ii.id)
+     ORDER BY
+       CASE WHEN r.status = 'finalized' THEN 0 ELSE 1 END,
+       i.created_at DESC, ii.id`
+  ).all();
+  res.json(rows);
+});
+
+// Create a Vendor PO from a list of indent items. Each item contributes a
+// row to vendor_po_items with its chosen rate + terms + optional credit days.
 router.post('/vendor-po', (req, res) => {
   const db = getDb();
-  const { indent_id, vendor_id, total_amount, advance_required } = req.body;
+  const { indent_id, vendor_id, advance_required, items } = req.body;
+  if (!vendor_id) return res.status(400).json({ error: 'Vendor is required' });
+  const lines = Array.isArray(items) ? items.filter(i => i.indent_item_id && i.quantity > 0 && i.rate > 0) : [];
+  if (lines.length === 0) return res.status(400).json({ error: 'Pick at least one item with qty and rate' });
+
   const count = db.prepare('SELECT COUNT(*) as c FROM vendor_pos').get().c;
   const poNum = `VPO-${String(count + 1).padStart(4, '0')}`;
-  const r = db.prepare('INSERT INTO vendor_pos (indent_id,vendor_id,po_number,total_amount,advance_required) VALUES (?,?,?,?,?)')
-    .run(indent_id, vendor_id, poNum, total_amount, advance_required ? 1 : 0);
-  if (indent_id) db.prepare('UPDATE indents SET status=? WHERE id=?').run('po_sent', indent_id);
-  res.status(201).json({ id: r.lastInsertRowid, po_number: poNum });
+  const totalAmount = lines.reduce((s, i) => s + (i.quantity * i.rate), 0);
+
+  const tx = db.transaction(() => {
+    const r = db.prepare('INSERT INTO vendor_pos (indent_id,vendor_id,po_number,total_amount,advance_required) VALUES (?,?,?,?,?)')
+      .run(indent_id || null, vendor_id, poNum, Math.round(totalAmount * 100) / 100, advance_required ? 1 : 0);
+    const vpoId = r.lastInsertRowid;
+    const insItem = db.prepare(
+      `INSERT INTO vendor_po_items (vendor_po_id, indent_item_id, quantity, rate, amount, terms, credit_days)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const i of lines) {
+      insItem.run(vpoId, i.indent_item_id, i.quantity, i.rate, i.quantity * i.rate, i.terms || null, +i.credit_days || 0);
+    }
+    if (indent_id) db.prepare('UPDATE indents SET status=? WHERE id=?').run('po_sent', indent_id);
+    return vpoId;
+  });
+  const vpoId = tx();
+  res.status(201).json({ id: vpoId, po_number: poNum, total_amount: totalAmount, lines: lines.length });
 });
 
 router.put('/vendor-po/:id', (req, res) => {

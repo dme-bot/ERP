@@ -1099,6 +1099,20 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Vendor PO ↔ Indent Item link (one PO can cover multiple indent items;
+    -- one indent item can split across multiple POs for partial orders).
+    CREATE TABLE IF NOT EXISTS vendor_po_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_po_id INTEGER REFERENCES vendor_pos(id) ON DELETE CASCADE,
+      indent_item_id INTEGER REFERENCES indent_items(id),
+      quantity REAL DEFAULT 0,
+      rate REAL DEFAULT 0,
+      amount REAL DEFAULT 0,
+      terms TEXT,                 -- 'Advance' or 'Credit'
+      credit_days INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Per-item vendor rates (3-vendor quote per indent line). Up to 3
     -- vendor_N columns keep the sheet-like layout mam asked for. final_rate
     -- + selected_vendor are set once the purchase manager / admin finalizes.

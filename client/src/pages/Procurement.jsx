@@ -18,6 +18,9 @@ export default function Procurement() {
   const [deliveryNotes, setDeliveryNotes] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [itemRates, setItemRates] = useState([]); // indent items with their 3-vendor rates + final
+  const [pendingPoItems, setPendingPoItems] = useState([]); // finalized items not yet in a Vendor PO
+  const [indentItemsForPo, setIndentItemsForPo] = useState([]); // items of the currently picked indent (for the Create Vendor PO modal)
+  const [poItemSelection, setPoItemSelection] = useState({}); // { indent_item_id: { checked, quantity, rate, terms, credit_days } }
   const [ratesFilter, setRatesFilter] = useState('all'); // all | pending | quoted | finalized
   const [finalModal, setFinalModal] = useState(null); // { row } being finalized
   const [finalForm, setFinalForm] = useState({});
@@ -40,6 +43,7 @@ export default function Procurement() {
     api.get('/procurement/delivery-notes').then(r => setDeliveryNotes(r.data));
     api.get('/procurement/vendors').then(r => setVendors(r.data));
     api.get('/procurement/item-rates').then(r => setItemRates(r.data || [])).catch(() => setItemRates([]));
+    api.get('/procurement/pending-po-items').then(r => setPendingPoItems(r.data || [])).catch(() => setPendingPoItems([]));
     api.get('/item-master/dropdown').then(r => setMasterItems(r.data || [])).catch(() => setMasterItems([]));
     api.get('/procurement/sites').then(r => {
       // Response is one row per unique name: [{ name, lead_no }]
@@ -177,11 +181,65 @@ export default function Procurement() {
     load();
   };
 
+  // Open the Create Vendor PO modal. If an indent is pre-selected (from the
+  // Pending section), its items auto-load with finalized rates pre-filled.
+  const openCreateVendorPo = (indentId = '') => {
+    setForm({ indent_id: indentId || '', vendor_id: '', advance_required: false });
+    setIndentItemsForPo([]);
+    setPoItemSelection({});
+    if (indentId) pickIndentForPo(indentId);
+    setModal('vendorpo');
+  };
+  // When user picks an indent in the modal, load its items + seed selection
+  // state with finalized rate/vendor/terms so the grid is ready to review.
+  const pickIndentForPo = async (indentId) => {
+    setForm(f => ({ ...f, indent_id: indentId }));
+    if (!indentId) { setIndentItemsForPo([]); setPoItemSelection({}); return; }
+    try {
+      const r = await api.get(`/procurement/indents/${indentId}/items-for-po`);
+      const items = r.data || [];
+      setIndentItemsForPo(items);
+      const sel = {};
+      for (const it of items) {
+        sel[it.indent_item_id] = {
+          checked: it.rate_status === 'finalized' && it.in_po_count === 0,
+          quantity: it.quantity || 0,
+          rate: it.final_rate || 0,
+          terms: it.final_terms || '',
+          credit_days: it.final_credit_days || 0,
+        };
+      }
+      setPoItemSelection(sel);
+      // Pre-fill vendor from the first finalized item if they all agree
+      const vendorNames = [...new Set(items.filter(i => i.final_vendor_name).map(i => i.final_vendor_name))];
+      if (vendorNames.length === 1) {
+        const match = vendors.find(v => v.name?.toLowerCase() === vendorNames[0].toLowerCase());
+        if (match) setForm(f => ({ ...f, vendor_id: match.id }));
+      }
+    } catch { toast.error('Failed to load indent items'); }
+  };
+  const togglePoItem = (iiId, patch) => {
+    setPoItemSelection(prev => ({ ...prev, [iiId]: { ...prev[iiId], ...patch } }));
+  };
+  const poTotal = Object.values(poItemSelection).reduce((s, r) => s + (r.checked ? (+r.quantity || 0) * (+r.rate || 0) : 0), 0);
+
   const saveVendorPo = async (e) => {
     e.preventDefault();
-    await api.post('/procurement/vendor-po', form);
-    toast.success('Vendor PO created');
-    setModal(false); load();
+    if (!form.vendor_id) return toast.error('Pick a vendor');
+    const items = Object.entries(poItemSelection)
+      .filter(([, v]) => v.checked && +v.quantity > 0 && +v.rate > 0)
+      .map(([iiId, v]) => ({ indent_item_id: +iiId, quantity: +v.quantity, rate: +v.rate, terms: v.terms, credit_days: +v.credit_days || 0 }));
+    if (items.length === 0) return toast.error('Check at least one item with qty and rate');
+    try {
+      const r = await api.post('/procurement/vendor-po', {
+        indent_id: form.indent_id || null,
+        vendor_id: form.vendor_id,
+        advance_required: !!form.advance_required,
+        items,
+      });
+      toast.success(`Vendor PO ${r.data.po_number} created (${r.data.lines} items, Rs ${r.data.total_amount.toLocaleString()})`);
+      setModal(false); load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
   };
 
   const savePurchaseBill = async (e) => {
@@ -424,10 +482,53 @@ export default function Procurement() {
 
       {tab === 'vendorpo' && (
         <>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-2">
             <h3 className="font-semibold">Vendor Purchase Orders</h3>
-            <button onClick={() => { setForm({ indent_id: '', vendor_id: '', total_amount: 0, advance_required: false }); setModal('vendorpo'); }} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Vendor PO</button>
+            <button onClick={() => openCreateVendorPo('')} className="btn btn-primary flex items-center gap-2"><FiPlus /> Create Vendor PO</button>
           </div>
+
+          {/* Pending for PO — finalized items that haven't been covered by any Vendor PO yet */}
+          {pendingPoItems.length > 0 && (
+            <div className="card p-3 bg-amber-50 border border-amber-200">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-amber-800 text-sm">Pending for Vendor PO <span className="text-xs font-normal text-amber-600">({pendingPoItems.length} item{pendingPoItems.length === 1 ? '' : 's'})</span></h4>
+                <span className="text-[11px] text-amber-700">Items with a finalized rate but no Vendor PO yet</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="text-xs">
+                  <thead><tr className="bg-amber-100/50">
+                    <th className="px-2 py-1 text-left">Indent</th>
+                    <th className="px-2 py-1 text-left">Item</th>
+                    <th className="px-2 py-1">Qty</th>
+                    <th className="px-2 py-1">Final Rate</th>
+                    <th className="px-2 py-1">Final Vendor</th>
+                    <th className="px-2 py-1">Status</th>
+                    <th className="px-2 py-1"></th>
+                  </tr></thead>
+                  <tbody>
+                    {pendingPoItems.map(p => (
+                      <tr key={p.indent_item_id} className="border-b border-amber-100">
+                        <td className="px-2 py-1.5 whitespace-nowrap"><b className="text-red-700">{p.indent_number}</b><div className="text-[10px] text-gray-500">{p.site_name}</div></td>
+                        <td className="px-2 py-1.5 max-w-[260px]"><div className="whitespace-normal leading-snug">{p.description}</div>{p.make && <div className="text-[10px] text-gray-400">Make: {p.make}</div>}</td>
+                        <td className="px-2 py-1.5 text-center">{p.quantity} {p.unit}</td>
+                        <td className="px-2 py-1.5 text-right">{p.final_rate ? `Rs ${p.final_rate}` : <span className="text-gray-400">—</span>}</td>
+                        <td className="px-2 py-1.5">{p.final_vendor_name || <span className="text-gray-400">—</span>}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={`badge ${p.rate_status === 'finalized' ? 'badge-green' : 'badge-yellow'}`}>{p.rate_status || 'pending'}</span>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {p.rate_status === 'finalized' && (
+                            <button onClick={() => openCreateVendorPo(p.indent_id)} className="btn btn-primary text-[10px] px-2 py-1">Create PO</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="card p-0 overflow-x-auto"><table>
             <thead><tr><th>PO Number</th><th>Vendor</th><th>Amount</th><th>Advance</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
@@ -728,13 +829,96 @@ export default function Procurement() {
       </Modal>
 
       {/* Vendor PO Modal */}
-      <Modal isOpen={modal === 'vendorpo'} onClose={() => setModal(false)} title="Create Vendor PO">
+      <Modal isOpen={modal === 'vendorpo'} onClose={() => setModal(false)} title="Create Vendor PO" wide>
         <form onSubmit={saveVendorPo} className="space-y-4">
-          <div><label className="label">Indent</label><select className="select" value={form.indent_id} onChange={e => setForm({...form, indent_id: e.target.value})}><option value="">Select</option>{indents.filter(i => i.status === 'approved').map(i => <option key={i.id} value={i.id}>{i.indent_number}</option>)}</select></div>
-          <div><label className="label">Vendor *</label><select className="select" value={form.vendor_id} onChange={e => setForm({...form, vendor_id: e.target.value})} required><option value="">Select</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
-          <div><label className="label">Total Amount</label><input className="input" type="number" value={form.total_amount} onChange={e => setForm({...form, total_amount: +e.target.value})} /></div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.advance_required} onChange={e => setForm({...form, advance_required: e.target.checked})} /> Advance Required</label>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="label">Indent *</label>
+              <select className="select" value={form.indent_id} onChange={e => pickIndentForPo(e.target.value)} required>
+                <option value="">Select indent</option>
+                {indents.map(i => <option key={i.id} value={i.id}>{i.indent_number} — {i.site_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Vendor *</label>
+              <select className="select" value={form.vendor_id} onChange={e => setForm({...form, vendor_id: +e.target.value})} required>
+                <option value="">Select vendor</option>
+                {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+              <p className="text-[10px] text-gray-400 mt-0.5">Auto-picked from finalized rates if all items agree.</p>
+            </div>
+          </div>
+
+          {/* Item grid — checkbox, rate, terms, credit days per row */}
+          {form.indent_id && (
+            <div className="border rounded-lg overflow-hidden">
+              <div className="bg-gray-50 px-3 py-2 border-b text-xs font-semibold text-gray-600 uppercase flex items-center justify-between">
+                <span>Items from this Indent</span>
+                <span className="text-[10px] text-gray-500 normal-case">Tick items you want in this PO</span>
+              </div>
+              {indentItemsForPo.length === 0 ? (
+                <div className="p-4 text-center text-sm text-gray-400">Loading items…</div>
+              ) : (
+                <div className="overflow-x-auto max-h-[360px]">
+                  <table className="text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-2 py-1.5"></th>
+                        <th className="px-2 py-1.5 text-left">Item</th>
+                        <th className="px-2 py-1.5">Qty</th>
+                        <th className="px-2 py-1.5">Rate</th>
+                        <th className="px-2 py-1.5">Terms</th>
+                        <th className="px-2 py-1.5">Credit Days</th>
+                        <th className="px-2 py-1.5">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {indentItemsForPo.map(it => {
+                        const s = poItemSelection[it.indent_item_id] || {};
+                        const inPo = it.in_po_count > 0;
+                        const amount = (s.checked ? (+s.quantity || 0) * (+s.rate || 0) : 0);
+                        return (
+                          <tr key={it.indent_item_id} className={`border-b ${inPo ? 'bg-gray-100 text-gray-400' : (s.checked ? 'bg-red-50/40' : '')}`}>
+                            <td className="px-2 py-1.5 text-center">
+                              <input type="checkbox" disabled={inPo} checked={!!s.checked} onChange={e => togglePoItem(it.indent_item_id, { checked: e.target.checked })} />
+                            </td>
+                            <td className="px-2 py-1.5 max-w-[260px]">
+                              <div className="whitespace-normal leading-snug">{it.description}</div>
+                              {it.make && <div className="text-[10px] text-gray-400">Make: {it.make}</div>}
+                              {inPo && <div className="text-[10px] text-gray-500 italic">Already in a Vendor PO</div>}
+                            </td>
+                            <td className="px-1 py-1"><input className="input text-[11px] px-1 py-0.5 w-16 text-right" type="number" disabled={inPo} value={s.quantity ?? it.quantity ?? 0} onChange={e => togglePoItem(it.indent_item_id, { quantity: +e.target.value })} /></td>
+                            <td className="px-1 py-1"><input className="input text-[11px] px-1 py-0.5 w-20 text-right" type="number" disabled={inPo} value={s.rate ?? 0} onChange={e => togglePoItem(it.indent_item_id, { rate: +e.target.value })} /></td>
+                            <td className="px-1 py-1">
+                              <select className="select text-[11px] px-1 py-0.5 w-24" disabled={inPo} value={s.terms || ''} onChange={e => togglePoItem(it.indent_item_id, { terms: e.target.value })}>
+                                <option value="">—</option>
+                                <option value="Advance">Advance</option>
+                                <option value="Credit">Credit</option>
+                              </select>
+                            </td>
+                            <td className="px-1 py-1">
+                              <input className="input text-[11px] px-1 py-0.5 w-16 text-right" type="number" disabled={inPo || s.terms !== 'Credit'} value={s.credit_days ?? 0} onChange={e => togglePoItem(it.indent_item_id, { credit_days: +e.target.value })} />
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-semibold">{amount ? `Rs ${amount.toLocaleString()}` : <span className="text-gray-300">—</span>}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-gray-50">
+                      <tr><td colSpan="6" className="px-2 py-2 text-right font-bold">PO Total:</td>
+                          <td className="px-2 py-2 text-right font-bold text-red-700">Rs {poTotal.toLocaleString()}</td></tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.advance_required} onChange={e => setForm({...form, advance_required: e.target.checked})} /> Advance Required</label>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            <button type="button" onClick={() => setModal(false)} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary">Create Vendor PO</button>
+          </div>
         </form>
       </Modal>
 
