@@ -134,6 +134,14 @@ router.post('/', requirePermission('payment_required', 'create'), (req, res) => 
   if (b.category === 'Purchase' && !String(b.vendor_name || '').trim()) {
     return res.status(400).json({ error: 'Vendor name is required for Purchase requests' });
   }
+  // Required By Date must be at least 5 days out — immediate payouts aren't possible.
+  if (b.required_by_date) {
+    const minDate = new Date(); minDate.setHours(0,0,0,0); minDate.setDate(minDate.getDate() + 5);
+    const reqDate = new Date(b.required_by_date);
+    if (reqDate < minDate) {
+      return res.status(400).json({ error: `Required By Date must be on or after ${minDate.toISOString().split('T')[0]} (today + 5 days)` });
+    }
+  }
   const db = getDb();
   const count = db.prepare('SELECT COUNT(*) as c FROM payment_requests').get().c;
   const requestNo = `PR-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;

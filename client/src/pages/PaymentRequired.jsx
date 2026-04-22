@@ -354,7 +354,13 @@ export default function PaymentRequired() {
                   <option>Cash</option><option>Bank</option><option>UPI</option>
                 </select>
               </div>
-              <div><label className="label">Required By Date</label><input className="input" type="date" value={form.required_by_date} onChange={e => F('required_by_date', e.target.value)} /></div>
+              <div>
+                <label className="label">Required By Date</label>
+                <input className="input" type="date" value={form.required_by_date}
+                  min={defaultRequiredByDate()}
+                  onChange={e => F('required_by_date', e.target.value)} />
+                <p className="text-[10px] text-gray-400 mt-0.5">Earliest: {defaultRequiredByDate()} (today + 5 days).</p>
+              </div>
             </div>
           </div>
 
