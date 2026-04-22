@@ -14,6 +14,7 @@ export default function DPR() {
   const { user, isAdmin, canDelete, canApprove } = useAuth();
   const [tab, setTab] = useState('dashboard');
   const [reportFilter, setReportFilter] = useState(''); // when set by stat-card click, filters Daily Reports tab
+  const [dateTouched, setDateTouched] = useState(false); // true once user explicitly picks a date
   const [summary, setSummary] = useState(null);
   const [dprs, setDprs] = useState([]);
   const [sites, setSites] = useState([]);
@@ -43,12 +44,16 @@ export default function DPR() {
 
   const load = () => {
     api.get('/dpr/summary').then(r => setSummary(r.data));
-    api.get('/dpr', { params: { date: filterDate } }).then(r => setDprs(r.data));
+    // Stat-card filter on & user hasn't picked a date yet → fetch ALL DPRs
+    // so Pending/Billing shows matches across every date by default.
+    // Otherwise scope to the date (either user-picked or today's default).
+    const params = (reportFilter && !dateTouched) ? {} : { date: filterDate };
+    api.get('/dpr', { params }).then(r => setDprs(r.data));
     api.get('/dpr/sites').then(r => setSites(r.data));
     api.get('/auth/users').then(r => setUsers(r.data)).catch(() => {});
     api.get('/dpr/progress').then(r => setProgress(r.data)).catch(() => setProgress([]));
   };
-  useEffect(() => { load(); }, [filterDate]);
+  useEffect(() => { load(); }, [filterDate, reportFilter, dateTouched]);
 
   const handleSiteSelect = (siteId) => {
     setForm(f => ({ ...f, site_id: siteId }));
@@ -138,17 +143,17 @@ export default function DPR() {
               <div className="text-3xl font-bold text-red-600">{summary.activeSites}</div>
               <div className="text-sm text-gray-500">Active Sites <span className="text-[10px] text-red-600 font-semibold">→ view</span></div>
             </button>
-            <button type="button" onClick={() => { setFilterDate(new Date().toISOString().split('T')[0]); setReportFilter(''); setTab('reports'); }}
+            <button type="button" onClick={() => { setFilterDate(new Date().toISOString().split('T')[0]); setDateTouched(true); setReportFilter(''); setTab('reports'); }}
               className="card text-center border-l-4 border-emerald-500 text-left hover:shadow-md transition-shadow cursor-pointer">
               <div className="text-3xl font-bold text-emerald-600">{summary.todaySubmissions}</div>
               <div className="text-sm text-gray-500">DPR Today <span className="text-[10px] text-emerald-600 font-semibold">→ view</span></div>
             </button>
-            <button type="button" onClick={() => { setReportFilter('pending'); setTab('reports'); }}
+            <button type="button" onClick={() => { setDateTouched(false); setReportFilter('pending'); setTab('reports'); }}
               className="card text-center border-l-4 border-amber-500 text-left hover:shadow-md transition-shadow cursor-pointer">
               <div className="text-3xl font-bold text-amber-600">{summary.pendingApproval}</div>
               <div className="text-sm text-gray-500">Pending Approval <span className="text-[10px] text-amber-600 font-semibold">→ view</span></div>
             </button>
-            <button type="button" onClick={() => { setReportFilter('billing'); setTab('reports'); }}
+            <button type="button" onClick={() => { setDateTouched(false); setReportFilter('billing'); setTab('reports'); }}
               className="card text-center border-l-4 border-purple-500 text-left hover:shadow-md transition-shadow cursor-pointer">
               <div className="text-3xl font-bold text-purple-600">{summary.billingReady}</div>
               <div className="text-sm text-gray-500">Billing Ready <span className="text-[10px] text-purple-600 font-semibold">→ view</span></div>
@@ -296,12 +301,12 @@ export default function DPR() {
         <>
           {reportFilter && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 flex items-center justify-between">
-              <span>Filtered: <b>{reportFilter === 'pending' ? 'Pending Approval' : reportFilter === 'billing' ? 'Billing Ready' : reportFilter}</b></span>
+              <span>Filtered: <b>{reportFilter === 'pending' ? 'Pending Approval' : reportFilter === 'billing' ? 'Billing Ready' : reportFilter}</b> <span className="text-[10px] text-red-500 font-normal">· any date (pick a date below to narrow)</span></span>
               <button type="button" onClick={() => setReportFilter('')} className="text-red-600 hover:underline">Clear filter</button>
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <input type="date" className="input w-48" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+            <input type="date" className="input w-48" value={filterDate} onChange={e => { setFilterDate(e.target.value); setDateTouched(true); }} />
             <button onClick={() => {
               setForm({ site_id: '', report_date: filterDate, weather: 'clear', overall_status: 'on_track', system_type: '', shift: 'day', contractor_name: '', contractor_manpower: 0, mb_sheet_no: '', safety_toolbox_talk: false, safety_ppe_compliance: false, safety_incidents: '', next_day_plan: '', hindrances: '', remarks: '' });
               setWorkItems([]); setPoItemsForSite([]);
