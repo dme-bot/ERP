@@ -186,8 +186,8 @@ export default function BusinessBook() {
             <thead><tr className="bg-gray-50">
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Lead No</th>
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Type</th>
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Client</th>
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Project</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Client Name</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Project / Location</th>
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Category</th>
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">Order</th>
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600">PO Number</th>
@@ -203,8 +203,11 @@ export default function BusinessBook() {
                 <tr key={b.id} className="hover:bg-red-50/30 transition-colors">
                   <td className="px-3 py-3"><span className="font-bold text-red-600 cursor-pointer hover:underline" onClick={() => handleView(b)}>{b.lead_no}</span></td>
                   <td className="px-3 py-3"><span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${b.lead_type === 'Government' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`}>{b.lead_type}</span></td>
-                  <td className="px-3 py-3"><div className="font-medium text-sm">{b.client_name}</div>{b.company_name && <div className="text-xs text-gray-500">{b.company_name}</div>}</td>
-                  <td className="px-3 py-3"><div className="text-sm">{b.project_name || '-'}</div>{b.district && <div className="text-xs text-gray-400">{b.district}, {b.state}</div>}</td>
+                  <td className="px-3 py-3"><div className="font-medium text-sm">{b.client_name}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">Client</div></td>
+                  <td className="px-3 py-3">
+                    <div className="font-medium text-sm text-gray-800">{b.project_name || b.company_name || '-'}</div>
+                    {b.district && <div className="text-xs text-gray-500">{[b.district, b.state].filter(Boolean).join(', ')}</div>}
+                  </td>
                   <td className="px-3 py-3 text-sm">{b.category || '-'}</td>
                   <td className="px-3 py-3"><span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">{b.order_type}</span></td>
                   <td className="px-3 py-3 text-sm font-medium">{b.po_number || '-'}</td>
