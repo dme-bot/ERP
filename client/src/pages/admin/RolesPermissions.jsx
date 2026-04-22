@@ -4,30 +4,33 @@ import Modal from '../../components/Modal';
 import toast from 'react-hot-toast';
 import { FiPlus, FiEdit2, FiTrash2, FiShield, FiCheck, FiX } from 'react-icons/fi';
 
+// Order + labels mirror the sidebar so admins recognise each module
+// at a glance. Keys (used by backend role_permissions) stay unchanged —
+// renaming 'Procurement' to 'Indent to Dispatch' is UI-only.
 const ALL_MODULES = [
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'cashflow', label: 'Cash Flow' },
+  { key: 'payment_required', label: 'Payment Required' },
+  { key: 'attendance', label: 'Attendance' },
+  { key: 'collections', label: 'Collection Engine' },
+  { key: 'dpr', label: 'DPR' },
+  { key: 'delegations', label: 'Delegations' },
+  { key: 'checklists', label: 'Checklists' },
   { key: 'leads', label: 'Leads / CRM' },
   { key: 'quotations', label: 'BOQ & Quotations' },
+  { key: 'business_book', label: 'Business Book' },
+  { key: 'item_master', label: 'Item Master' },
   { key: 'orders', label: 'Orders & Planning' },
   { key: 'vendors', label: 'Vendors' },
   { key: 'customers', label: 'Customers' },
-  { key: 'procurement', label: 'Procurement' },
+  { key: 'procurement', label: 'Indent to Dispatch' },
   { key: 'installation', label: 'Installation' },
   { key: 'billing', label: 'Billing' },
-  { key: 'business_book', label: 'Business Book' },
-  { key: 'item_master', label: 'Item Master' },
-  { key: 'cashflow', label: 'Cash Flow' },
-  { key: 'collections', label: 'Collections' },
-  { key: 'payment_required', label: 'Payment Required' },
-  { key: 'attendance', label: 'Attendance' },
-  { key: 'indent_fms', label: 'Indent FMS' },
-  { key: 'dpr', label: 'DPR' },
   { key: 'complaints', label: 'Complaints' },
   { key: 'hr', label: 'HR & Hiring' },
   { key: 'employees', label: 'Employees' },
   { key: 'expenses', label: 'Expenses' },
-  { key: 'checklists', label: 'Checklists' },
-  { key: 'delegations', label: 'Delegations' },
+  { key: 'indent_fms', label: 'Indent FMS (legacy)' },
   { key: 'users', label: 'User Management' },
 ];
 
